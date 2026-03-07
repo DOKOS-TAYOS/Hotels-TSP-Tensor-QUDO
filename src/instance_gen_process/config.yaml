@@ -1,0 +1,9 @@
+# Aircraft loading problem instance generation defaults.
+num_items: 8
+max_weight: 50000  # kg
+max_volume: 200    # m3
+cg_min: -15
+cg_max: 15
+weight_range: [100, 1000]
+volume_range: [1, 10]
+seed: 42

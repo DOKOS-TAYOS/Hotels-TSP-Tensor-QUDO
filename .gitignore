@@ -49,6 +49,8 @@ venv.bak/
 htmlcov/
 .tox/
 .nox/
+.ruff_cache/
+pytest-cache-files-*/
 
 # Environment variables
 .env
@@ -73,3 +75,12 @@ Thumbs.db
 results/
 outputs/
 data/cache/
+.tmp/
+
+# Keep output folder structure but ignore generated artifacts.
+output/raw/*
+!output/raw/.gitkeep
+output/processed/*
+!output/processed/.gitkeep
+output/images/*
+!output/images/.gitkeep
