@@ -1,6 +1,6 @@
 # Aircraft Loading Problem (T-QUDO)
 
-Aircraft cargo loading optimization using QUBO (Quadratic Unconstrained Binary Optimization) and quantum computing backends.
+Aircraft cargo loading optimization using Tensor-QUDO (Tensor Quadratic Unconstrained Discrete Optimization) and quantum computing backends.
 
 ## Structure
 
