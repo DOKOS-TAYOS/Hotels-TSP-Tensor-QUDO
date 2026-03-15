@@ -3,28 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-
-@dataclass(frozen=True, slots=True)
-class CargoItem:
-    """Single cargo item with physical properties used by solvers."""
-
-    item_id: int
-    weight: float
-    volume: float
-
+import numpy as np
 
 @dataclass(frozen=True, slots=True)
 class InstanceConfig:
     """Configuration that controls random instance generation."""
 
-    num_items: int
-    max_weight: float
-    max_volume: float
-    cg_min: float
-    cg_max: float
-    weight_range: tuple[float, float] = (100.0, 1000.0)
-    volume_range: tuple[float, float] = (1.0, 10.0)
+    n_cities: int
+    n_precedences_range: tuple[int, int]
+    prices_range_hotels: tuple[float, float]
+    prices_range_travels: tuple[float, float]
     seed: int = 42
 
 
@@ -32,8 +20,45 @@ class InstanceConfig:
 class ProblemInstance:
     """Canonical in-memory problem representation consumed by solvers."""
 
-    items: tuple[CargoItem, ...]
-    max_weight: float
-    max_volume: float
-    cg_min: float
-    cg_max: float
+    n_cities: int
+    precedences: list[tuple[int, int]]
+    prices_hotels: np.ndarray # 2 dimensions
+    prices_travels: np.ndarray # 3 dimensions
+
+@dataclass(frozen=True, slots=True)
+class ProblemTQUDO:
+    """
+    Representation for the quantum device hamiltonian terms.
+    """
+    
+    Etab: np.ndarray # 3 dimensions
+    Ettprimeab: np.ndarray # 4 dimensions
+
+@dataclass(frozen=True, slots=True)
+class ProblemTQUDO:
+    """
+    Representation for the quantum device hamiltonian terms.
+    """
+    
+    Etab: np.ndarray # 3 dimensions
+    Ettprimeab: np.ndarray # 4 dimensions
+
+@dataclass(frozen=True, slots=True)
+class ProblemQUBO:
+    """
+    Representation for the quantum device hamiltonian terms.
+    """
+    
+    QUBO_matrix: np.ndarray # 2 dimensions
+
+@dataclass(frozen=True, slots=True)
+class RestrictionConfig:
+    """
+    Class for the restriction terms.
+    Lambda0 is the non two nodes per time
+    Lambda1 is the non two times per node
+    Lambda2 is the precedence restriction
+    """
+    lambda_0: float
+    lambda_1: float
+    lambda_2: float

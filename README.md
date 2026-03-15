@@ -34,6 +34,7 @@ Installers validate `git` and `Python 3.12+` before running setup.
 make -f scripts/makefile lint
 make -f scripts/makefile test
 make -f scripts/makefile app
+make -f scripts/makefile clean
 ```
 
 ### Windows (CMD)
@@ -42,6 +43,7 @@ make -f scripts/makefile app
 scripts\make.bat lint
 scripts\make.bat test
 scripts\make.bat app
+scripts\make.bat clean
 ```
 
 ## Project layout

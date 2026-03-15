@@ -19,3 +19,5 @@ def validate_instance_constraints(instance: ProblemInstance) -> bool:
 
     return True
 
+def idx(t: int, i: int, n_available: int):
+    return t*n_available + i
