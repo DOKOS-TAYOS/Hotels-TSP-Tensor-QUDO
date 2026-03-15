@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from instance_gen_process.models import ProblemInstance
 
 
@@ -19,7 +21,7 @@ def validate_instance_constraints(instance: ProblemInstance) -> bool:
 
     if instance.prices_hotels.shape != (n_available, n_available):
         return False
-    if instance.prices_travels.shape != (n_available, n_available, n_available):
+    if instance.prices_travels.shape != (instance.n_cities, instance.n_cities, instance.n_cities):
         return False
 
     for a, b in instance.precedences:
@@ -59,3 +61,106 @@ def _has_cycle(precedences: list[tuple[int, int]], n_nodes: int) -> bool:
         if node not in visited and dfs(node):
             return True
     return False
+
+
+def validate_solution_constraints_tqudo(
+    instance: ProblemInstance,
+    solution: list[int] | np.ndarray,
+) -> bool:
+    """Check that a T-QUDO solution satisfies precedence and no-duplicate constraints.
+
+    - Precedence: for each (a, b) in instance.precedences, a appears before b.
+    - No duplicates: the solution contains each node at most once.
+
+    Args:
+        instance: The problem instance with precedences and n_cities.
+        solution: Sequence of length n_available where solution[t] = city at timestep t.
+
+    Returns:
+        True if all constraints are satisfied, False otherwise.
+    """
+    n_available = instance.n_cities - 1
+    seq = np.asarray(solution).flatten()
+
+    if len(seq) != n_available:
+        return False
+
+    # No duplicates: all elements must be unique
+    if len(set(seq)) != n_available:
+        return False
+
+    # All nodes must be in valid range
+    if not all(0 <= x < n_available for x in seq):
+        return False
+
+    # Precedence: precedence[0] must appear before precedence[1]
+    pos: dict[int, int] = {int(seq[t]): t for t in range(n_available)}
+    for a, b in instance.precedences:
+        if a not in pos or b not in pos:
+            return False
+        if pos[a] >= pos[b]:
+            return False
+
+    return True
+
+
+def qubo_binary_to_sequence(solution: np.ndarray, n_available: int) -> np.ndarray | None:
+    """Decode QUBO binary vector to a sequence of cities per timestep.
+
+    Returns None if the binary encoding is invalid (not exactly one 1 per row/col).
+    """
+    x = np.asarray(solution).flatten()
+    expected_len = n_available * n_available
+    if len(x) != expected_len:
+        return None
+
+    seq = np.full(n_available, -1, dtype=int)
+    for t in range(n_available):
+        count = 0
+        chosen = -1
+        for i in range(n_available):
+            if x[idx(t, i, n_available)] > 0.5:  # Treat as active
+                count += 1
+                chosen = i
+        if count != 1:
+            return None
+        seq[t] = chosen
+
+    # Check each city appears exactly once
+    if len(set(seq)) != n_available:
+        return None
+    return seq
+
+
+def validate_solution_constraints_qubo(
+    instance: ProblemInstance,
+    solution: np.ndarray,
+) -> bool:
+    """Check that a QUBO solution satisfies precedence and no-duplicate constraints.
+
+    Decodes the binary QUBO vector to a sequence, then validates:
+    - Precedence: for each (a, b) in instance.precedences, a appears before b.
+    - No duplicates: exactly one city per timestep and one timestep per city.
+
+    Args:
+        instance: The problem instance with precedences and n_cities.
+        solution: Binary vector of shape (n_available * n_available,).
+
+    Returns:
+        True if all constraints are satisfied, False otherwise.
+    """
+    n_available = instance.n_cities - 1
+    seq = qubo_binary_to_sequence(solution, n_available)
+    if seq is None:
+        return False
+
+    # Precedence: precedence[0] must appear before precedence[1]
+    pos: dict[int, int] = {int(seq[t]): t for t in range(n_available)}
+    for a, b in instance.precedences:
+        if a not in pos or b not in pos:
+            return False
+        if pos[a] >= pos[b]:
+            return False
+
+    return True
+
