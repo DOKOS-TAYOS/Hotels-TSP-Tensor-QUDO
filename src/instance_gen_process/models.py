@@ -1,4 +1,4 @@
-"""Data models for generated aircraft loading instances."""
+"""Data models for generated travel routing (Hotel TSP) instances."""
 
 from __future__ import annotations
 
@@ -24,15 +24,6 @@ class ProblemInstance:
     precedences: list[tuple[int, int]]
     prices_hotels: np.ndarray # 2 dimensions
     prices_travels: np.ndarray # 3 dimensions
-
-@dataclass(frozen=True, slots=True)
-class ProblemTQUDO:
-    """
-    Representation for the quantum device hamiltonian terms.
-    """
-    
-    Etab: np.ndarray # 3 dimensions
-    Ettprimeab: np.ndarray # 4 dimensions
 
 @dataclass(frozen=True, slots=True)
 class ProblemTQUDO:

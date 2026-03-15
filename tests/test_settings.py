@@ -29,12 +29,12 @@ def test_load_settings_from_env_file() -> None:
         env_path.write_text(
             "\n".join(
                 [
-                    "ALP_QUANTUM_BACKEND=cirq",
-                    "ALP_OUTPUT_DIR=output",
-                    "ALP_INPUT_DIR=input_data",
-                    "ALP_INSTANCE_CONFIG=configs/instance.yaml",
-                    "ALP_ENABLE_NOISE_SIMULATION=true",
-                    "ALP_RANDOM_SEED=7",
+                    "HTSP_QUANTUM_BACKEND=cirq",
+                    "HTSP_OUTPUT_DIR=output",
+                    "HTSP_INPUT_DIR=input_data",
+                    "HTSP_INSTANCE_CONFIG=configs/instance.yaml",
+                    "HTSP_ENABLE_NOISE_SIMULATION=true",
+                    "HTSP_RANDOM_SEED=7",
                 ]
             ),
             encoding="utf-8",

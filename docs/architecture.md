@@ -2,8 +2,9 @@
 
 ## Purpose
 
-This repository provides a reproducible research scaffold for the Aircraft Loading
-Problem with Tensor-QUDO formulations and multiple solver backends.
+This repository provides a reproducible research scaffold for a travel routing problem
+(Hotel TSP) with precedence constraints, using Tensor-QUDO formulations and multiple
+solver backends.
 
 ## High-level structure
 

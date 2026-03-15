@@ -62,25 +62,25 @@ def load_settings(env_file: Path | str | None = None, project_root: Path | None 
     resolved_env_file = Path(env_file) if env_file else resolved_root / ".env"
     env_values = _read_env_file(resolved_env_file)
 
-    backend = _get_setting("ALP_QUANTUM_BACKEND", "simulated_annealing", env_values)
+    backend = _get_setting("HTSP_QUANTUM_BACKEND", "simulated_annealing", env_values)
     if backend not in _VALID_BACKENDS:
         supported = ", ".join(sorted(_VALID_BACKENDS))
-        raise ValueError(f"Unsupported ALP_QUANTUM_BACKEND '{backend}'. Expected one of: {supported}.")
+        raise ValueError(f"Unsupported HTSP_QUANTUM_BACKEND '{backend}'. Expected one of: {supported}.")
 
-    output_dir = _resolve_path(_get_setting("ALP_OUTPUT_DIR", "output", env_values), resolved_root)
-    input_dir = _resolve_path(_get_setting("ALP_INPUT_DIR", "input", env_values), resolved_root)
+    output_dir = _resolve_path(_get_setting("HTSP_OUTPUT_DIR", "output", env_values), resolved_root)
+    input_dir = _resolve_path(_get_setting("HTSP_INPUT_DIR", "input", env_values), resolved_root)
     instance_config_path = _resolve_path(
         _get_setting(
-            "ALP_INSTANCE_CONFIG",
+            "HTSP_INSTANCE_CONFIG",
             "src/instance_gen_process/config.yaml",
             env_values,
         ),
         resolved_root,
     )
     enable_noise_simulation = _as_bool(
-        _get_setting("ALP_ENABLE_NOISE_SIMULATION", "false", env_values)
+        _get_setting("HTSP_ENABLE_NOISE_SIMULATION", "false", env_values)
     )
-    random_seed = int(_get_setting("ALP_RANDOM_SEED", "42", env_values))
+    random_seed = int(_get_setting("HTSP_RANDOM_SEED", "42", env_values))
 
     return Settings(
         quantum_backend=backend,  # type: ignore[arg-type]

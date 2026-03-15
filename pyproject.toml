@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aircraft-loading-problem-tensor-qudo"
+name = "hotels-tsp-tensor-qudo"
 version = "0.1.0"
-description = "Aircraft loading optimization with Tensor-QUDO and quantum-inspired solvers."
+description = "Travel routing optimization with precedence constraints using Tensor-QUDO and quantum-inspired solvers."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -13,7 +13,7 @@ authors = [
     { name = "Adriano Lusso" },
     { name = "Alejandro Mata Ali" },
 ]
-keywords = ["quantum", "optimization", "QUBO", "aircraft", "loading"]
+keywords = ["quantum", "optimization", "QUBO", "QUDO", "TSP", "travel", "routing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -50,7 +50,7 @@ all = [
 
 
 [project.urls]
-Repository = "https://github.com/DOKOS-TAYOS/Aircraft-Loading-Problem-Tensor-QUDO"
+Repository = "https://github.com/DOKOS-TAYOS/hotels-tsp-tensor-qudo"
 
 [tool.setuptools.package-dir]
 "" = "src"

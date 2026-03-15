@@ -52,7 +52,7 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
     attempts = 0
     max_attempts = n_precedences * 20  # Evitar bucle infinito si es imposible añadir más
     while len(precedences) < n_precedences and attempts < max_attempts:
-        origin = rng.randint(n_available)
+        origin = rng.randrange(n_available)
         available_destinations = [i for i in range(n_available) if i != origin]
         destiny = rng.choice(available_destinations)
         if not _would_create_cycle(precedences, origin, destiny):
@@ -113,12 +113,12 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
             first_index = idx(t, i, n_available)
             qubo_matrix[first_index, first_index] += problem.prices_hotels[t,i]
             for t2 in range(n_available):
-                second_index_t2 = idx(t2,i)
+                second_index_t2 = idx(t2, i, n_available)
                 if t!=t2:
                     qubo_matrix[first_index, second_index_t2] += restriction.lambda_1
             for j in range(n_available):
-                second_index_j = idx(t,j)
-                second_index_tp1_j = idx(t+1,j)
+                second_index_j = idx(t, j, n_available)
+                second_index_tp1_j = idx(t + 1, j, n_available)
                 if i!=j:
                     qubo_matrix[first_index, second_index_tp1_j] += problem.prices_travels[t,i,j]
                     qubo_matrix[first_index, second_index_j] += restriction.lambda_0
@@ -128,8 +128,8 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
         for t2 in range(t+1,n_available):
             for precedence in problem.precedences:
                 i, j = precedence
-                second_index_t2 = idx(t2,i)
-                second_index_j = idx(t,j)
+                second_index_t2 = idx(t2, i, n_available)
+                second_index_j = idx(t, j, n_available)
                 qubo_matrix[second_index_t2, second_index_j] += restriction.lambda_2
                         
     return ProblemQUBO(QUBO_matrix=qubo_matrix)

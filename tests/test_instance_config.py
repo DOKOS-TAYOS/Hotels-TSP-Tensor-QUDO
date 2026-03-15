@@ -1,6 +1,7 @@
 """Tests for instance config loading and generation."""
 
 from pathlib import Path
+import random
 import shutil
 from uuid import uuid4
 
@@ -29,13 +30,10 @@ def test_load_instance_config_and_generate() -> None:
         config_path.write_text(
             "\n".join(
                 [
-                    "num_items: 3",
-                    "max_weight: 1000",
-                    "max_volume: 80",
-                    "cg_min: -5",
-                    "cg_max: 5",
-                    "weight_range: [10, 20]",
-                    "volume_range: [1, 3]",
+                    "n_cities: 8",
+                    "n_precedence_range: [2, 5]",
+                    "prices_range_hotels: [30., 150.]",
+                    "prices_range_travels: [30., 150.]",
                     "seed: 123",
                 ]
             ),
@@ -43,14 +41,16 @@ def test_load_instance_config_and_generate() -> None:
         )
 
         config = load_instance_config(config_path)
-        instance = generate_random_instance(config)
+        rng = random.Random(config.seed)
+        instance = generate_random_instance(config, rng)
 
-        assert config.num_items == 3
-        assert len(instance.items) == 3
-        assert instance.max_weight == 1000
-        assert instance.max_volume == 80
-        assert instance.cg_min == -5
-        assert instance.cg_max == 5
+        assert config.n_cities == 8
+        assert config.n_precedences_range == (2, 5)
+        assert instance.n_cities == 8
+        assert len(instance.precedences) >= 2
+        assert len(instance.precedences) <= 5
+        n_available = instance.n_cities - 1
+        assert instance.prices_hotels.shape == (n_available, n_available)
+        assert instance.prices_travels.shape == (n_available, n_available, n_available)
     finally:
         _cleanup_workspace_tmp_dir(tmp_path)
-

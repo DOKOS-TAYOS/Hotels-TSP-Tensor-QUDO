@@ -11,9 +11,12 @@ from instance_gen_process import load_instance_config
 def main() -> None:
     """Render the initial project dashboard."""
 
-    st.set_page_config(page_title="Aircraft Loading Tensor-QUDO", layout="wide")
-    st.title("Aircraft Loading Problem Tensor-QUDO")
-    st.caption("Scaffold UI for reproducible experiment setup and future solver runs.")
+    st.set_page_config(page_title="Hotel TSP Tensor-QUDO", layout="wide")
+    st.title("Hotel TSP with Tensor-QUDO")
+    st.caption(
+        "Travel routing optimization with precedence constraints. "
+        "Scaffold UI for reproducible experiment setup and future solver runs."
+    )
 
     settings = load_settings()
     instance_config = load_instance_config(settings.instance_config_path)
@@ -36,13 +39,10 @@ def main() -> None:
         st.subheader("Instance generation config")
         st.json(
             {
-                "num_items": instance_config.num_items,
-                "max_weight": instance_config.max_weight,
-                "max_volume": instance_config.max_volume,
-                "cg_min": instance_config.cg_min,
-                "cg_max": instance_config.cg_max,
-                "weight_range": instance_config.weight_range,
-                "volume_range": instance_config.volume_range,
+                "n_cities": instance_config.n_cities,
+                "n_precedences_range": list(instance_config.n_precedences_range),
+                "prices_range_hotels": list(instance_config.prices_range_hotels),
+                "prices_range_travels": list(instance_config.prices_range_travels),
                 "seed": instance_config.seed,
             }
         )
@@ -52,4 +52,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
