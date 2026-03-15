@@ -67,10 +67,10 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
     prices_travels = np.random.uniform(
         config.prices_range_travels[0],
         config.prices_range_travels[1],
-        size=(n_available, n_available, n_available)
+        size=(n_cities, n_cities, n_cities)
     )
     # Set diagonals of the last two indices to 0
-    for i in range(n_available):
+    for i in range(n_cities):
         prices_travels[:, i, i] = 0
 
     return ProblemInstance(n_cities=n_cities, precedences=precedences, prices_hotels=prices_hotels, prices_travels=prices_travels)
@@ -81,15 +81,22 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
-    Etab = problem.prices_travels
+    Etab = np.zeros((n_available, n_available, n_available), dtype=float)
 
-    for t in range(n_available):
+    for t in range(n_available-1):
         for origin in range(n_available):
             for destiny in range(n_available):
+                Etab[t, origin, destiny] += problem.prices_travels[t+1, origin, destiny]
                 Etab[t, origin, destiny] += problem.prices_hotels[t, origin]
-    
+                if t == 0:
+                    Etab[t, origin, destiny] += problem.prices_travels[0, n_available, origin] # Closed loop 
+                if t == n_available - 2:
+                    Etab[t, origin, destiny] += problem.prices_travels[n_available, destiny, n_available] # Closed loop 
+                    Etab[t, origin, destiny] += problem.prices_hotels[n_available - 2, destiny]
+                
+    # This may be changed to Tab if in the solver we take into acount that t'>t
     Ettprimeab = np.zeros((n_available, n_available, n_available, n_available), dtype=float)
-    for t in range(n_available):
+    for t in range(n_available-1):
         for t_prime in range(t+1, n_available):
             for origin in range(n_available):
                 Ettprimeab[t, t_prime, origin, origin] += restriction.lambda_1
@@ -108,23 +115,35 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
     n_available = n_cities - 1
 
     qubo_matrix = np.zeros((n_available, n_available), dtype=float)
-    for t in range(n_available):
+    for t in range(n_available-1):
         for i in range(n_available):
             first_index = idx(t, i, n_available)
             qubo_matrix[first_index, first_index] += problem.prices_hotels[t,i]
-            for t2 in range(n_available):
-                second_index_t2 = idx(t2, i, n_available)
-                if t!=t2:
-                    qubo_matrix[first_index, second_index_t2] += restriction.lambda_1
+            if t == 0:
+                qubo_matrix[first_index, first_index] += problem.prices_travels[0,n_available,i]
+
             for j in range(n_available):
                 second_index_j = idx(t, j, n_available)
                 second_index_tp1_j = idx(t + 1, j, n_available)
                 if i!=j:
-                    qubo_matrix[first_index, second_index_tp1_j] += problem.prices_travels[t,i,j]
-                    qubo_matrix[first_index, second_index_j] += restriction.lambda_0
+                    qubo_matrix[first_index, second_index_tp1_j] += problem.prices_travels[t+1,i,j]
+                    if t == n_available-2:
+                        qubo_matrix[second_index_tp1_j, second_index_tp1_j] += problem.prices_travels[n_available,j,n_available]
+                        qubo_matrix[second_index_tp1_j, second_index_j] += problem.prices_hotels[n_available-1,j]
 
-    
+            
     for t in range(n_available):
+        for i in range(n_available):
+            first_index = idx(t, i, n_available)
+            for j in range(n_available):
+                if i!=j:
+                    second_index_j = idx(t, j, n_available)
+                    qubo_matrix[first_index, second_index_j] += restriction.lambda_0
+            for t2 in range(n_available):
+                if t!=t2:
+                    second_index_t2 = idx(t2, i, n_available)
+                    qubo_matrix[first_index, second_index_t2] += restriction.lambda_1
+                    
         for t2 in range(t+1,n_available):
             for precedence in problem.precedences:
                 i, j = precedence
