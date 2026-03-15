@@ -42,10 +42,10 @@ def calculate_tqudo_cost(
     """
     x = np.asarray(solution).flatten()
     cost = 0
-    for t, origin in enumerate(solution[:-1]):
-        destiny = solution[t+1]
+    for t, origin in enumerate(x[:-1]):
+        destiny = x[t+1]
         cost += problem.Etab[t, origin, destiny]
-        for tp, destiny in enumerate(solution[t+1:]):
+        for tp, destiny in enumerate(x[t+1:]):
             t2 = t + tp
             cost += problem.Ettprimeab[t, t2, origin, destiny]
 
