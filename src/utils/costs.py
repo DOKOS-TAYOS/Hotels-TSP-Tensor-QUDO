@@ -78,7 +78,7 @@ def calculate_real_cost(problem: ProblemInstance, sequence: list[int]) -> float:
     travel_cost = sum(
         problem.prices_travels[t, sequence[t], sequence[t + 1]]
         for t in range(n_available - 1)
-    )
+    ) + problem.prices_travels[n_available, sequence[n_available-1], n_available]
 
 
     return float(hotel_cost + travel_cost)
