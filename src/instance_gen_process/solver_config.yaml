@@ -1,0 +1,16 @@
+# Solver and experiment configuration
+n_instances: 5
+solver: cudaq  # cudaq | cirq | simulated_annealing
+formulation: qubo  # qubo | tqudo
+optimizer: COBYLA  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
+restriction:
+  lambda_0: 100.0
+  lambda_1: 100.0
+  lambda_2: 100.0
+qaoa_depth: 1
+qaoa_max_iter: 100
+qaoa_shots: 500
+qaoa_sample_shots: 1000
+seed: 42
+max_iterations: 1000
+timeout_seconds: null

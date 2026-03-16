@@ -61,6 +61,7 @@ where = ["src"]
 include = [
     "config*",
     "data_analysis*",
+    "experiments*",
     "instance_gen_process*",
     "solvers*",
     "streamlit_app*",

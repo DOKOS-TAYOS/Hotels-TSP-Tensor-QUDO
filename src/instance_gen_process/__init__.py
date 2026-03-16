@@ -17,9 +17,15 @@ from instance_gen_process.models import (
     ProblemTQUDO,
     RestrictionConfig,
 )
+from instance_gen_process.solver_config_loader import (
+    DEFAULT_SOLVER_CONFIG_PATH,
+    load_solver_config,
+    solver_config_to_run_config,
+)
 
 __all__ = [
     "DEFAULT_CONFIG_PATH",
+    "DEFAULT_SOLVER_CONFIG_PATH",
     "InstanceConfig",
     "ProblemInstance",
     "ProblemQUBO",
@@ -30,5 +36,7 @@ __all__ = [
     "generate_random_set_instances",
     "generate_TQUDO_from_problem",
     "load_instance_config",
+    "load_solver_config",
+    "solver_config_to_run_config",
 ]
 

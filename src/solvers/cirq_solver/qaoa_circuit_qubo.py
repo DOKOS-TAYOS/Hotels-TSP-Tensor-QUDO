@@ -182,13 +182,22 @@ def sample_solution(
     return counts
 
 
+def _minimize_options(method: str, max_iter: int) -> dict:
+    """Build scipy minimize options dict for the given method."""
+    opts: dict = {"maxiter": max_iter}
+    if method == "Nelder-Mead":
+        opts["maxfev"] = max_iter
+    return opts
+
+
 def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
     n_shots: int | None = None,
     seed: int | None = None,
-) -> tuple[float, np.ndarray, dict[str, int] | None]:
+    optimizer: str = "COBYLA",
+) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian."""
     if seed is not None:
         np.random.seed(seed)
@@ -204,21 +213,27 @@ def optimize_qaoa(
         np.random.uniform(0, np.pi, depth),
     ])
 
+    energy_history: list[float] = []
+
     def cost_fn(x: np.ndarray) -> float:
-        return evaluate_cost(x, circuit, hamiltonian, symbols, depth)
+        val = evaluate_cost(x, circuit, hamiltonian, symbols, depth)
+        energy_history.append(val)
+        return val
+
+    initial_energy = evaluate_cost(init_params, circuit, hamiltonian, symbols, depth)
 
     opt_result = minimize(
         cost_fn,
         init_params,
-        method="COBYLA",
-        options={"maxiter": max_iter},
+        method=optimizer,
+        options=_minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     samples: dict[str, int] | None = None
     if n_shots is not None:
         samples = sample_solution(circuit, best_params, symbols, depth, qubits, n_shots, seed)
-    return best_energy, best_params, samples
+    return best_energy, best_params, samples, initial_energy, energy_history
 
 
 def bitstring_to_binary(bitstring: str) -> np.ndarray:
@@ -239,14 +254,16 @@ def run_qaoa(
     max_iter: int = 100,
     n_shots: int = 1000,
     seed: int | None = None,
+    optimizer: str = "COBYLA",
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution."""
-    best_energy, best_params, samples = optimize_qaoa(
+    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
         qubo_matrix,
         depth=depth,
         max_iter=max_iter,
         n_shots=n_shots,
         seed=seed,
+        optimizer=optimizer,
     )
     n = qubo_matrix.shape[0]
     best_bitstring = _most_probable(samples, n) if samples else "0" * n
@@ -257,4 +274,6 @@ def run_qaoa(
         "samples": samples,
         "best_bitstring": best_bitstring,
         "best_binary": bitstring_to_binary(best_bitstring),
+        "initial_energy": initial_energy,
+        "energy_history": energy_history,
     }

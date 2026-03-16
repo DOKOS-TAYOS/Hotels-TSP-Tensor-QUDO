@@ -73,8 +73,10 @@ class SimulatedAnnealingSolver:
         # Initial random permutation
         current = rng.permutation(n_available).astype(np.int64)
         current_cost = _evaluate_cost(formulation, problem, current, n_available)
+        initial_energy = current_cost
         best = current.copy()
         best_cost = current_cost
+        energy_history: list[float] = [initial_energy]
 
         # SA parameters
         T_initial = 1000.0
@@ -100,6 +102,7 @@ class SimulatedAnnealingSolver:
                     best = current.copy()
                     best_cost = current_cost
 
+            energy_history.append(current_cost)
             T = max(T_final, T * alpha)
 
         runtime_seconds = time.perf_counter() - start
@@ -112,7 +115,11 @@ class SimulatedAnnealingSolver:
             best_binary = sequence_to_qubo_binary(best, n_available)
             feasible = validate_solution_constraints_qubo(instance, best_binary)
 
-        metadata: dict[str, object] = {"best_sequence": best_sequence}
+        metadata: dict[str, object] = {
+            "best_sequence": best_sequence,
+            "initial_energy": initial_energy,
+            "energy_history": energy_history,
+        }
         if feasible:
             metadata["real_cost"] = float(
                 calculate_real_cost(instance, best_sequence)

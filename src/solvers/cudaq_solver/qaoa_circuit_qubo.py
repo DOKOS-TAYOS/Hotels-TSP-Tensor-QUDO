@@ -183,13 +183,22 @@ def sample_solution(
     beta = params[depth:].tolist()
     return cudaq.sample(kernel, gamma, beta, shots_count=n_shots)
 
+def _minimize_options(method: str, max_iter: int) -> dict:
+    """Build scipy minimize options dict for the given method."""
+    opts: dict = {"maxiter": max_iter}
+    if method == "Nelder-Mead":
+        opts["maxfev"] = max_iter
+    return opts
+
+
 def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
     n_shots: int | None = None,
     seed: int | None = None,
-) -> tuple[float, np.ndarray, "cudaq.SampleResult | None"]:
+    optimizer: str = "COBYLA",
+) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian.
 
     Args:
@@ -198,11 +207,14 @@ def optimize_qaoa(
         max_iter: Maximum optimizer iterations.
         n_shots: If set, also sample the solution state (None = no sampling).
         seed: Random seed for initial parameters (None = no seed).
+        optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
 
     Returns:
-        Tuple of (best_energy, best_params, samples).
+        Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
         best_params: [gamma_1..gamma_p, beta_1..beta_p].
         samples: SampleResult when n_shots is set, else None.
+        initial_energy: Energy at init_params before optimization.
+        energy_history: List of energies at each optimizer evaluation.
     """
     if seed is not None:
         np.random.seed(seed)
@@ -215,21 +227,27 @@ def optimize_qaoa(
         np.random.uniform(0, np.pi, depth),
     ])
 
+    energy_history: list[float] = []
+
     def cost_fn(x: np.ndarray) -> float:
-        return evaluate_cost(x, kernel, hamiltonian, depth)
+        val = evaluate_cost(x, kernel, hamiltonian, depth)
+        energy_history.append(val)
+        return val
+
+    initial_energy = evaluate_cost(init_params, kernel, hamiltonian, depth)
 
     opt_result = minimize(
         cost_fn,
         init_params,
-        method="COBYLA",
-        options={"maxiter": max_iter},
+        method=optimizer,
+        options=_minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     samples: "cudaq.SampleResult | None" = None
     if n_shots is not None:
         samples = sample_solution(kernel, best_params, depth, n_shots)
-    return best_energy, best_params, samples
+    return best_energy, best_params, samples, initial_energy, energy_history
 
 
 def bitstring_to_binary(bitstring: str) -> np.ndarray:
@@ -252,6 +270,7 @@ def run_qaoa(
     max_iter: int = 100,
     n_shots: int = 1000,
     seed: int | None = None,
+    optimizer: str = "COBYLA",
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
@@ -261,18 +280,21 @@ def run_qaoa(
         max_iter: Optimizer iterations.
         n_shots: Shots for sampling the final state.
         seed: Random seed.
+        optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
 
     Returns:
-        Dict with keys: energy, params, samples, best_bitstring, best_binary.
+        Dict with keys: energy, params, samples, best_bitstring, best_binary,
+        initial_energy, energy_history.
         best_bitstring: Most frequent bitstring from sampling.
         best_binary: bitstring_to_binary(best_bitstring).
     """
-    best_energy, best_params, samples = optimize_qaoa(
+    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
         qubo_matrix,
         depth=depth,
         max_iter=max_iter,
         n_shots=n_shots,
         seed=seed,
+        optimizer=optimizer,
     )
     n = qubo_matrix.shape[0]
 
@@ -285,5 +307,7 @@ def run_qaoa(
         "samples": samples,
         "best_bitstring": best_bitstring,
         "best_binary": bitstring_to_binary(best_bitstring),
+        "initial_energy": initial_energy,
+        "energy_history": energy_history,
     }
 

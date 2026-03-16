@@ -181,6 +181,14 @@ def sample_solution(
     return cudaq.sample(kernel, gamma, beta, shots_count=n_shots)
 
 
+def _minimize_options(method: str, max_iter: int) -> dict:
+    """Build scipy minimize options dict for the given method."""
+    opts: dict = {"maxiter": max_iter}
+    if method == "Nelder-Mead":
+        opts["maxfev"] = max_iter
+    return opts
+
+
 def optimize_qaoa(
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
@@ -189,7 +197,8 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-) -> tuple[float, np.ndarray, "cudaq.SampleResult | None"]:
+    optimizer: str = "COBYLA",
+) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
     """Optimize QAOA parameters to minimize the TQUDO cost.
 
     Args:
@@ -200,11 +209,14 @@ def optimize_qaoa(
         n_shots: Shots per cost evaluation during optimization.
         sample_shots: If set, also sample the solution state (None = no sampling).
         seed: Random seed for initial parameters (None = no seed).
+        optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
 
     Returns:
-        Tuple of (best_energy, best_params, samples).
+        Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
         best_params: [gamma_1..gamma_p, beta_1..beta_p].
         samples: SampleResult when sample_shots is set, else None.
+        initial_energy: Energy at init_params before optimization.
+        energy_history: List of energies at each optimizer evaluation.
     """
     if seed is not None:
         np.random.seed(seed)
@@ -215,21 +227,29 @@ def optimize_qaoa(
         np.random.uniform(0, np.pi, depth),
     ])
 
+    energy_history: list[float] = []
+
     def cost_fn(x: np.ndarray) -> float:
-        return evaluate_cost(x, kernel, Etab, Ettprimeab, depth, n_shots=n_shots)
+        val = evaluate_cost(x, kernel, Etab, Ettprimeab, depth, n_shots=n_shots)
+        energy_history.append(val)
+        return val
+
+    initial_energy = evaluate_cost(
+        init_params, kernel, Etab, Ettprimeab, depth, n_shots=n_shots
+    )
 
     opt_result = minimize(
         cost_fn,
         init_params,
-        method="COBYLA",
-        options={"maxiter": max_iter},
+        method=optimizer,
+        options=_minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         samples = sample_solution(kernel, best_params, depth, n_shots=sample_shots)
-    return best_energy, best_params, samples
+    return best_energy, best_params, samples, initial_energy, energy_history
 
 
 def bitstring_to_qudit_sequence(
@@ -264,6 +284,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
+    optimizer: str = "COBYLA",
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
@@ -275,9 +296,11 @@ def run_qaoa(
         n_shots: Shots per cost evaluation during optimization.
         sample_shots: Shots for sampling the final state.
         seed: Random seed.
+        optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
 
     Returns:
-        Dict with keys: energy, params, samples, best_bitstring, best_sequence.
+        Dict with keys: energy, params, samples, best_bitstring, best_sequence,
+        initial_energy, energy_history.
         best_bitstring: Most frequent bitstring from sampling.
         best_sequence: Qudit sequence (route) from best_bitstring.
     """
@@ -285,7 +308,7 @@ def run_qaoa(
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
     n_qubits_total = n_qudits * qubits_per_qudit
 
-    best_energy, best_params, samples = optimize_qaoa(
+    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
         Etab,
         Ettprimeab,
         depth=depth,
@@ -293,6 +316,7 @@ def run_qaoa(
         n_shots=n_shots,
         sample_shots=sample_shots,
         seed=seed,
+        optimizer=optimizer,
     )
 
     best_bitstring = (
@@ -308,5 +332,7 @@ def run_qaoa(
         "samples": samples,
         "best_bitstring": best_bitstring,
         "best_sequence": best_sequence,
+        "initial_energy": initial_energy,
+        "energy_history": energy_history,
     }
 

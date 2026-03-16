@@ -9,6 +9,9 @@ from instance_gen_process import ProblemInstance
 from instance_gen_process.models import RestrictionConfig
 
 
+OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
+
+
 @dataclass(frozen=True, slots=True)
 class SolverRunConfig:
     """Generic run controls shared across solver backends."""
@@ -23,11 +26,16 @@ class SolverRunConfig:
     qaoa_shots: int = 500
     qaoa_sample_shots: int = 1000
     seed: int | None = None
+    optimizer: OptimizerType = "COBYLA"
 
 
 @dataclass(frozen=True, slots=True)
 class SolverResult:
-    """Standardized solver output."""
+    """Standardized solver output.
+
+    metadata may include: initial_energy (float), energy_history (list[float]),
+    best_sequence, best_bitstring, best_binary, real_cost, etc.
+    """
 
     solver_name: str
     objective_value: float

@@ -31,16 +31,21 @@ class CudaqSolver:
             result = self._solve_qubo(instance, restriction, run_config)
 
         runtime_seconds = time.perf_counter() - start
+        metadata: dict = {
+            "best_sequence": result.get("best_sequence"),
+            "best_bitstring": result.get("best_bitstring"),
+            "best_binary": result.get("best_binary"),
+        }
+        if "initial_energy" in result:
+            metadata["initial_energy"] = result["initial_energy"]
+        if "energy_history" in result:
+            metadata["energy_history"] = result["energy_history"]
         return SolverResult(
             solver_name=self.solver_name,
             objective_value=result["energy"],
             feasible=result["feasible"],
             runtime_seconds=runtime_seconds,
-            metadata={
-                "best_sequence": result.get("best_sequence"),
-                "best_bitstring": result.get("best_bitstring"),
-                "best_binary": result.get("best_binary"),
-            },
+            metadata=metadata,
         )
 
     def _solve_tqudo(
@@ -61,6 +66,7 @@ class CudaqSolver:
             n_shots=run_config.qaoa_shots,
             sample_shots=run_config.qaoa_sample_shots,
             seed=run_config.seed,
+            optimizer=run_config.optimizer,
         )
         best_sequence = raw["best_sequence"].tolist()
         feasible = validate_solution_constraints_tqudo(instance, best_sequence)
@@ -87,6 +93,7 @@ class CudaqSolver:
             max_iter=run_config.qaoa_max_iter,
             n_shots=run_config.qaoa_sample_shots,
             seed=run_config.seed,
+            optimizer=run_config.optimizer,
         )
         n_available = instance.n_cities - 1
         best_binary = raw["best_binary"]
