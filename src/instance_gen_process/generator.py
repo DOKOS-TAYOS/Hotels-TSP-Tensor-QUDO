@@ -173,10 +173,11 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
                 idx_tj = idx(t, j, n_available)
                 idx_tp1_j = idx(t + 1, j, n_available)
                 if i != j:
-                    qubo_matrix[idx_ti, idx_tp1_j] += problem.prices_travels[t+1, i, j]
+                    qubo_matrix[idx_ti, idx_tp1_j] += problem.prices_travels[t+1, i, j] / 2
+                    qubo_matrix[idx_tp1_j, idx_ti] += problem.prices_travels[t+1, i, j] / 2 # For symmetry
                     if t == n_available-2:
                         qubo_matrix[idx_tp1_j, idx_tp1_j] += problem.prices_travels[n_available, j, n_available]
-                        qubo_matrix[idx_tp1_j, idx_tj] += problem.prices_hotels[n_available-1, j]
+                        qubo_matrix[idx_tp1_j, idx_tp1_j] += problem.prices_hotels[n_available-1, j]
 
     for t in range(n_available):
         for i in range(n_available):
@@ -184,18 +185,19 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
             for j in range(n_available):
                 if i != j:
                     idx_tj = idx(t, j, n_available)
-                    qubo_matrix[idx_ti, idx_tj] += restriction.lambda_0
+                    qubo_matrix[idx_ti, idx_tj] += restriction.lambda_0 / 2
             for t_prime in range(n_available):
                 if t != t_prime:
                     idx_tp_i = idx(t_prime, i, n_available)
-                    qubo_matrix[idx_ti, idx_tp_i] += restriction.lambda_1
+                    qubo_matrix[idx_ti, idx_tp_i] += restriction.lambda_1 / 2
 
         for t_prime in range(t+1, n_available):
             for precedence in problem.precedences:
                 i, j = precedence
                 idx_tp_i = idx(t_prime, i, n_available)
                 idx_tj = idx(t, j, n_available)
-                qubo_matrix[idx_tp_i, idx_tj] += restriction.lambda_2
+                qubo_matrix[idx_tp_i, idx_tj] += restriction.lambda_2 / 2
+                qubo_matrix[idx_tj, idx_tp_i] += restriction.lambda_2 / 2 # Symmetry
                         
     return ProblemQUBO(qubo_matrix=qubo_matrix)
 
