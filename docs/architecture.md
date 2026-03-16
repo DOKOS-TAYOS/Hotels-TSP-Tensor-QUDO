@@ -4,7 +4,8 @@
 
 This repository provides a reproducible research scaffold for a travel routing problem
 (Hotel TSP) with precedence constraints, using Tensor-QUDO formulations and multiple
-solver backends.
+solver backends. Cost equations for both Tensor-QUDO and QUBO formulations are in
+[formulations.md](formulations.md).
 
 ## High-level structure
 

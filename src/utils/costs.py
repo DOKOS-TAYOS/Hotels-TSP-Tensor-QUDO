@@ -12,6 +12,7 @@ def calculate_qubo_cost(problem: ProblemQUBO, solution: np.ndarray) -> float:
 
     This is the objective value in the QUBO formulation, which includes
     both the real cost terms and the penalty terms for constraint violations.
+    See docs/formulations.md for the cost equations.
 
     Args:
         problem: The QUBO problem with qubo_matrix.
@@ -31,7 +32,7 @@ def calculate_tqudo_cost(
     """Calculate the TQUDO cost of a solution.
 
     This is the objective value in the Tensor-QUDO formulation.
-    Implementation pending: requires the exact solution format for TQUDO.
+    See docs/formulations.md for the cost equations.
 
     Args:
         problem: The TQUDO problem with Etab and Ettprimeab tensors.

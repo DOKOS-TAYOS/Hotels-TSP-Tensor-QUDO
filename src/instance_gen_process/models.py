@@ -29,6 +29,9 @@ class ProblemInstance:
 class ProblemTQUDO:
     """Tensor-QUDO formulation: Hamiltonian terms for quantum device.
 
+    Cost: C(x) = sum_t E_{t,x_t,x_{t+1}} + sum_{t,t'>t} E_{t,t',x_t,x_{t'}}.
+    See docs/formulations.md for full equations.
+
     Attributes:
         Etab: 3D tensor (t, origin, destination) for travel and hotel costs.
         Ettprimeab: 4D tensor (t, t_prime, origin, destination) for penalties.
@@ -41,6 +44,9 @@ class ProblemTQUDO:
 @dataclass(frozen=True, slots=True)
 class ProblemQUBO:
     """QUBO formulation: quadratic matrix for quantum/classical solvers.
+
+    Cost: C(x) = x^T Q x = sum_i Q_ii x_i + sum_{i<j} 2 Q_ij x_i x_j.
+    See docs/formulations.md for full equations.
 
     Attributes:
         qubo_matrix: Symmetric matrix of shape (n_vars, n_vars) where n_vars = n_available^2.

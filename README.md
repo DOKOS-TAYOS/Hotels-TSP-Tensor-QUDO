@@ -11,7 +11,8 @@ that minimizes total cost. Costs include:
 Each stay and each trip lasts one timestep. An additional constraint is **precedence**:
 to be in city B, you must first have been in city A.
 
-Formulation reference: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958).
+Formulation reference: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958).  
+Cost equations: see [docs/formulations.md](docs/formulations.md).
 
 ## Maintainers
 
@@ -60,7 +61,7 @@ scripts\make.bat clean
 
 ```text
 bin/                Bootstrap scripts
-docs/               Project architecture and development notes
+docs/               Project architecture, formulations, and development notes
 input/              Optional input datasets
 output/             Local results (ignored in git except placeholders)
 scripts/            Cross-platform task runners

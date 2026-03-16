@@ -1,4 +1,3 @@
-- [ ] Check if the QUBO matrices are symmetric
 - [ ] First energy inclusion
 - [ ] Save all the energies in the optimization process as a data and a file
 - [ ] Add the option of using different optimizers (by hand as a input parameter)
@@ -6,4 +5,5 @@
 - [ ] Create the TQUDO QAOA
 - [ ] Check the implementation of the TQUDO QAOA
 - [ ] Complex initialization
-- [ ] 
+- [ ] Configurar lambdas
+- [ ] Sistema de guardado, por instancia

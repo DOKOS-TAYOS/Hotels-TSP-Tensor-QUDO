@@ -108,6 +108,7 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """Build the Tensor-QUDO formulation from a ProblemInstance.
 
     Encodes travel costs, hotel costs, and precedence penalties into Etab and Ettprimeab tensors.
+    See docs/formulations.md for the cost equations.
 
     Args:
         problem: Canonical problem with precedences and price matrices.
@@ -149,6 +150,7 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
     """Build the QUBO formulation from a ProblemInstance.
 
     Encodes costs and constraint penalties into a quadratic matrix for x^T Q x.
+    See docs/formulations.md for the cost equations.
 
     Args:
         problem: Canonical problem with precedences and price matrices.
