@@ -132,6 +132,27 @@ def qubo_binary_to_sequence(solution: np.ndarray, n_available: int) -> np.ndarra
     return seq
 
 
+def sequence_to_qubo_binary(
+    sequence: np.ndarray | list[int],
+    n_available: int,
+) -> np.ndarray:
+    """Encode a route sequence to QUBO binary vector (one-hot per timestep).
+
+    Args:
+        sequence: Route as list/array where sequence[t] = city at timestep t.
+        n_available: Number of available cities (n_cities - 1).
+
+    Returns:
+        Binary vector of shape (n_available * n_available,) with one-hot encoding.
+    """
+    seq = np.asarray(sequence).flatten()
+    x = np.zeros(n_available * n_available, dtype=float)
+    for t in range(n_available):
+        city = int(seq[t])
+        x[idx(t, city, n_available)] = 1.0
+    return x
+
+
 def validate_solution_constraints_qubo(
     instance: ProblemInstance,
     solution: np.ndarray,

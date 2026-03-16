@@ -6,6 +6,7 @@ from instance_gen_process.models import ProblemInstance
 from utils.constraints import (
     idx,
     qubo_binary_to_sequence,
+    sequence_to_qubo_binary,
     validate_solution_constraints_qubo,
     validate_solution_constraints_tqudo,
 )
@@ -137,3 +138,24 @@ class TestQuboBinaryToSequence:
 
     def test_decode_invalid_length_returns_none(self) -> None:
         assert qubo_binary_to_sequence(np.zeros(5), 4) is None
+
+
+class TestSequenceToQuboBinary:
+    """Tests for sequence_to_qubo_binary helper."""
+
+    def test_encode_decode_roundtrip(self) -> None:
+        n_available = 4
+        seq = [2, 0, 3, 1]
+        binary = sequence_to_qubo_binary(seq, n_available)
+        decoded = qubo_binary_to_sequence(binary, n_available)
+        assert decoded is not None
+        assert list(decoded) == seq
+
+    def test_one_hot_per_timestep(self) -> None:
+        n_available = 3
+        seq = [0, 1, 2]
+        binary = sequence_to_qubo_binary(seq, n_available)
+        assert binary.shape == (9,)
+        assert binary.sum() == 3
+        for t in range(n_available):
+            assert binary[idx(t, seq[t], n_available)] == 1.0

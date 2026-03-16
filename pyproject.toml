@@ -33,6 +33,7 @@ dev = [
 ]
 cirq = [
     "cirq>=1.3.0",
+    "scipy>=1.10.0",
 ]
 cudaq = [
     # Install NVIDIA CUDA-Q manually in unsupported environments when required.
