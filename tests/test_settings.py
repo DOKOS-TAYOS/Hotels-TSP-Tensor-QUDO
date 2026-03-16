@@ -1,29 +1,11 @@
 """Tests for runtime settings loading."""
 
-from pathlib import Path
-import shutil
-from uuid import uuid4
-
 from config import load_settings
-
-
-def _workspace_tmp_dir(prefix: str) -> Path:
-    base_dir = Path(__file__).resolve().parent / ".tmp"
-    base_dir.mkdir(exist_ok=True)
-    temp_dir = base_dir / f"{prefix}_{uuid4().hex}"
-    temp_dir.mkdir()
-    return temp_dir
-
-
-def _cleanup_workspace_tmp_dir(temp_dir: Path) -> None:
-    shutil.rmtree(temp_dir, ignore_errors=True)
-    base_dir = temp_dir.parent
-    if base_dir.exists() and not any(base_dir.iterdir()):
-        base_dir.rmdir()
+from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
 
 
 def test_load_settings_from_env_file() -> None:
-    tmp_path = _workspace_tmp_dir("settings_env")
+    tmp_path = workspace_tmp_dir("settings_env")
     env_path = tmp_path / ".env"
     try:
         env_path.write_text(
@@ -49,11 +31,11 @@ def test_load_settings_from_env_file() -> None:
         assert settings.enable_noise_simulation is True
         assert settings.random_seed == 7
     finally:
-        _cleanup_workspace_tmp_dir(tmp_path)
+        cleanup_workspace_tmp_dir(tmp_path)
 
 
 def test_load_settings_defaults_without_env_file() -> None:
-    tmp_path = _workspace_tmp_dir("settings_defaults")
+    tmp_path = workspace_tmp_dir("settings_defaults")
     try:
         settings = load_settings(env_file=tmp_path / ".env.missing", project_root=tmp_path)
 
@@ -64,5 +46,5 @@ def test_load_settings_defaults_without_env_file() -> None:
         assert settings.enable_noise_simulation is False
         assert settings.random_seed == 42
     finally:
-        _cleanup_workspace_tmp_dir(tmp_path)
+        cleanup_workspace_tmp_dir(tmp_path)
 

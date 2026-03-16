@@ -24,10 +24,12 @@ class Settings:
 
 
 def _project_root() -> Path:
+    """Return the project root directory (parent of src)."""
     return Path(__file__).resolve().parents[2]
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
+    """Read key=value pairs from an env file, ignoring comments and empty lines."""
     if not path.exists():
         return {}
 
@@ -42,21 +44,35 @@ def _read_env_file(path: Path) -> dict[str, str]:
 
 
 def _get_setting(key: str, default: str, values: dict[str, str]) -> str:
+    """Get setting from environment, falling back to env file values, then default."""
     return os.getenv(key, values.get(key, default))
 
 
 def _as_bool(value: str) -> bool:
+    """Parse a string as boolean (true/yes/on/1)."""
     normalized = value.strip().lower()
     return normalized in {"1", "true", "yes", "on"}
 
 
 def _resolve_path(raw_path: str, project_root: Path) -> Path:
+    """Resolve path: expand user, use as-is if absolute else relative to project_root."""
     path = Path(raw_path).expanduser()
     return path if path.is_absolute() else (project_root / path)
 
 
 def load_settings(env_file: Path | str | None = None, project_root: Path | None = None) -> Settings:
-    """Load settings from `.env` and process environment variables."""
+    """Load settings from `.env` and process environment variables.
+
+    Args:
+        env_file: Path to .env file. If None, uses project_root/.env.
+        project_root: Project root for resolving relative paths. If None, inferred.
+
+    Returns:
+        Settings instance with quantum_backend, output_dir, input_dir, etc.
+
+    Raises:
+        ValueError: If HTSP_QUANTUM_BACKEND is unsupported.
+    """
 
     resolved_root = project_root or _project_root()
     resolved_env_file = Path(env_file) if env_file else resolved_root / ".env"

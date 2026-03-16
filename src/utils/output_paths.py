@@ -17,8 +17,14 @@ class OutputLayout:
 
 
 def build_output_layout(root: Path) -> OutputLayout:
-    """Build output layout paths without creating directories."""
+    """Build output layout paths without creating directories.
 
+    Args:
+        root: Base directory for output artifacts.
+
+    Returns:
+        OutputLayout with root, raw, processed, and images subpaths.
+    """
     return OutputLayout(
         root=root,
         raw=root / "raw",

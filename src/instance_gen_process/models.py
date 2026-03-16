@@ -27,28 +27,36 @@ class ProblemInstance:
 
 @dataclass(frozen=True, slots=True)
 class ProblemTQUDO:
+    """Tensor-QUDO formulation: Hamiltonian terms for quantum device.
+
+    Attributes:
+        Etab: 3D tensor (t, origin, destination) for travel and hotel costs.
+        Ettprimeab: 4D tensor (t, t_prime, origin, destination) for penalties.
     """
-    Representation for the quantum device hamiltonian terms.
-    """
-    
-    Etab: np.ndarray # 3 dimensions
-    Ettprimeab: np.ndarray # 4 dimensions
+
+    Etab: np.ndarray  # 3 dimensions
+    Ettprimeab: np.ndarray  # 4 dimensions
+
 
 @dataclass(frozen=True, slots=True)
 class ProblemQUBO:
+    """QUBO formulation: quadratic matrix for quantum/classical solvers.
+
+    Attributes:
+        qubo_matrix: Symmetric matrix of shape (n_vars, n_vars) where n_vars = n_available^2.
     """
-    Representation for the quantum device hamiltonian terms.
-    """
-    
-    QUBO_matrix: np.ndarray # 2 dimensions
+
+    qubo_matrix: np.ndarray  # 2 dimensions
+
 
 @dataclass(frozen=True, slots=True)
 class RestrictionConfig:
-    """
-    Class for the restriction terms.
-    Lambda0 is the non two nodes per time
-    Lambda1 is the non two times per node
-    Lambda2 is the precedence restriction
+    """Penalty coefficients for QUBO/TQUDO constraint encoding.
+
+    Attributes:
+        lambda_0: Penalty for "not exactly one node per timestep".
+        lambda_1: Penalty for "not exactly one timestep per node".
+        lambda_2: Penalty for precedence constraint violations.
     """
     lambda_0: float
     lambda_1: float

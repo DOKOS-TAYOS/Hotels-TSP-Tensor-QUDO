@@ -14,6 +14,18 @@ DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.yaml")
 
 
 def _parse_range(raw_value: Any, field_name: str) -> tuple[float, float]:
+    """Parse a two-element range of floats from YAML data.
+
+    Args:
+        raw_value: Raw value from YAML (list or tuple of two numbers).
+        field_name: Field name for error messages.
+
+    Returns:
+        Tuple (low, high) with low < high.
+
+    Raises:
+        ValueError: If value is missing, not a 2-element sequence, or low >= high.
+    """
     if raw_value is None:
         raise ValueError(f"Missing required field: {field_name}")
     if not isinstance(raw_value, (list, tuple)) or len(raw_value) != 2:
@@ -26,6 +38,18 @@ def _parse_range(raw_value: Any, field_name: str) -> tuple[float, float]:
 
 
 def _parse_int_range(raw_value: Any, field_name: str) -> tuple[int, int]:
+    """Parse a two-element range of integers from YAML data.
+
+    Args:
+        raw_value: Raw value from YAML (list or tuple of two integers).
+        field_name: Field name for error messages.
+
+    Returns:
+        Tuple (low, high) with low < high.
+
+    Raises:
+        ValueError: If value is missing, not a 2-element sequence, or low >= high.
+    """
     if raw_value is None:
         raise ValueError(f"Missing required field: {field_name}")
     if not isinstance(raw_value, (list, tuple)) or len(raw_value) != 2:
@@ -38,7 +62,17 @@ def _parse_int_range(raw_value: Any, field_name: str) -> tuple[int, int]:
 
 
 def load_instance_config(path: Path | str | None = None) -> InstanceConfig:
-    """Load and validate `InstanceConfig` from YAML."""
+    """Load and validate `InstanceConfig` from YAML.
+
+    Args:
+        path: Path to YAML config file. If None, uses DEFAULT_CONFIG_PATH.
+
+    Returns:
+        InstanceConfig with n_cities, n_precedences_range, price ranges, seed.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
     config_path = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
@@ -50,7 +84,7 @@ def load_instance_config(path: Path | str | None = None) -> InstanceConfig:
         raise ValueError("n_cities must be at least 1")
 
     n_precedences_range = _parse_int_range(
-        data.get("n_precedence_range"), field_name="n_precedence_range"
+        data.get("n_precedences_range"), field_name="n_precedences_range"
     )
     prices_range_hotels = _parse_range(
         data.get("prices_range_hotels"), field_name="prices_range_hotels"

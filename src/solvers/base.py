@@ -33,5 +33,13 @@ class SolverProtocol(Protocol):
     solver_name: str
 
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult:
-        """Execute optimization and return a standardized result."""
+        """Execute optimization and return a standardized result.
+
+        Args:
+            instance: Problem to solve (precedences, prices).
+            run_config: Solver controls (max_iterations, timeout).
+
+        Returns:
+            SolverResult with objective_value, feasible, runtime_seconds.
+        """
 

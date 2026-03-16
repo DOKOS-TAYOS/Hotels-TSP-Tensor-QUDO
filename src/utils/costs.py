@@ -14,14 +14,14 @@ def calculate_qubo_cost(problem: ProblemQUBO, solution: np.ndarray) -> float:
     both the real cost terms and the penalty terms for constraint violations.
 
     Args:
-        problem: The QUBO problem with QUBO_matrix.
+        problem: The QUBO problem with qubo_matrix.
         solution: Binary solution vector of shape (n_vars,) or (n_vars, 1).
 
     Returns:
         The QUBO cost value for the given solution.
     """
     x = np.asarray(solution).flatten()
-    return float(x @ problem.QUBO_matrix @ x)
+    return float(x @ problem.qubo_matrix @ x)
 
 
 def calculate_tqudo_cost(
@@ -43,13 +43,13 @@ def calculate_tqudo_cost(
     x = np.asarray(solution).flatten()
     cost = 0
     for t, origin in enumerate(x[:-1]):
-        destiny = x[t+1]
-        cost += problem.Etab[t, origin, destiny]
-        for tp, destiny in enumerate(x[t+1:]):
-            t2 = t + tp
-            cost += problem.Ettprimeab[t, t2, origin, destiny]
+        destination = x[t+1]
+        cost += problem.Etab[t, origin, destination]
+        for tp, destination in enumerate(x[t+1:]):
+            t_prime = t + tp
+            cost += problem.Ettprimeab[t, t_prime, origin, destination]
 
-    raise cost
+    return cost
 
 
 def calculate_real_cost(problem: ProblemInstance, sequence: list[int]) -> float:
