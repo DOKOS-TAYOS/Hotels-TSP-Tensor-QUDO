@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from instance_gen_process import ProblemInstance
+from instance_gen_process.models import RestrictionConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +15,14 @@ class SolverRunConfig:
 
     max_iterations: int = 1_000
     timeout_seconds: float | None = None
+    # CUDA-Q QAOA specific (ignored by other solvers)
+    formulation: Literal["tqudo", "qubo"] = "tqudo"
+    restriction_config: RestrictionConfig | None = None
+    qaoa_depth: int = 1
+    qaoa_max_iter: int = 100
+    qaoa_shots: int = 500
+    qaoa_sample_shots: int = 1000
+    seed: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

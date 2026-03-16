@@ -13,14 +13,9 @@ from scipy.optimize import minimize
 import cudaq
 from cudaq import spin
 
-if cudaq.num_available_gpus() > 0 and cudaq.has_target("nvidia"):
-    cudaq.set_target("nvidia", option="fp64")
-else:
-    print(
-        "CUDA or GPU support is unavailable. Running with CPU simulator. "
-        "Performance may be significantly reduced."
-    )
-    cudaq.set_target("qpp-cpu")
+from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
+
+ensure_cudaq_target()
 
 
 def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

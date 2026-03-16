@@ -10,16 +10,10 @@ from scipy.optimize import minimize
 import cudaq
 
 from instance_gen_process.models import ProblemTQUDO
+from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from utils.costs import calculate_tqudo_cost
 
-if cudaq.num_available_gpus() > 0 and cudaq.has_target("nvidia"):
-    cudaq.set_target("nvidia", option="fp64")
-else:
-    print(
-        "CUDA or GPU support is unavailable. Running with CPU simulator. "
-        "Performance may be significantly reduced."
-    )
-    cudaq.set_target("qpp-cpu")
+ensure_cudaq_target()
 
 def create_qaoa_ansatz(
     depth: int,
@@ -121,7 +115,7 @@ def create_qaoa_ansatz(
                             if last_bit == 0:
                                 x(target)  # noqa: F821
 
-            # Mixer layer: rx en todos los qubits de todos los qudits
+            # Mixer layer: rx on all qubits of all qudits
             for i in range(n_qudits):
                 for j in range(qubits_per_qudit):
                     rx(2.0 * beta[k], q[i][j])  # noqa: F821
@@ -236,18 +230,6 @@ def optimize_qaoa(
     if sample_shots is not None:
         samples = sample_solution(kernel, best_params, depth, n_shots=sample_shots)
     return best_energy, best_params, samples
-
-
-def bitstring_to_binary(bitstring: str) -> np.ndarray:
-    """Convert a measurement bitstring to raw binary (0/1 per qubit).
-
-    Args:
-        bitstring: String of '0' and '1'.
-
-    Returns:
-        1D array of 0s and 1s, shape (len(bitstring),).
-    """
-    return np.array([int(b) for b in bitstring], dtype=np.int64)
 
 
 def bitstring_to_qudit_sequence(
