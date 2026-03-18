@@ -4,8 +4,19 @@ import random
 
 import pytest
 
-from instance_gen_process import generate_random_instance, load_instance_config
+from instance_gen_process import InstanceConfig, generate_random_instance
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver, SolverRunConfig
+
+
+def _contract_test_config() -> InstanceConfig:
+    """Use a small fixed instance size so solver contract tests stay safe."""
+    return InstanceConfig(
+        n_cities=5,
+        n_precedences_range=(2, 3),
+        prices_range_hotels=(30.0, 150.0),
+        prices_range_travels=(30.0, 150.0),
+        seed=42,
+    )
 
 
 def test_cudaq_solver_contract() -> None:
@@ -18,7 +29,7 @@ def test_cudaq_solver_contract() -> None:
 def test_cirq_solver_contract(formulation: str) -> None:
     """CirqSolver is implemented and returns SolverResult."""
     pytest.importorskip("cirq")
-    instance_config = load_instance_config()
+    instance_config = _contract_test_config()
     rng = random.Random(instance_config.seed)
     instance = generate_random_instance(instance_config, rng)
     run_config = SolverRunConfig(
@@ -46,7 +57,7 @@ def test_cirq_solver_contract(formulation: str) -> None:
 
 def test_simulated_annealing_solver_contract() -> None:
     """SimulatedAnnealingSolver is implemented and returns SolverResult."""
-    instance_config = load_instance_config()
+    instance_config = _contract_test_config()
     rng = random.Random(instance_config.seed)
     instance = generate_random_instance(instance_config, rng)
     run_config = SolverRunConfig(
@@ -76,7 +87,7 @@ def test_simulated_annealing_works_with_both_formulations(
     formulation: str,
 ) -> None:
     """SA solver runs with both TQUDO and QUBO formulations."""
-    instance_config = load_instance_config()
+    instance_config = _contract_test_config()
     rng = random.Random(instance_config.seed)
     instance = generate_random_instance(instance_config, rng)
     run_config = SolverRunConfig(
@@ -93,4 +104,3 @@ def test_simulated_annealing_works_with_both_formulations(
     assert isinstance(result.feasible, bool)
     assert result.runtime_seconds >= 0
     assert len(result.metadata["best_sequence"]) == instance.n_cities - 1
-
