@@ -1,6 +1,2 @@
-- [ ] First energy inclusion
-- [ ] Save all the energies in the optimization process as a data and a file
-- [ ] Add the option of using different optimizers (by hand as a input parameter)
-- [ ] Complex initialization
 - [ ] Configurar lambdas
 - [ ] Sistema de guardado, por instancia

@@ -13,12 +13,13 @@ solver backends. Cost equations for both Tensor-QUDO and QUBO formulations are i
 - `src/instance_gen_process`: instance config, parsing, and generation.
 - `src/solvers`: solver protocol plus backend stubs.
 - `src/data_analysis`: raw-to-processed pipeline scaffold.
+- `src/experiments`: main workflow (generate instances, solve, save results).
 - `src/streamlit_app`: UI shell for reproducible runs.
 - `src/utils`: shared logging and validation helpers.
 
 ## Data flow
 
-1. Instance settings are loaded from `config.yaml`.
+1. Instance settings are loaded from `config.yaml`; solver settings from `solver_config.yaml`.
 2. A `ProblemInstance` is generated and passed to a solver backend.
 3. Solver outputs are stored as raw records in `output/raw`.
 4. Analysis scripts curate records into benchmark-ready data in `output/processed`.

@@ -1,39 +1,22 @@
 # Development Guide
 
-## Environment bootstrap
+This project targets **Linux only**. CUDA-Q and the install/task scripts require a Linux environment.
 
-### Linux / macOS
+## Environment bootstrap
 
 ```bash
 ./install.sh
 ```
 
-### Windows (CMD)
-
-```bat
-install.bat
-```
-
-Default setup installs editable dependencies with extras `dev,ui,cirq`.
+Default setup installs editable dependencies with extras `dev,ui,cirq`. Use `cudaq` extra for CUDA-Q backend.
 
 ## Task runners
-
-### Linux / macOS
 
 ```bash
 make -f scripts/makefile setup
 make -f scripts/makefile lint
 make -f scripts/makefile test
 make -f scripts/makefile app
-```
-
-### Windows (CMD)
-
-```bat
-scripts\make.bat setup
-scripts\make.bat lint
-scripts\make.bat test
-scripts\make.bat app
 ```
 
 ## Code quality
