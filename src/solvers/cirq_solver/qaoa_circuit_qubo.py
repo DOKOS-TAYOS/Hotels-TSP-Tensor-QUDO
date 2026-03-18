@@ -12,29 +12,7 @@ from scipy.optimize import minimize
 
 import cirq
 
-
-def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Convert a symmetric QUBO matrix to Ising form (h, J).
-
-    Uses the standard transformation x_i = (1 - s_i) / 2 with s_i in {-1, +1}.
-    Same implementation as CUDA-Q (backend-agnostic).
-
-    Args:
-        qubo_matrix: Symmetric matrix of shape (n, n).
-
-    Returns:
-        Tuple (h, J): linear and coupling coefficients.
-    """
-    n = qubo_matrix.shape[0]
-    if qubo_matrix.shape[1] != n:
-        raise ValueError("qubo_matrix must be square")
-    if not np.allclose(qubo_matrix, qubo_matrix.T):
-        raise ValueError("qubo_matrix must be symmetric")
-
-    h = -0.5 * np.sum(qubo_matrix, axis=1)
-    j_full = np.triu(qubo_matrix, k=1) / 4.0
-    return h, j_full
-
+from math_utils.qubo_ising import qubo_to_ising
 
 def ising_to_pauli_sum(
     h: np.ndarray,
@@ -203,7 +181,7 @@ def optimize_qaoa(
     if seed is not None:
         np.random.seed(seed)
 
-    h, j_matrix = qubo_to_ising(qubo_matrix)
+    h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
     qubits = list(cirq.LineQubit.range(n))
     hamiltonian = ising_to_pauli_sum(h, j_matrix, qubits)
@@ -232,7 +210,9 @@ def optimize_qaoa(
         options=_minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
-    best_energy = float(opt_result.fun)
+    best_energy = float(opt_result.fun) + offset
+    initial_energy = initial_energy + offset
+    energy_history = [energy + offset for energy in energy_history]
     samples: dict[str, int] | None = None
     if n_shots is not None:
         samples = sample_solution(circuit, best_params, symbols, depth, qubits, n_shots, seed)

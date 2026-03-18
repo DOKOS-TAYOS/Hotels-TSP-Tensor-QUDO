@@ -13,60 +13,10 @@ from scipy.optimize import minimize
 import cudaq
 from cudaq import spin
 
+from math_utils.qubo_ising import qubo_to_ising
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 
 ensure_cudaq_target()
-
-
-def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
-    """Convert a symmetric QUBO matrix to Ising form (h, J, offset).
-
-    Uses the standard transformation x_i = (1 - s_i) / 2 with s_i in {-1, +1}.
-    For symmetric QUBO: x^T Q x = sum_i Q_ii x_i + sum_{i<j} 2 Q_ij x_i x_j.
-
-    The full energy relation is: E_QUBO(x) = E_Ising(s) + offset.
-    Without the offset, Ising energies do not correspond to QUBO objective values.
-
-    Args:
-        qubo_matrix: Symmetric matrix of shape (n, n). Represents the QUBO
-            objective min x^T Q x over binary x.
-
-    Returns:
-        Tuple (h, J, offset):
-        - h: 1D array of shape (n,) with linear Ising coefficients h_i.
-              E_ising = sum_i h_i s_i + sum_{i<j} J_ij s_i s_j.
-        - J: 2D array of shape (n, n) with coupling coefficients.
-              Only entries with i < j are used; J is upper-triangular by convention.
-              J_ij = Q_ij / 4 for i < j.
-        - offset: Constant energy shift so that E_QUBO = E_Ising + offset.
-
-    Output format:
-        h[i] = -Q_ii/2 - sum_{j != i} Q_ij/2
-        J[i,j] = Q_ij/4 for i < j (rest can be 0)
-        offset = sum_i Q_ii/2 + sum_{i<j} Q_ij/2
-    """
-    n = qubo_matrix.shape[0]
-    if qubo_matrix.shape[1] != n:
-        raise ValueError("qubo_matrix must be square")
-    
-    # Ensure symmetry of QUBO matrix
-    if not np.allclose(qubo_matrix, qubo_matrix.T):
-        raise ValueError("qubo_matrix must be symmetric")
-    
-    # Linear: h_i = -sum_j Q_ij/2 (from x_i = (1-s_i)/2 substitution)
-    h = -0.5 * np.sum(qubo_matrix, axis=1)
-    
-    # Quadratic: J_ij = Q_ij/4 for i < j
-    # Use vectorized upper triangular extraction for efficiency
-    j_full = np.triu(qubo_matrix, k=1) / 4.0
-    
-    # Constant offset: sum_i Q_ii/2 + sum_{i<j} Q_ij/2
-    diag_sum = np.trace(qubo_matrix)
-    off_diag_upper_sum = np.sum(np.triu(qubo_matrix, k=1))
-    offset = 0.5 * diag_sum + 0.5 * off_diag_upper_sum
-    
-    return h, j_full, offset
-
 
 def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
     """Build a CUDA-Q spin_op from Ising coefficients (h, J).
@@ -353,4 +303,3 @@ def run_qaoa(
         "initial_energy": initial_energy,
         "energy_history": energy_history,
     }
-

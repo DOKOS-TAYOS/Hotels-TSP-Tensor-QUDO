@@ -80,12 +80,23 @@ def load_instance_config(path: Path | str | None = None) -> InstanceConfig:
     if "n_cities" not in data:
         raise ValueError("Missing required field: n_cities")
     n_cities = int(data["n_cities"])
-    if n_cities < 1:
-        raise ValueError("n_cities must be at least 1")
+    if n_cities < 2:
+        raise ValueError("n_cities must be at least 2")
 
     n_precedences_range = _parse_int_range(
         data.get("n_precedences_range"), field_name="n_precedences_range"
     )
+    if n_precedences_range[0] < 0 or n_precedences_range[1] < 0:
+        raise ValueError("n_precedences_range must be non-negative")
+
+    n_available = n_cities - 1
+    max_precedences = n_available * (n_available - 1) // 2
+    if n_precedences_range[1] > max_precedences:
+        raise ValueError(
+            "n_precedences_range upper bound exceeds the maximum feasible number "
+            f"of precedence constraints ({max_precedences}) for n_cities={n_cities}"
+        )
+
     prices_range_hotels = _parse_range(
         data.get("prices_range_hotels"), field_name="prices_range_hotels"
     )
@@ -104,4 +115,3 @@ def load_instance_config(path: Path | str | None = None) -> InstanceConfig:
         prices_range_travels=prices_range_travels,
         seed=seed,
     )
-
