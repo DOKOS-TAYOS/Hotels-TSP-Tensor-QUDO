@@ -182,17 +182,16 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
             qubo_matrix[idx_ti, idx_ti] += problem.prices_hotels[t, i]
             if t == 0:
                 qubo_matrix[idx_ti, idx_ti] += problem.prices_travels[0, n_available, i]
+            if t == n_available-2:
+                idx_tp1_i = idx(t + 1, i, n_available)
+                qubo_matrix[idx_tp1_i, idx_tp1_i] += problem.prices_travels[n_available, i, n_available]
+                qubo_matrix[idx_tp1_i, idx_tp1_i] += problem.prices_hotels[n_available-1, i]
 
             for j in range(n_available):
-                idx_tj = idx(t, j, n_available)
                 idx_tp1_j = idx(t + 1, j, n_available)
-                if i != j:
-                    qubo_matrix[idx_ti, idx_tp1_j] += problem.prices_travels[t+1, i, j] / 2
-                    qubo_matrix[idx_tp1_j, idx_ti] += problem.prices_travels[t+1, i, j] / 2 # For symmetry
-                    if t == n_available-2:
-                        qubo_matrix[idx_tp1_j, idx_tp1_j] += problem.prices_travels[n_available, j, n_available]
-                        qubo_matrix[idx_tp1_j, idx_tp1_j] += problem.prices_hotels[n_available-1, j]
-
+                qubo_matrix[idx_ti, idx_tp1_j] += problem.prices_travels[t+1, i, j] / 2
+                qubo_matrix[idx_tp1_j, idx_ti] += problem.prices_travels[t+1, i, j] / 2 # For symmetry
+            
     for t in range(n_available):
         for i in range(n_available):
             idx_ti = idx(t, i, n_available)
