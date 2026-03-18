@@ -231,6 +231,7 @@ def optimize_qaoa(
     n_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian.
 
@@ -241,6 +242,7 @@ def optimize_qaoa(
         n_shots: If set, also sample the solution state (None = no sampling).
         seed: Random seed for initial parameters (None = no seed).
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
+        delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
         Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
@@ -255,10 +257,12 @@ def optimize_qaoa(
     hamiltonian = ising_to_spin_op(h, j_matrix)
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
 
-    init_params = np.concatenate([
-        np.random.uniform(0, 2 * np.pi, depth),
-        np.random.uniform(0, np.pi, depth),
-    ])
+    # TQA (Trotterized Quantum Annealing) initialization:
+    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
+    indices = np.arange(1, depth + 1)
+    gamma_init = (indices / depth) * delta_t
+    beta_init = (1 - indices / depth) * delta_t
+    init_params = np.concatenate([gamma_init, beta_init])
 
     energy_history: list[float] = []
 
@@ -307,6 +311,7 @@ def run_qaoa(
     n_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
@@ -317,6 +322,7 @@ def run_qaoa(
         n_shots: Shots for sampling the final state.
         seed: Random seed.
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
+        delta_t: Time step for TQA initialization (default0.55).
 
     Returns:
         Dict with keys: energy, params, samples, best_bitstring, best_binary,
@@ -331,6 +337,7 @@ def run_qaoa(
         n_shots=n_shots,
         seed=seed,
         optimizer=optimizer,
+        delta_t=delta_t,
     )
     n = qubo_matrix.shape[0]
 

@@ -200,6 +200,7 @@ def optimize_qaoa(
     sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se
 ) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
     """Optimize QAOA parameters to minimize the TQUDO cost.
 
@@ -212,6 +213,7 @@ def optimize_qaoa(
         sample_shots: If set, also sample the solution state (None = no sampling).
         seed: Random seed for initial parameters (None = no seed).
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
+        delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
         Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
@@ -224,10 +226,12 @@ def optimize_qaoa(
         np.random.seed(seed)
     kernel = create_qaoa_ansatz(depth, Etab, Ettprimeab)
 
-    init_params = np.concatenate([
-        np.random.uniform(0, 2 * np.pi, depth),
-        np.random.uniform(0, np.pi, depth),
-    ])
+    # TQA (Trotterized Quantum Annealing) initialization:
+    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
+    indices = np.arange(1, depth + 1)
+    gamma_init = (indices / depth) * delta_t
+    beta_init = (1 - indices / depth) * delta_t
+    init_params = np.concatenate([gamma_init, beta_init])
 
     energy_history: list[float] = []
 
@@ -287,6 +291,7 @@ def run_qaoa(
     sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
@@ -299,6 +304,7 @@ def run_qaoa(
         sample_shots: Shots for sampling the final state.
         seed: Random seed.
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
+        delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
         Dict with keys: energy, params, samples, best_bitstring, best_sequence,
@@ -319,6 +325,7 @@ def run_qaoa(
         sample_shots=sample_shots,
         seed=seed,
         optimizer=optimizer,
+        delta_t=delta_t,
     )
 
     best_bitstring = (

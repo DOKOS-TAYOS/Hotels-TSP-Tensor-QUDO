@@ -197,6 +197,7 @@ def optimize_qaoa(
     n_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian."""
     if seed is not None:
@@ -208,10 +209,12 @@ def optimize_qaoa(
     hamiltonian = ising_to_pauli_sum(h, j_matrix, qubits)
     circuit, symbols = create_qaoa_circuit(depth, h, j_matrix, qubits)
 
-    init_params = np.concatenate([
-        np.random.uniform(0, 2 * np.pi, depth),
-        np.random.uniform(0, np.pi, depth),
-    ])
+    # TQA (Trotterized Quantum Annealing) initialization:
+    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
+    indices = np.arange(1, depth + 1)
+    gamma_init = (indices / depth) * delta_t
+    beta_init = (1 - indices / depth) * delta_t
+    init_params = np.concatenate([gamma_init, beta_init])
 
     energy_history: list[float] = []
 
@@ -255,6 +258,7 @@ def run_qaoa(
     n_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution."""
     best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
@@ -264,6 +268,7 @@ def run_qaoa(
         n_shots=n_shots,
         seed=seed,
         optimizer=optimizer,
+        delta_t=delta_t,
     )
     n = qubo_matrix.shape[0]
     best_bitstring = _most_probable(samples, n) if samples else "0" * n
