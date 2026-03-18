@@ -28,8 +28,9 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 ```
 
 Setup script creates `.venv`, installs editable project dependencies, and defaults to
-the `dev,ui,cirq` extras. For the CUDA-Q backend, use `.[dev,ui,cudaq]` instead.
-Installer validates `git` and `Python 3.12+` before running setup.
+the `dev,ui,cudaq` extras. For the Cirq backend instead, run
+`./install.sh dev,ui,cirq`. Installer validates `git` and `Python 3.12+`
+before running setup.
 
 ## Run common tasks
 

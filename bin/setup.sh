@@ -7,7 +7,7 @@ log() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-EXTRAS="${1:-dev,ui,cirq}"
+EXTRAS="${1:-dev,ui,cudaq}"
 
 log "Project root resolved to: ${PROJECT_ROOT}"
 log "Requested extras: ${EXTRAS}"

@@ -8,7 +8,8 @@ This project targets **Linux only**. CUDA-Q and the install/task scripts require
 ./install.sh
 ```
 
-Default setup installs editable dependencies with extras `dev,ui,cirq`. Use `cudaq` extra for CUDA-Q backend.
+Default setup installs editable dependencies with extras `dev,ui,cudaq`. Use
+`./install.sh dev,ui,cirq` if you want the Cirq backend instead.
 
 ## Task runners
 
