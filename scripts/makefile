@@ -1,6 +1,6 @@
 .PHONY: setup lint test app clean
 
-EXTRAS ?= dev,ui,cirq
+EXTRAS ?= dev,ui,cudaq
 PYTHON := .venv/bin/python
 STREAMLIT := .venv/bin/streamlit
 

@@ -103,7 +103,7 @@ prompt_install_missing() {
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-EXTRAS="${1:-dev,ui,cirq}"
+EXTRAS="${1:-dev,ui,cudaq}"
 PACKAGE_MANAGER="$(detect_package_manager || true)"
 
 log "Step 1/3: Checking prerequisites (Python 3.12+ and Git)"

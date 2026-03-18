@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+from collections import deque
+
 import numpy as np
 
 from utils.constraints import idx
@@ -47,9 +49,9 @@ def _would_create_cycle(precedences: list[tuple[int, int]], origin: int, destina
         adj.setdefault(a, []).append(b)
     # BFS from destination: can we reach origin?
     seen: set[int] = {destination}
-    queue: list[int] = [destination]
+    queue = deque([destination])
     while queue:
-        node = queue.pop(0)
+        node = queue.popleft()
         for neighbor in adj.get(node, []):
             if neighbor == origin:
                 return True
@@ -57,6 +59,11 @@ def _would_create_cycle(precedences: list[tuple[int, int]], origin: int, destina
                 seen.add(neighbor)
                 queue.append(neighbor)
     return False
+
+
+def _is_power_of_two(value: int) -> bool:
+    """Return True when *value* is a positive power of two."""
+    return value > 0 and (value & (value - 1)) == 0
 
 
 def generate_random_instance(config: InstanceConfig, rng: random.Random) -> ProblemInstance:
@@ -83,7 +90,7 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
         origin = rng.randrange(n_available)
         available_destinations = [i for i in range(n_available) if i != origin]
         destination = rng.choice(available_destinations)
-        if not _would_create_cycle(precedences, origin, destination):
+        if (origin, destination) not in precedences and not _would_create_cycle(precedences, origin, destination):
             precedences.append((origin, destination))
         attempts += 1
 
@@ -120,6 +127,10 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
+    if not _is_power_of_two(n_available):
+        raise ValueError(
+            "Tensor-QUDO requires n_cities - 1 to be a power of two."
+        )
     Etab = np.zeros((n_available, n_available, n_available), dtype=float)
 
     for t in range(n_available-1):
@@ -131,7 +142,7 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                     Etab[t, origin, destination] += problem.prices_travels[0, n_available, origin]  # Closed loop
                 if t == n_available - 2:
                     Etab[t, origin, destination] += problem.prices_travels[n_available, destination, n_available]  # Closed loop
-                    Etab[t, origin, destination] += problem.prices_hotels[n_available - 2, destination]
+                    Etab[t, origin, destination] += problem.prices_hotels[n_available - 1, destination]
                 
     # This may be changed to Tab if in the solver we take into acount that t'>t
     Ettprimeab = np.zeros((n_available, n_available, n_available, n_available), dtype=float)
@@ -171,20 +182,21 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
             qubo_matrix[idx_ti, idx_ti] += problem.prices_hotels[t, i]
             if t == 0:
                 qubo_matrix[idx_ti, idx_ti] += problem.prices_travels[0, n_available, i]
+            if t == n_available-2:
+                idx_tp1_i = idx(t + 1, i, n_available)
+                qubo_matrix[idx_tp1_i, idx_tp1_i] += problem.prices_travels[n_available, i, n_available]
+                qubo_matrix[idx_tp1_i, idx_tp1_i] += problem.prices_hotels[n_available-1, i]
 
             for j in range(n_available):
-                idx_tj = idx(t, j, n_available)
                 idx_tp1_j = idx(t + 1, j, n_available)
-                if i != j:
-                    qubo_matrix[idx_ti, idx_tp1_j] += problem.prices_travels[t+1, i, j] / 2
-                    qubo_matrix[idx_tp1_j, idx_ti] += problem.prices_travels[t+1, i, j] / 2 # For symmetry
-                    if t == n_available-2:
-                        qubo_matrix[idx_tp1_j, idx_tp1_j] += problem.prices_travels[n_available, j, n_available]
-                        qubo_matrix[idx_tp1_j, idx_tp1_j] += problem.prices_hotels[n_available-1, j]
-
+                qubo_matrix[idx_ti, idx_tp1_j] += problem.prices_travels[t+1, i, j] / 2
+                qubo_matrix[idx_tp1_j, idx_ti] += problem.prices_travels[t+1, i, j] / 2 # For symmetry
+            
     for t in range(n_available):
         for i in range(n_available):
             idx_ti = idx(t, i, n_available)
+            qubo_matrix[idx_ti, idx_ti] -= restriction.lambda_0
+            qubo_matrix[idx_ti, idx_ti] -= restriction.lambda_1
             for j in range(n_available):
                 if i != j:
                     idx_tj = idx(t, j, n_available)
@@ -206,5 +218,4 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
 
 
     
-
 

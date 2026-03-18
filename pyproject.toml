@@ -63,6 +63,7 @@ include = [
     "data_analysis*",
     "experiments*",
     "instance_gen_process*",
+    "math_utils*",
     "solvers*",
     "streamlit_app*",
     "utils*",

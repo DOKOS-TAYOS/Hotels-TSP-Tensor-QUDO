@@ -62,7 +62,7 @@ $$
 \begin{align*}
 C(\vec{x}) = &\sum_{t,i,j, i\neq j}^{N-3, N-2, N-2} E^v_{t+1,i,j} x_{t,i}x_{t+1,j}+ \sum_{i=0}^{N-2} E^v_{0,N-1, i}x_{0,i}+\\
 & + \sum_{j=0}^{N-2} E^v_{N-1,j,N-1} x_{N-2,j}+\sum_{t,i}^{N-2, N-2}E^h_{t,i}x_{t,i}+\\
-& + \lambda_0 \sum_{t, i, j, i\neq j}^{N-2, N-2, N-2} x_{t,i}x_{t,j}+ \lambda_1 \sum_{t, t', i, t\neq t'}^{N-2, N-2, N-2} x_{t,i}x_{t',i}+\\
+& + \lambda_0 \sum_{t, i, j, i\neq j}^{N-2, N-2, N-2} x_{t,i}x_{t,j} - \lambda_0 \sum_{t, i}^{N-2,N-2} x_{t,i}+ \lambda_1 \sum_{t, t', i, t\neq t'}^{N-2, N-2, N-2} x_{t,i}x_{t',i}- \lambda_1 \sum_{t, i}^{N-2,N-2} x_{t,i}+\\
 & + \lambda_2 \sum_{t, t', t\lt t'}^{N-3, N-2}\sum_{(i,j)\in P} x_{t',i}x_{t,j}, \quad x_i \in \{0,1\}
 \end{align*}
 $$

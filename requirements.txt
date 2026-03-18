@@ -1,2 +1,2 @@
 # Convenience requirements for local development environments.
--e .[dev,ui,cirq]
+-e .[dev,ui,cudaq]
