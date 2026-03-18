@@ -183,9 +183,11 @@ def sample_solution(
 
 def _minimize_options(method: str, max_iter: int) -> dict:
     """Build scipy minimize options dict for the given method."""
-    opts: dict = {"maxiter": max_iter}
-    if method == "Nelder-Mead":
+    opts: dict = {"maxiter": max_iter, "disp": False}
+    if method in ("Nelder-Mead", "Powell"):
         opts["maxfev"] = max_iter
+    if method == "L-BFGS-B":
+        opts["maxfun"] = max_iter
     return opts
 
 

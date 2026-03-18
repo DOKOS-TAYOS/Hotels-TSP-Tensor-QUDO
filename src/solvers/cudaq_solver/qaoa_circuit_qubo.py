@@ -18,27 +18,32 @@ from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 ensure_cudaq_target()
 
 
-def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Convert a symmetric QUBO matrix to Ising form (h, J).
+def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    """Convert a symmetric QUBO matrix to Ising form (h, J, offset).
 
     Uses the standard transformation x_i = (1 - s_i) / 2 with s_i in {-1, +1}.
     For symmetric QUBO: x^T Q x = sum_i Q_ii x_i + sum_{i<j} 2 Q_ij x_i x_j.
+
+    The full energy relation is: E_QUBO(x) = E_Ising(s) + offset.
+    Without the offset, Ising energies do not correspond to QUBO objective values.
 
     Args:
         qubo_matrix: Symmetric matrix of shape (n, n). Represents the QUBO
             objective min x^T Q x over binary x.
 
     Returns:
-        Tuple (h, J):
+        Tuple (h, J, offset):
         - h: 1D array of shape (n,) with linear Ising coefficients h_i.
               E_ising = sum_i h_i s_i + sum_{i<j} J_ij s_i s_j.
         - J: 2D array of shape (n, n) with coupling coefficients.
               Only entries with i < j are used; J is upper-triangular by convention.
               J_ij = Q_ij / 4 for i < j.
+        - offset: Constant energy shift so that E_QUBO = E_Ising + offset.
 
     Output format:
         h[i] = -Q_ii/2 - sum_{j != i} Q_ij/2
         J[i,j] = Q_ij/4 for i < j (rest can be 0)
+        offset = sum_i Q_ii/2 + sum_{i<j} Q_ij/2
     """
     n = qubo_matrix.shape[0]
     if qubo_matrix.shape[1] != n:
@@ -55,7 +60,12 @@ def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Use vectorized upper triangular extraction for efficiency
     j_full = np.triu(qubo_matrix, k=1) / 4.0
     
-    return h, j_full
+    # Constant offset: sum_i Q_ii/2 + sum_{i<j} Q_ij/2
+    diag_sum = np.trace(qubo_matrix)
+    off_diag_upper_sum = np.sum(np.triu(qubo_matrix, k=1))
+    offset = 0.5 * diag_sum + 0.5 * off_diag_upper_sum
+    
+    return h, j_full, offset
 
 
 def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
@@ -96,8 +106,9 @@ def create_qaoa_ansatz(
     """Create the QAOA ansatz kernel for given (h, J).
 
     The kernel prepares |psi(gamma, beta)> = prod_k exp(-i beta_k H_M) exp(-i gamma_k H_C) |+>^n.
-    Parameters: gamma, beta each of length depth. h_arr and j_matrix are captured
-    from the closure (no need to pass them to observe/sample).
+    Parameters: gamma, beta each of length depth. All Ising coefficients are
+    pre-computed as plain Python lists before kernel definition to avoid
+    capturing NumPy arrays in the CUDA-Q JIT closure.
 
     Cost layer: exp(-i gamma h_i Z_i) = rz(2*gamma*h_i); exp(-i gamma J_ij Z_i Z_j)
     uses CNOT-Rz-CNOT. Mixer: exp(-i beta H_M) = rx(2*beta) on each qubit.
@@ -112,25 +123,45 @@ def create_qaoa_ansatz(
     """
     n_qubits = len(h_arr)
 
+    # Pre-compute non-zero linear terms as plain Python lists
+    # (cudaq.kernel JIT cannot capture NumPy arrays from closures)
+    h_nonzero_idx: list[int] = []
+    h_nonzero_vals: list[float] = []
+    for i in range(n_qubits):
+        if abs(float(h_arr[i])) > 1e-14:
+            h_nonzero_idx.append(i)
+            h_nonzero_vals.append(float(h_arr[i]))
+    n_h = len(h_nonzero_idx)
+
+    # Pre-compute non-zero coupling terms as plain Python lists
+    jj_pairs_i: list[int] = []
+    jj_pairs_j: list[int] = []
+    jj_vals: list[float] = []
+    for i in range(n_qubits):
+        for j in range(i + 1, n_qubits):
+            val = float(j_matrix[i, j])
+            if abs(val) > 1e-14:
+                jj_pairs_i.append(i)
+                jj_pairs_j.append(j)
+                jj_vals.append(val)
+    n_jj = len(jj_vals)
+
     @cudaq.kernel
     def qaoa_kernel(gamma: list[float], beta: list[float]):
-        # rz, rx, x, h are injected by cudaq.kernel; h_arr, j_matrix from closure
         q = cudaq.qvector(n_qubits)
         # Initial state |+>^n (h = Hadamard gate)
         h(q)  # noqa: F821
         for k in range(depth):
             # Cost layer: linear terms rz(2*gamma*h_i)
-            for i in range(n_qubits):
-                if abs(h_arr[i]) > 1e-14:
-                    rz(2.0 * gamma[k] * h_arr[i], q[i])  # noqa: F821
-            # Cost layer: quadratic terms CNOT-Rz-CNOT (no-op when J_ij=0)
-            for i in range(n_qubits):
-                for j in range(i + 1, n_qubits):
-                    j_val = j_matrix[i, j]
-                    if abs(j_val) > 1e-14:
-                        x.ctrl(q[i], q[j])  # noqa: F821
-                        rz(2.0 * gamma[k] * j_val, q[j])  # noqa: F821
-                        x.ctrl(q[i], q[j])  # noqa: F821
+            for idx in range(n_h):
+                rz(2.0 * gamma[k] * h_nonzero_vals[idx], q[h_nonzero_idx[idx]])  # noqa: F821
+            # Cost layer: quadratic terms CNOT-Rz-CNOT
+            for idx in range(n_jj):
+                qi = jj_pairs_i[idx]
+                qj = jj_pairs_j[idx]
+                x.ctrl(q[qi], q[qj])  # noqa: F821
+                rz(2.0 * gamma[k] * jj_vals[idx], q[qj])  # noqa: F821
+                x.ctrl(q[qi], q[qj])  # noqa: F821
             # Mixer layer
             for i in range(n_qubits):
                 rx(2.0 * beta[k], q[i])  # noqa: F821
@@ -185,9 +216,11 @@ def sample_solution(
 
 def _minimize_options(method: str, max_iter: int) -> dict:
     """Build scipy minimize options dict for the given method."""
-    opts: dict = {"maxiter": max_iter}
-    if method == "Nelder-Mead":
+    opts: dict = {"maxiter": max_iter, "disp": False}
+    if method in ("Nelder-Mead", "Powell"):
         opts["maxfev"] = max_iter
+    if method == "L-BFGS-B":
+        opts["maxfun"] = max_iter
     return opts
 
 
@@ -218,7 +251,7 @@ def optimize_qaoa(
     """
     if seed is not None:
         np.random.seed(seed)
-    h, j_matrix = qubo_to_ising(qubo_matrix)
+    h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     hamiltonian = ising_to_spin_op(h, j_matrix)
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
 
@@ -243,7 +276,10 @@ def optimize_qaoa(
         options=_minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
-    best_energy = float(opt_result.fun)
+    # Shift Ising energies back to QUBO scale: E_QUBO = E_Ising + offset
+    best_energy = float(opt_result.fun) + offset
+    initial_energy = initial_energy + offset
+    energy_history = [e + offset for e in energy_history]
     samples: "cudaq.SampleResult | None" = None
     if n_shots is not None:
         samples = sample_solution(kernel, best_params, depth, n_shots)
