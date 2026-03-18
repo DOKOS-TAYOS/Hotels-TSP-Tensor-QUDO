@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+from collections import deque
+
 import numpy as np
 
 from utils.constraints import idx
@@ -47,9 +49,9 @@ def _would_create_cycle(precedences: list[tuple[int, int]], origin: int, destina
         adj.setdefault(a, []).append(b)
     # BFS from destination: can we reach origin?
     seen: set[int] = {destination}
-    queue: list[int] = [destination]
+    queue = deque([destination])
     while queue:
-        node = queue.pop(0)
+        node = queue.popleft()
         for neighbor in adj.get(node, []):
             if neighbor == origin:
                 return True
@@ -88,7 +90,7 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
         origin = rng.randrange(n_available)
         available_destinations = [i for i in range(n_available) if i != origin]
         destination = rng.choice(available_destinations)
-        if not _would_create_cycle(precedences, origin, destination):
+        if (origin, destination) not in precedences and not _would_create_cycle(precedences, origin, destination):
             precedences.append((origin, destination))
         attempts += 1
 
