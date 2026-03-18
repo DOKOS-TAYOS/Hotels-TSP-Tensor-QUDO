@@ -87,12 +87,13 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
             precedences.append((origin, destination))
         attempts += 1
 
-    prices_hotels = np.random.uniform(
+    np_rng = np.random.default_rng(rng.randint(0, 2**32 - 1))
+    prices_hotels = np_rng.uniform(
         config.prices_range_hotels[0],
         config.prices_range_hotels[1],
         size=(n_available, n_available)
     )
-    prices_travels = np.random.uniform(
+    prices_travels = np_rng.uniform(
         config.prices_range_travels[0],
         config.prices_range_travels[1],
         size=(n_cities, n_cities, n_cities)

@@ -250,6 +250,7 @@ def optimize_qaoa(
     sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the TQUDO cost."""
     if seed is not None:
@@ -259,10 +260,12 @@ def optimize_qaoa(
         depth, Etab, Ettprimeab
     )
 
-    init_params = np.concatenate([
-        np.random.uniform(0, 2 * np.pi, depth),
-        np.random.uniform(0, np.pi, depth),
-    ])
+    # TQA (Trotterized Quantum Annealing) initialization:
+    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
+    indices = np.arange(1, depth + 1)
+    gamma_init = (indices / depth) * delta_t
+    beta_init = (1 - indices / depth) * delta_t
+    init_params = np.concatenate([gamma_init, beta_init])
 
     energy_history: list[float] = []
 
@@ -307,6 +310,7 @@ def run_qaoa(
     sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
+    delta_t: float = 0.55, # Se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution."""
     n_qudits = Etab.shape[0]
@@ -322,6 +326,7 @@ def run_qaoa(
         sample_shots=sample_shots,
         seed=seed,
         optimizer=optimizer,
+        delta_t=delta_t,
     )
 
     best_bitstring = _most_probable(samples, n_qubits_total) if samples else "0" * n_qubits_total

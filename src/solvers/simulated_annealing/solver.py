@@ -41,13 +41,57 @@ def _evaluate_cost(
 
 
 def _swap_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Return a copy of sequence with two random positions swapped."""
+    """Return a copy of *sequence* with two random positions swapped."""
+    n = len(sequence)
+    if n < 2:
+        return sequence.copy()
     neighbor = sequence.copy()
-    i, j = rng.integers(0, len(sequence), size=2)
-    while i == j:
-        j = rng.integers(0, len(sequence))
-    neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+    i = int(rng.integers(0, n))
+    j = int(rng.integers(0, n - 1))
+    if j >= i:
+        j += 1
+    tmp = neighbor[i].copy()
+    neighbor[i] = neighbor[j]
+    neighbor[j] = tmp
     return neighbor
+
+
+def _insert_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Remove a random element and re-insert it at a different position."""
+    n = len(sequence)
+    if n < 2:
+        return sequence.copy()
+    i = int(rng.integers(0, n))
+    j = int(rng.integers(0, n - 1))
+    if j >= i:
+        j += 1
+    neighbor = np.delete(sequence, i)
+    # After deletion the target shifts when j > i
+    insert_pos = j if j < i else j
+    neighbor = np.insert(neighbor, insert_pos, sequence[i])
+    return neighbor
+
+
+def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Reverse a random sub-segment (2-opt style move)."""
+    n = len(sequence)
+    if n < 3:
+        return _swap_neighbor(sequence, rng)
+    i, j = sorted(rng.integers(0, n, size=2))
+    while i == j:
+        j = int(rng.integers(0, n))
+        if j < i:
+            i, j = j, i
+    neighbor = sequence.copy()
+    neighbor[i : j + 1] = neighbor[i : j + 1][::-1]
+    return neighbor
+
+
+def _random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Pick a neighborhood operator at random (swap, insert, or reverse)."""
+    operators = (_swap_neighbor, _insert_neighbor, _reverse_neighbor)
+    op = operators[int(rng.integers(0, len(operators)))]
+    return op(sequence, rng)
 
 
 class SimulatedAnnealingSolver:
@@ -79,19 +123,22 @@ class SimulatedAnnealingSolver:
         energy_history: list[float] = [initial_energy]
 
         # SA parameters
-        T_initial = 1000.0
+        T_initial = 1000.0 # TODO esto habria que ajustarlo mejor, con un muestreo inicial de deltas
         T_final = 1e-6
         alpha = 0.995
         T = T_initial
 
         max_iter = run_config.max_iterations
         timeout = run_config.timeout_seconds
+        iterations_completed = 0
 
         for iteration in range(max_iter):
             if timeout is not None and (time.perf_counter() - start) >= timeout:
                 break
+            if T <= T_final:
+                break
 
-            neighbor = _swap_neighbor(current, rng)
+            neighbor = _random_neighbor(current, rng)
             neighbor_cost = _evaluate_cost(formulation, problem, neighbor, n_available)
 
             delta = neighbor_cost - current_cost
@@ -104,6 +151,7 @@ class SimulatedAnnealingSolver:
 
             energy_history.append(current_cost)
             T = max(T_final, T * alpha)
+            iterations_completed = iteration + 1
 
         runtime_seconds = time.perf_counter() - start
 
@@ -119,6 +167,8 @@ class SimulatedAnnealingSolver:
             "best_sequence": best_sequence,
             "initial_energy": initial_energy,
             "energy_history": energy_history,
+            "iterations_completed": iterations_completed,
+            "final_temperature": T,
         }
         if feasible:
             metadata["real_cost"] = float(
