@@ -68,8 +68,12 @@ class CirqSolver:
             seed=run_config.seed,
             optimizer=run_config.optimizer,
         )
-        best_sequence = raw["best_sequence"].tolist()
-        feasible = validate_solution_constraints_tqudo(instance, best_sequence)
+        best_sequence_array = raw["best_sequence"]
+        best_sequence = best_sequence_array.tolist() if best_sequence_array is not None else None
+        feasible = (
+            best_sequence is not None
+            and validate_solution_constraints_tqudo(instance, best_sequence)
+        )
         return {
             "energy": float(raw["energy"]),
             "feasible": feasible,

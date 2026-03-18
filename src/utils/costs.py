@@ -47,7 +47,7 @@ def calculate_tqudo_cost(
         destination = x[t+1]
         cost += problem.Etab[t, origin, destination]
         for tp, destination in enumerate(x[t+1:]):
-            t_prime = t + tp
+            t_prime = t + 1 + tp
             cost += problem.Ettprimeab[t, t_prime, origin, destination]
 
     return cost
