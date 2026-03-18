@@ -14,6 +14,8 @@ to be in city B, you must first have been in city A.
 Formulation reference: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958).  
 Cost equations: see [docs/formulations.md](docs/formulations.md).
 
+**Platform:** Linux only. CUDA-Q and the project tooling are not supported on Windows or macOS.
+
 ## Maintainers
 
 - Adriano Lusso
@@ -21,40 +23,21 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 
 ## Quickstart
 
-### Linux / macOS
-
 ```bash
 ./install.sh
 ```
 
-### Windows (CMD)
-
-```bat
-install.bat
-```
-
-Both setup scripts create `.venv`, install editable project dependencies, and default to
-the `dev,ui,cirq` extras.
-Installers validate `git` and `Python 3.12+` before running setup.
+Setup script creates `.venv`, installs editable project dependencies, and defaults to
+the `dev,ui,cirq` extras. For the CUDA-Q backend, use `.[dev,ui,cudaq]` instead.
+Installer validates `git` and `Python 3.12+` before running setup.
 
 ## Run common tasks
-
-### Linux / macOS
 
 ```bash
 make -f scripts/makefile lint
 make -f scripts/makefile test
 make -f scripts/makefile app
 make -f scripts/makefile clean
-```
-
-### Windows (CMD)
-
-```bat
-scripts\make.bat lint
-scripts\make.bat test
-scripts\make.bat app
-scripts\make.bat clean
 ```
 
 ## Project layout
@@ -67,7 +50,8 @@ output/             Local results (ignored in git except placeholders)
 scripts/            Cross-platform task runners
 src/
   config/           Runtime settings and environment loading
-  data_analysis/   Raw -> processed analysis pipeline scaffolds
+  data_analysis/    Raw -> processed analysis pipeline scaffolds
+  experiments/      Main experiment workflow (generate, solve, save)
   instance_gen_process/
                     Instance configuration, loading, generation
   solvers/          Solver protocol + backend stubs
@@ -81,6 +65,7 @@ tests/              Smoke and contract tests
 1. Copy `.env.example` to `.env`.
 2. Adjust backend/output settings if needed.
 3. Update `src/instance_gen_process/config.yaml` for instance generation.
+4. Update `src/instance_gen_process/solver_config.yaml` for solver and QAOA settings.
 
 ## Output policy
 

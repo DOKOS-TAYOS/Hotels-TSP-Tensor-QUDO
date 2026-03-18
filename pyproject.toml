@@ -36,8 +36,8 @@ cirq = [
     "scipy>=1.10.0",
 ]
 cudaq = [
-    # Install NVIDIA CUDA-Q manually in unsupported environments when required.
-    # "cudaq>=0.8.0",
+    # Basic GPU support (single GPU). Multi-GPU requires Conda + MPI separately.
+    "cudaq>=0.8.0",
 ]
 ui = [
     "streamlit>=1.28.0",
