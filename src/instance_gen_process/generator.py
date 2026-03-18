@@ -59,6 +59,11 @@ def _would_create_cycle(precedences: list[tuple[int, int]], origin: int, destina
     return False
 
 
+def _is_power_of_two(value: int) -> bool:
+    """Return True when *value* is a positive power of two."""
+    return value > 0 and (value & (value - 1)) == 0
+
+
 def generate_random_instance(config: InstanceConfig, rng: random.Random) -> ProblemInstance:
     """Generate a single random ProblemInstance from InstanceConfig ranges.
 
@@ -120,6 +125,10 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
+    if not _is_power_of_two(n_available):
+        raise ValueError(
+            "Tensor-QUDO requires n_cities - 1 to be a power of two."
+        )
     Etab = np.zeros((n_available, n_available, n_available), dtype=float)
 
     for t in range(n_available-1):
@@ -131,7 +140,7 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                     Etab[t, origin, destination] += problem.prices_travels[0, n_available, origin]  # Closed loop
                 if t == n_available - 2:
                     Etab[t, origin, destination] += problem.prices_travels[n_available, destination, n_available]  # Closed loop
-                    Etab[t, origin, destination] += problem.prices_hotels[n_available - 2, destination]
+                    Etab[t, origin, destination] += problem.prices_hotels[n_available - 1, destination]
                 
     # This may be changed to Tab if in the solver we take into acount that t'>t
     Ettprimeab = np.zeros((n_available, n_available, n_available, n_available), dtype=float)
@@ -185,6 +194,8 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
     for t in range(n_available):
         for i in range(n_available):
             idx_ti = idx(t, i, n_available)
+            qubo_matrix[idx_ti, idx_ti] -= restriction.lambda_0
+            qubo_matrix[idx_ti, idx_ti] -= restriction.lambda_1
             for j in range(n_available):
                 if i != j:
                     idx_tj = idx(t, j, n_available)
@@ -206,5 +217,4 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
 
 
     
-
 
