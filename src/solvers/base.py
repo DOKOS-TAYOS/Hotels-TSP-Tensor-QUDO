@@ -18,12 +18,13 @@ class SolverRunConfig:
 
     max_iterations: int = 1_000
     timeout_seconds: float | None = None
-    # CUDA-Q QAOA specific (ignored by other solvers)
     formulation: Literal["tqudo", "qubo"] = "tqudo"
     restriction_config: RestrictionConfig | None = None
     qaoa_depth: int = 1
     qaoa_max_iter: int = 100
+    # Shots per objective evaluation for sampling-based QAOA (for example TQUDO).
     qaoa_shots: int = 500
+    # Shots used to sample the final candidate solution for any QAOA backend.
     qaoa_sample_shots: int = 1000
     seed: int | None = None
     optimizer: OptimizerType = "COBYLA"
@@ -59,4 +60,3 @@ class SolverProtocol(Protocol):
         Returns:
             SolverResult with objective_value, feasible, runtime_seconds.
         """
-

@@ -95,7 +95,7 @@ class CirqSolver:
             problem.qubo_matrix,
             depth=run_config.qaoa_depth,
             max_iter=run_config.qaoa_max_iter,
-            n_shots=run_config.qaoa_sample_shots,
+            sample_shots=run_config.qaoa_sample_shots,
             seed=run_config.seed,
             optimizer=run_config.optimizer,
         )
