@@ -21,10 +21,93 @@ def _contract_test_config() -> InstanceConfig:
     )
 
 
-def test_cudaq_solver_contract() -> None:
-    """CudaqSolver is implemented and returns SolverResult."""
+def _cudaq_qubo_test_config() -> InstanceConfig:
+    """Use a compact QUBO-friendly instance for CUDA-Q smoke tests."""
+    return InstanceConfig(
+        n_cities=4,
+        n_precedences_range=(0, 0),
+        prices_range_hotels=(30.0, 150.0),
+        prices_range_travels=(30.0, 150.0),
+        seed=7,
+    )
+
+
+def test_cudaq_solver_rejects_tqudo_runtime() -> None:
+    """CudaqSolver must fail fast for unsupported Tensor-QUDO execution."""
+    instance_config = _contract_test_config()
+    rng = random.Random(instance_config.seed)
+    instance = generate_random_instance(instance_config, rng)
+    run_config = SolverRunConfig(
+        formulation="tqudo",
+        qaoa_depth=1,
+        qaoa_max_iter=4,
+        qaoa_shots=20,
+        qaoa_sample_shots=50,
+        seed=42,
+    )
+
     solver = CudaqSolver()
     assert solver.solver_name == "cudaq"
+    with pytest.raises(ValueError, match="supports only the QUBO formulation"):
+        solver.solve(instance, run_config)
+
+
+def test_cudaq_solver_requires_nvidia_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CudaqSolver must not fall back silently to CPU when no GPU is available."""
+    pytest.importorskip("cudaq")
+    from solvers.cudaq_solver import cudaq_target
+
+    instance_config = _cudaq_qubo_test_config()
+    rng = random.Random(instance_config.seed)
+    instance = generate_random_instance(instance_config, rng)
+    run_config = SolverRunConfig(
+        formulation="qubo",
+        qaoa_depth=1,
+        qaoa_max_iter=4,
+        qaoa_sample_shots=32,
+        seed=42,
+    )
+
+    monkeypatch.setattr(cudaq_target.cudaq, "num_available_gpus", lambda: 0)
+    monkeypatch.setattr(cudaq_target.cudaq, "has_target", lambda name: True)
+
+    def _unexpected_set_target(*args, **kwargs):
+        raise AssertionError("set_target should not be called when no GPU is available")
+
+    monkeypatch.setattr(cudaq_target.cudaq, "set_target", _unexpected_set_target)
+
+    solver = CudaqSolver()
+    with pytest.raises(RuntimeError, match="requires an NVIDIA GPU"):
+        solver.solve(instance, run_config)
+
+
+def test_cudaq_solver_contract_qubo_on_nvidia_gpu() -> None:
+    """CudaqSolver should return SolverResult when a real NVIDIA target is available."""
+    cudaq = pytest.importorskip("cudaq")
+    if cudaq.num_available_gpus() < 1 or not cudaq.has_target("nvidia"):
+        pytest.skip("CUDA-Q NVIDIA target unavailable in this environment")
+
+    instance_config = _cudaq_qubo_test_config()
+    rng = random.Random(instance_config.seed)
+    instance = generate_random_instance(instance_config, rng)
+    run_config = SolverRunConfig(
+        formulation="qubo",
+        qaoa_depth=1,
+        qaoa_max_iter=4,
+        qaoa_sample_shots=32,
+        seed=42,
+    )
+
+    solver = CudaqSolver()
+    result = solver.solve(instance, run_config)
+
+    assert result.solver_name == "cudaq"
+    assert isinstance(result.objective_value, (int, float))
+    assert isinstance(result.feasible, bool)
+    assert isinstance(result.runtime_seconds, (int, float))
+    assert result.runtime_seconds >= 0
+    assert "best_bitstring" in result.metadata
+    assert "best_binary" in result.metadata
 
 
 @pytest.mark.parametrize("formulation", ["tqudo", "qubo"])

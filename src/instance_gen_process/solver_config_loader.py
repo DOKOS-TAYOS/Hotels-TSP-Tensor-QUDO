@@ -16,6 +16,10 @@ DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
 VALID_SOLVERS = frozenset({"cudaq", "cirq", "simulated_annealing"})
 VALID_FORMULATIONS = frozenset({"qubo", "tqudo"})
 VALID_OPTIMIZERS = frozenset({"COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"})
+_CUDAQ_TQUDO_UNSUPPORTED_MESSAGE = (
+    "CUDA-Q currently supports only the QUBO formulation. "
+    "Tensor-QUDO is temporarily disabled pending reimplementation."
+)
 
 
 def _parse_int_setting(raw_value: Any, field_name: str, minimum: int) -> int:
@@ -45,12 +49,23 @@ def _validate_cobyla_budget(qaoa_depth: int, qaoa_max_iter: int, optimizer: str)
         )
 
 
+def _validate_cudaq_backend_support(solver: str, formulation: str) -> None:
+    """Reject currently unsupported CUDA-Q/problem combinations."""
+    if solver == "cudaq" and formulation == "tqudo":
+        raise ValueError(_CUDAQ_TQUDO_UNSUPPORTED_MESSAGE)
+
+
 def validate_solver_instance_compatibility(
     instance_config: InstanceConfig,
     solver_config: dict[str, Any],
 ) -> None:
     """Validate constraints that depend on both instance and solver configuration."""
-    if solver_config["formulation"] != "tqudo":
+    solver = solver_config.get("solver")
+    formulation = solver_config.get("formulation", "tqudo")
+    if solver is not None:
+        _validate_cudaq_backend_support(solver, formulation)
+
+    if formulation != "tqudo":
         return
 
     n_available = instance_config.n_cities - 1
@@ -96,6 +111,7 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         raise ValueError(
             f"formulation must be one of {sorted(VALID_FORMULATIONS)}, got: {formulation!r}"
         )
+    _validate_cudaq_backend_support(solver, formulation)
 
     optimizer = data.get("optimizer", "COBYLA")
     if optimizer not in VALID_OPTIMIZERS:

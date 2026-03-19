@@ -1,2 +1,3 @@
 # Convenience requirements for local development environments.
+# CUDA-Q execution requires an NVIDIA GPU; the extra also installs SciPy.
 -e .[dev,ui,cudaq]

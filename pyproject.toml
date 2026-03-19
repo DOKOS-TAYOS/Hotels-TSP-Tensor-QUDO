@@ -38,6 +38,7 @@ cirq = [
 cudaq = [
     # Basic GPU support (single GPU). Multi-GPU requires Conda + MPI separately.
     "cudaq>=0.8.0",
+    "scipy>=1.10.0",
 ]
 ui = [
     "streamlit>=1.28.0",
@@ -46,6 +47,8 @@ all = [
     "pytest>=8.0",
     "ruff>=0.6.0",
     "cirq>=1.3.0",
+    "cudaq>=0.8.0",
+    "scipy>=1.10.0",
     "streamlit>=1.28.0",
 ]
 

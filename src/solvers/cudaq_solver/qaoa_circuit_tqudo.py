@@ -10,10 +10,8 @@ from scipy.optimize import minimize
 import cudaq
 
 from instance_gen_process.models import ProblemTQUDO
-from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from utils.costs import calculate_tqudo_cost
 
-ensure_cudaq_target()
 
 def create_qaoa_ansatz(
     depth: int,
@@ -344,4 +342,3 @@ def run_qaoa(
         "initial_energy": initial_energy,
         "energy_history": energy_history,
     }
-
