@@ -14,6 +14,7 @@ from solvers import (
     SolverResult,
     SolverRunConfig,
 )
+from streamlit_app import main as streamlit_main
 from utils import build_output_layout, configure_logging, validate_instance_constraints
 
 
@@ -32,4 +33,4 @@ def test_import_smoke() -> None:
     assert build_output_layout is not None
     assert configure_logging is not None
     assert validate_instance_constraints is not None
-
+    assert streamlit_main is not None

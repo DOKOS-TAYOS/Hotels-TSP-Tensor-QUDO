@@ -1,8 +1,10 @@
 """Tests for solver scaffolds and expected contract behavior."""
 
 import random
+import warnings
 
 import pytest
+from numpy.exceptions import ComplexWarning
 
 from instance_gen_process import InstanceConfig, generate_random_instance
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver, SolverRunConfig
@@ -36,7 +38,7 @@ def test_cirq_solver_contract(formulation: str) -> None:
         max_iterations=10,
         formulation=formulation,
         qaoa_depth=1,
-        qaoa_max_iter=3,
+        qaoa_max_iter=4,
         qaoa_shots=20,
         qaoa_sample_shots=50,
         seed=42,
@@ -44,7 +46,9 @@ def test_cirq_solver_contract(formulation: str) -> None:
 
     solver = CirqSolver()
     assert solver.solver_name == "cirq"
-    result = solver.solve(instance, run_config)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ComplexWarning)
+        result = solver.solve(instance, run_config)
 
     assert isinstance(result.solver_name, str)
     assert result.solver_name == "cirq"
