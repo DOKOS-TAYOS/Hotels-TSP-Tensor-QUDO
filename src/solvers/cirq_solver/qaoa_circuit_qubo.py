@@ -14,6 +14,18 @@ import cirq
 
 from math_utils.qubo_ising import qubo_to_ising
 
+
+def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
+    """Convert expectation values to a real scalar with an explicit imag-part tolerance."""
+    total = complex(np.sum(np.asarray(values, dtype=np.complex128)))
+    if abs(total.imag) > imag_tol:
+        raise ValueError(
+            "Cirq returned an expectation value with a non-negligible imaginary component: "
+            f"{total.imag}."
+        )
+    return float(total.real)
+
+
 def ising_to_pauli_sum(
     h: np.ndarray,
     j_matrix: np.ndarray,
@@ -134,7 +146,7 @@ def evaluate_cost(
     resolver = _param_resolver(params, symbols, depth)
     simulator = cirq.Simulator()
     values = simulator.simulate_expectation_values(circuit, hamiltonian, param_resolver=resolver)
-    return float(np.sum(values))
+    return _coerce_real_expectation(values)
 
 
 def sample_solution(
@@ -172,12 +184,16 @@ def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
-    n_shots: int | None = None,
+    sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
     delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
-    """Optimize QAOA parameters to minimize the cost Hamiltonian."""
+    """Optimize QAOA parameters to minimize the cost Hamiltonian.
+
+    QUBO expectations are evaluated exactly with the simulator, so only
+    ``sample_shots`` is used for the final state sampling step.
+    """
     if seed is not None:
         np.random.seed(seed)
 
@@ -214,8 +230,10 @@ def optimize_qaoa(
     initial_energy = initial_energy + offset
     energy_history = [energy + offset for energy in energy_history]
     samples: dict[str, int] | None = None
-    if n_shots is not None:
-        samples = sample_solution(circuit, best_params, symbols, depth, qubits, n_shots, seed)
+    if sample_shots is not None:
+        samples = sample_solution(
+            circuit, best_params, symbols, depth, qubits, sample_shots, seed
+        )
     return best_energy, best_params, samples, initial_energy, energy_history
 
 
@@ -235,17 +253,21 @@ def run_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
-    n_shots: int = 1000,
+    sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
     delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
 ) -> dict:
-    """Run full QAOA: optimize, sample, and return best solution."""
+    """Run full QAOA: optimize, sample, and return best solution.
+
+    QUBO cost evaluation is exact in this backend, so ``sample_shots`` only
+    affects the final solution sampling step.
+    """
     best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
         qubo_matrix,
         depth=depth,
         max_iter=max_iter,
-        n_shots=n_shots,
+        sample_shots=sample_shots,
         seed=seed,
         optimizer=optimizer,
         delta_t=delta_t,
