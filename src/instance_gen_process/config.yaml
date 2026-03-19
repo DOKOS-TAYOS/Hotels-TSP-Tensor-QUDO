@@ -4,4 +4,3 @@ n_precedences_range: [2, 5]
 prices_range_hotels: [30., 150.]
 prices_range_travels: [30., 150.]
 seed: 42
-

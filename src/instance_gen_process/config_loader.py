@@ -21,10 +21,10 @@ def _parse_range(raw_value: Any, field_name: str) -> tuple[float, float]:
         field_name: Field name for error messages.
 
     Returns:
-        Tuple (low, high) with low < high.
+        Tuple (low, high) with low <= high.
 
     Raises:
-        ValueError: If value is missing, not a 2-element sequence, or low >= high.
+        ValueError: If value is missing, not a 2-element sequence, or low > high.
     """
     if raw_value is None:
         raise ValueError(f"Missing required field: {field_name}")
@@ -32,7 +32,7 @@ def _parse_range(raw_value: Any, field_name: str) -> tuple[float, float]:
         raise ValueError(f"{field_name}: expected a range with two values, got: {raw_value!r}")
     low = float(raw_value[0])
     high = float(raw_value[1])
-    if low >= high:
+    if low > high:
         raise ValueError(f"{field_name}: invalid range bounds: {raw_value!r}")
     return (low, high)
 
@@ -45,10 +45,10 @@ def _parse_int_range(raw_value: Any, field_name: str) -> tuple[int, int]:
         field_name: Field name for error messages.
 
     Returns:
-        Tuple (low, high) with low < high.
+        Tuple (low, high) with low <= high.
 
     Raises:
-        ValueError: If value is missing, not a 2-element sequence, or low >= high.
+        ValueError: If value is missing, not a 2-element sequence, or low > high.
     """
     if raw_value is None:
         raise ValueError(f"Missing required field: {field_name}")
@@ -56,7 +56,7 @@ def _parse_int_range(raw_value: Any, field_name: str) -> tuple[int, int]:
         raise ValueError(f"{field_name}: expected a range with two values, got: {raw_value!r}")
     low = int(raw_value[0])
     high = int(raw_value[1])
-    if low >= high:
+    if low > high:
         raise ValueError(f"{field_name}: invalid range bounds: {raw_value!r}")
     return (low, high)
 

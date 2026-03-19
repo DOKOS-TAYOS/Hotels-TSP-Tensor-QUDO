@@ -178,7 +178,7 @@ def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
-    n_shots: int | None = None,
+    sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
     delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
@@ -189,7 +189,7 @@ def optimize_qaoa(
         qubo_matrix: Symmetric QUBO matrix.
         depth: QAOA depth (number of layers).
         max_iter: Maximum optimizer iterations.
-        n_shots: If set, also sample the solution state (None = no sampling).
+        sample_shots: If set, also sample the solution state (None = no sampling).
         seed: Random seed for initial parameters (None = no seed).
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
@@ -197,7 +197,7 @@ def optimize_qaoa(
     Returns:
         Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
         best_params: [gamma_1..gamma_p, beta_1..beta_p].
-        samples: SampleResult when n_shots is set, else None.
+        samples: SampleResult when sample_shots is set, else None.
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
     """
@@ -235,8 +235,8 @@ def optimize_qaoa(
     initial_energy = initial_energy + offset
     energy_history = [e + offset for e in energy_history]
     samples: "cudaq.SampleResult | None" = None
-    if n_shots is not None:
-        samples = sample_solution(kernel, best_params, depth, n_shots)
+    if sample_shots is not None:
+        samples = sample_solution(kernel, best_params, depth, sample_shots)
     return best_energy, best_params, samples, initial_energy, energy_history
 
 
@@ -258,7 +258,7 @@ def run_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
-    n_shots: int = 1000,
+    sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
     delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
@@ -269,7 +269,7 @@ def run_qaoa(
         qubo_matrix: Symmetric QUBO matrix.
         depth: QAOA depth.
         max_iter: Optimizer iterations.
-        n_shots: Shots for sampling the final state.
+        sample_shots: Shots for sampling the final state.
         seed: Random seed.
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default0.55).
@@ -284,7 +284,7 @@ def run_qaoa(
         qubo_matrix,
         depth=depth,
         max_iter=max_iter,
-        n_shots=n_shots,
+        sample_shots=sample_shots,
         seed=seed,
         optimizer=optimizer,
         delta_t=delta_t,

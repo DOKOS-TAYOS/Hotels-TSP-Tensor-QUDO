@@ -13,6 +13,7 @@ from instance_gen_process import (
     load_solver_config,
     generate_random_set_instances,
     solver_config_to_run_config,
+    validate_solver_instance_compatibility,
 )
 from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
@@ -96,6 +97,7 @@ def run_workflow(
     """
     instance_config = load_instance_config(instance_config_path)
     solver_config_dict = load_solver_config(solver_config_path)
+    validate_solver_instance_compatibility(instance_config, solver_config_dict)
 
     n_instances = solver_config_dict["n_instances"]
     instances = generate_random_set_instances(

@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from instance_gen_process.models import RestrictionConfig
+from instance_gen_process.models import InstanceConfig, RestrictionConfig
 from solvers.base import SolverRunConfig
 
 
@@ -16,6 +16,49 @@ DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
 VALID_SOLVERS = frozenset({"cudaq", "cirq", "simulated_annealing"})
 VALID_FORMULATIONS = frozenset({"qubo", "tqudo"})
 VALID_OPTIMIZERS = frozenset({"COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"})
+
+
+def _parse_int_setting(raw_value: Any, field_name: str, minimum: int) -> int:
+    """Parse an integer setting and enforce a minimum value."""
+    value = int(raw_value)
+    if value < minimum:
+        comparator = "at least" if minimum > 0 else "greater than or equal to"
+        raise ValueError(f"{field_name} must be {comparator} {minimum}")
+    return value
+
+
+def _is_power_of_two(value: int) -> bool:
+    """Return True when *value* is a positive power of two."""
+    return value > 0 and (value & (value - 1)) == 0
+
+
+def _validate_cobyla_budget(qaoa_depth: int, qaoa_max_iter: int, optimizer: str) -> None:
+    """Ensure COBYLA receives enough evaluations for the QAOA parameter count."""
+    if optimizer != "COBYLA":
+        return
+
+    minimum_iterations = (2 * qaoa_depth) + 2
+    if qaoa_max_iter < minimum_iterations:
+        raise ValueError(
+            "qaoa_max_iter is too small for COBYLA. "
+            f"With qaoa_depth={qaoa_depth}, it must be at least {minimum_iterations}."
+        )
+
+
+def validate_solver_instance_compatibility(
+    instance_config: InstanceConfig,
+    solver_config: dict[str, Any],
+) -> None:
+    """Validate constraints that depend on both instance and solver configuration."""
+    if solver_config["formulation"] != "tqudo":
+        return
+
+    n_available = instance_config.n_cities - 1
+    if not _is_power_of_two(n_available):
+        raise ValueError(
+            "Tensor-QUDO requires n_cities - 1 to be a power of two. "
+            f"Got n_cities={instance_config.n_cities} (n_cities - 1 = {n_available})."
+        )
 
 
 def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
@@ -28,6 +71,8 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         Dict with keys: n_instances, solver, formulation, optimizer, restriction,
         qaoa_depth, qaoa_max_iter, qaoa_shots, qaoa_sample_shots, seed,
         max_iterations, timeout_seconds. restriction is a RestrictionConfig.
+        qaoa_shots controls objective-evaluation shots for sampling-based QAOA
+        backends, while qaoa_sample_shots controls final solution sampling.
 
     Raises:
         ValueError: If required fields are missing or invalid.
@@ -65,17 +110,25 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         lambda_2=float(restriction_data.get("lambda_2", 100.0)),
     )
 
-    qaoa_depth = int(data.get("qaoa_depth", 1))
-    qaoa_max_iter = int(data.get("qaoa_max_iter", 100))
-    qaoa_shots = int(data.get("qaoa_shots", 500))
-    qaoa_sample_shots = int(data.get("qaoa_sample_shots", 1000))
+    qaoa_depth = _parse_int_setting(data.get("qaoa_depth", 1), "qaoa_depth", minimum=1)
+    qaoa_max_iter = _parse_int_setting(
+        data.get("qaoa_max_iter", 100), "qaoa_max_iter", minimum=1
+    )
+    qaoa_shots = _parse_int_setting(data.get("qaoa_shots", 500), "qaoa_shots", minimum=1)
+    qaoa_sample_shots = _parse_int_setting(
+        data.get("qaoa_sample_shots", 1000), "qaoa_sample_shots", minimum=1
+    )
     seed = data.get("seed")
     if seed is not None:
         seed = int(seed)
-    max_iterations = int(data.get("max_iterations", 1000))
+    max_iterations = _parse_int_setting(
+        data.get("max_iterations", 1000), "max_iterations", minimum=0
+    )
     timeout_seconds = data.get("timeout_seconds")
     if timeout_seconds is not None:
         timeout_seconds = float(timeout_seconds)
+
+    _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
 
     return {
         "n_instances": n_instances,

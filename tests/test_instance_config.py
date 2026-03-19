@@ -112,3 +112,35 @@ def test_load_instance_config_accepts_valid_precedence_upper_bound_edge_case() -
         assert len(instance.precedences) <= 6
     finally:
         cleanup_workspace_tmp_dir(tmp_path)
+
+
+def test_load_instance_config_accepts_fixed_ranges_for_deterministic_experiments() -> None:
+    tmp_path = workspace_tmp_dir("instance_config_fixed_ranges")
+    config_path = tmp_path / "config.yaml"
+    try:
+        config_path.write_text(
+            "\n".join(
+                [
+                    "n_cities: 5",
+                    "n_precedences_range: [2, 2]",
+                    "prices_range_hotels: [30., 30.]",
+                    "prices_range_travels: [40., 40.]",
+                    "seed: 123",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        config = load_instance_config(config_path)
+        rng = random.Random(config.seed)
+        instance = generate_random_instance(config, rng)
+
+        assert config.n_precedences_range == (2, 2)
+        assert config.prices_range_hotels == (30.0, 30.0)
+        assert config.prices_range_travels == (40.0, 40.0)
+        assert len(instance.precedences) == 2
+        assert instance.prices_hotels.min() == 30.0
+        assert instance.prices_hotels.max() == 30.0
+        assert instance.prices_travels[0, instance.n_cities - 1, 0] == 40.0
+    finally:
+        cleanup_workspace_tmp_dir(tmp_path)

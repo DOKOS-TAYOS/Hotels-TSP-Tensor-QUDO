@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
-import streamlit as st
-
 from config import load_settings
 from instance_gen_process import load_instance_config
 
 
+def _load_streamlit():
+    """Import Streamlit lazily so the package remains importable without the UI extra."""
+    try:
+        import streamlit as st
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "streamlit_app requires the optional 'ui' dependencies. "
+            "Install them with `pip install -e .[ui]` or run `./install.sh dev,ui,cudaq`."
+        ) from exc
+    return st
+
+
 def main() -> None:
     """Render the initial project dashboard."""
+    st = _load_streamlit()
 
     st.set_page_config(page_title="Hotel TSP Tensor-QUDO", layout="wide")
     st.title("Hotel TSP with Tensor-QUDO")

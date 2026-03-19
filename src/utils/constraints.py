@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 from instance_gen_process.models import ProblemInstance
@@ -60,6 +62,30 @@ def _has_cycle(precedences: list[tuple[int, int]], n_nodes: int) -> bool:
     for node in range(n_nodes):
         if node not in visited and dfs(node):
             return True
+    return False
+
+
+def would_create_cycle(
+    precedences: list[tuple[int, int]], origin: int, destination: int
+) -> bool:
+    """True if adding (origin, destination) would create a cycle in the precedence graph.
+
+    A cycle occurs when destination can already reach origin (directly or via other rules).
+    Uses BFS from destination with deque.popleft for O(1) queue operations.
+    """
+    adj: dict[int, list[int]] = {}
+    for a, b in precedences:
+        adj.setdefault(a, []).append(b)
+    seen: set[int] = {destination}
+    queue: deque[int] = deque([destination])
+    while queue:
+        node = queue.popleft()
+        for neighbor in adj.get(node, []):
+            if neighbor == origin:
+                return True
+            if neighbor not in seen:
+                seen.add(neighbor)
+                queue.append(neighbor)
     return False
 
 
