@@ -50,7 +50,9 @@ def validate_solver_instance_compatibility(
     solver_config: dict[str, Any],
 ) -> None:
     """Validate constraints that depend on both instance and solver configuration."""
-    if solver_config["formulation"] != "tqudo":
+    formulation = solver_config.get("formulation", "tqudo")
+
+    if formulation != "tqudo":
         return
 
     n_available = instance_config.n_cities - 1

@@ -68,6 +68,29 @@ def test_load_solver_config_rejects_cobyla_budget_below_parameter_count() -> Non
         cleanup_workspace_tmp_dir(tmp_path)
 
 
+def test_load_solver_config_accepts_cudaq_tqudo_combination() -> None:
+    tmp_path = workspace_tmp_dir("solver_config_cudaq_tqudo")
+    config_path = tmp_path / "solver_config.yaml"
+    try:
+        config_path.write_text(
+            "\n".join(
+                [
+                    "n_instances: 1",
+                    "solver: cudaq",
+                    "formulation: tqudo",
+                    "optimizer: COBYLA",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        config = load_solver_config(config_path)
+        assert config["solver"] == "cudaq"
+        assert config["formulation"] == "tqudo"
+    finally:
+        cleanup_workspace_tmp_dir(tmp_path)
+
+
 def test_validate_solver_instance_compatibility_rejects_invalid_tqudo_dimension() -> None:
     instance_config = InstanceConfig(
         n_cities=6,
@@ -80,6 +103,19 @@ def test_validate_solver_instance_compatibility_rejects_invalid_tqudo_dimension(
 
     with pytest.raises(ValueError, match="power of two"):
         validate_solver_instance_compatibility(instance_config, solver_config)
+
+
+def test_validate_solver_instance_compatibility_accepts_cudaq_tqudo_when_dimension_matches() -> None:
+    instance_config = InstanceConfig(
+        n_cities=5,
+        n_precedences_range=(1, 1),
+        prices_range_hotels=(30.0, 30.0),
+        prices_range_travels=(40.0, 40.0),
+        seed=123,
+    )
+    solver_config = {"solver": "cudaq", "formulation": "tqudo"}
+
+    validate_solver_instance_compatibility(instance_config, solver_config)
 
 
 def test_validate_solver_instance_compatibility_accepts_compatible_tqudo_dimension() -> None:

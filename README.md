@@ -30,7 +30,13 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 Setup script creates `.venv`, installs editable project dependencies, and defaults to
 the `dev,ui,cudaq` extras. For the Cirq backend instead, run
 `./install.sh dev,ui,cirq`. Installer validates `git` and `Python 3.12+`
-before running setup.
+before running setup. The `cudaq` extra installs both CUDA-Q and SciPy.
+
+## CUDA-Q backend contract
+
+- `solver: cudaq` requires a Linux environment with a compatible NVIDIA GPU.
+- CUDA-Q now fails fast when no NVIDIA GPU is available; it no longer falls back to CPU.
+- CUDA-Q supports both `qubo` and `tqudo` formulations.
 
 ## Run common tasks
 

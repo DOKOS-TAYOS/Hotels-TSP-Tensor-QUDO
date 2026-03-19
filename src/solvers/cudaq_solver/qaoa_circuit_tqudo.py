@@ -1,9 +1,9 @@
-"""QAOA circuit implementation for specific Tensor QUDO problems using CUDA-Q.
-"""
+"""QAOA circuit implementation for Tensor-QUDO problems using CUDA-Q."""
 
 from __future__ import annotations
 
 import math
+
 import numpy as np
 from scipy.optimize import minimize
 
@@ -13,114 +13,157 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from utils.costs import calculate_tqudo_cost
 
-ensure_cudaq_target()
+
+def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[int, int]:
+    """Validate Tensor-QUDO tensor shapes and return basic dimensions."""
+    if Etab.ndim != 3:
+        raise ValueError(f"Etab must be a rank-3 tensor, got shape {Etab.shape}.")
+    if Ettprimeab.ndim != 4:
+        raise ValueError(
+            f"Ettprimeab must be a rank-4 tensor, got shape {Ettprimeab.shape}."
+        )
+
+    n_qudits = Etab.shape[0]
+    dimension_qudits = Etab.shape[1]
+    expected_ett_shape = (n_qudits, n_qudits, dimension_qudits, dimension_qudits)
+    if Etab.shape[2] != dimension_qudits:
+        raise ValueError(
+            "Etab must be square in its state dimensions, "
+            f"got shape {Etab.shape}."
+        )
+    if Ettprimeab.shape != expected_ett_shape:
+        raise ValueError(
+            "Ettprimeab shape does not match Etab. "
+            f"Expected {expected_ett_shape}, got {Ettprimeab.shape}."
+        )
+
+    return n_qudits, dimension_qudits
+
+
+def _nonzero_etab_terms(Etab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
+    """Return sparse adjacent-qudit terms as (left, right, x_left, x_right, coeff)."""
+    n_qudits = Etab.shape[0]
+    dimension_qudits = Etab.shape[1]
+    terms: list[tuple[int, int, int, int, float]] = []
+
+    for t in range(n_qudits - 1):
+        for x_left in range(dimension_qudits):
+            for x_right in range(dimension_qudits):
+                coeff = float(Etab[t, x_left, x_right])
+                if abs(coeff) > 1e-14:
+                    terms.append((t, t + 1, x_left, x_right, coeff))
+
+    return terms
+
+
+def _nonzero_ett_terms(Ettprimeab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
+    """Return sparse long-range terms as (left, right, x_left, x_right, coeff)."""
+    n_qudits = Ettprimeab.shape[0]
+    dimension_qudits = Ettprimeab.shape[2]
+    terms: list[tuple[int, int, int, int, float]] = []
+
+    for t in range(n_qudits - 1):
+        for t_prime in range(t + 1, n_qudits):
+            for x_left in range(dimension_qudits):
+                for x_right in range(dimension_qudits):
+                    coeff = float(Ettprimeab[t, t_prime, x_left, x_right])
+                    if abs(coeff) > 1e-14:
+                        terms.append((t, t_prime, x_left, x_right, coeff))
+
+    return terms
+
+
+def _apply_state_conditioned_phase(
+    kernel: "cudaq.Kernel",
+    q_full: "cudaq.QuakeValue",
+    qubits_per_qudit: int,
+    left_qudit: int,
+    right_qudit: int,
+    left_state: int,
+    right_state: int,
+    angle: object,
+) -> None:
+    """Apply a multi-controlled phase conditioned on two encoded qudit states."""
+    left_base = left_qudit * qubits_per_qudit
+    right_base = right_qudit * qubits_per_qudit
+    target_bit = qubits_per_qudit - 1
+    controls = []
+
+    for bit in range(qubits_per_qudit):
+        qubit = q_full[left_base + bit]
+        if ((left_state >> bit) & 1) == 0:
+            kernel.x(qubit)
+        controls.append(qubit)
+
+    for bit in range(target_bit):
+        qubit = q_full[right_base + bit]
+        if ((right_state >> bit) & 1) == 0:
+            kernel.x(qubit)
+        controls.append(qubit)
+
+    target = q_full[right_base + target_bit]
+    if ((right_state >> target_bit) & 1) == 0:
+        kernel.x(target)
+
+    kernel.cr1(angle, controls, target)
+
+    if ((right_state >> target_bit) & 1) == 0:
+        kernel.x(target)
+    for bit in range(target_bit - 1, -1, -1):
+        if ((right_state >> bit) & 1) == 0:
+            kernel.x(q_full[right_base + bit])
+    for bit in range(qubits_per_qudit - 1, -1, -1):
+        if ((left_state >> bit) & 1) == 0:
+            kernel.x(q_full[left_base + bit])
+
 
 def create_qaoa_ansatz(
     depth: int,
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
 ) -> "cudaq.Kernel":
-    """Create the QAOA ansatz kernel for Tensor QUDO (Etab, Ettprimeab).
-
-    Uses n_qudits registers of qubits_per_qudit qubits each. Cost layer: multi-controlled
-    phase gates for Etab[t,x_0,x_1] (consecutive qudits t, t+1) and Ettprimeab[t,t',x_t,x_t']
-    (pairs t < t'). Mixer: rx(2*beta) on all qubits.
-
-    Args:
-        depth: Number of QAOA layers (p).
-        Etab: 3D tensor (t, origin, destination) for travel/hotel costs.
-        Ettprimeab: 4D tensor (t, t_prime, origin, destination) for penalties.
-
-    Returns:
-        Kernel with signature (gamma, beta).
-    """
-    n_qudits = Etab.shape[0]
-    dimension_qudits = Etab.shape[1]
+    """Create a generic CUDA-Q builder kernel for Tensor-QUDO QAOA."""
+    n_qudits, dimension_qudits = _validate_tqudo_shapes(Etab, Ettprimeab)
     qubits_per_qudit = max(1, int(math.ceil(math.log2(dimension_qudits))))
     n_qubits_total = n_qudits * qubits_per_qudit
+    etab_terms = _nonzero_etab_terms(Etab)
+    ett_terms = _nonzero_ett_terms(Ettprimeab)
 
-    @cudaq.kernel
-    def qaoa_kernel(gamma: list[float], beta: list[float]):
-        # n_qudits registers, each with qubits_per_qudit qubits. Access: q[i][j] = qubit j of qudit i
-        q_full = cudaq.qvector(n_qubits_total)
-        q = [q_full.slice(i * qubits_per_qudit, qubits_per_qudit) for i in range(n_qudits)]
-        # Initial state |+>^n (h = Hadamard gate)
-        for i in range(n_qudits):
-            h(q[i])  # noqa: F821
-        for k in range(depth):
-            # Cost layer: Etab - phase gamma[k]*Etab[t,x_0,x_1] for each (t, x_0, x_1)
-            # Multi-controlled P on last qubit of x_1; X before/after if that bit is 0 in x_1
-            for t in range(n_qudits - 1):
-                for x_0 in range(dimension_qudits):
-                    for x_1 in range(dimension_qudits):
-                        e_val = Etab[t, x_0, x_1]
-                        if abs(e_val) < 1e-14:
-                            continue
-                        phase = -gamma[k] * e_val
-                        target = q[t + 1][qubits_per_qudit - 1]
-                        last_bit = (x_1 >> (qubits_per_qudit - 1)) & 1
-                        # Controls: all qubits of qudit t and qudit t+1 except target
-                        controls = []
-                        for j in range(qubits_per_qudit):
-                            bit_val = (x_0 >> j) & 1
-                            if bit_val == 0:
-                                x(q[t][j])  # noqa: F821
-                            controls.append(q[t][j])
-                        for j in range(qubits_per_qudit - 1):
-                            bit_val = (x_1 >> j) & 1
-                            if bit_val == 0:
-                                x(q[t + 1][j])  # noqa: F821
-                            controls.append(q[t + 1][j])
-                        if last_bit == 0:
-                            x(target)  # noqa: F821
-                        r1.ctrl(controls, target, phase)  # noqa: F821
-                        for j in range(qubits_per_qudit):
-                            if ((x_0 >> j) & 1) == 0:
-                                x(q[t][j])  # noqa: F821
-                        for j in range(qubits_per_qudit - 1):
-                            if ((x_1 >> j) & 1) == 0:
-                                x(q[t + 1][j])  # noqa: F821
-                        if last_bit == 0:
-                            x(target)  # noqa: F821
+    kernel, gamma, beta = cudaq.make_kernel(list[float], list[float])
+    q_full = kernel.qalloc(n_qubits_total)
 
-            # Cost layer: Ettprimeab - phase gamma[k]*Ettprimeab[t,t',x_t,x_t'] for t < t'
-            for t in range(n_qudits - 1):
-                for t_prime in range(t + 1, n_qudits):
-                    for x_t in range(dimension_qudits):
-                        for x_tp in range(dimension_qudits):
-                            e_val = Ettprimeab[t, t_prime, x_t, x_tp]
-                            if abs(e_val) < 1e-14:
-                                continue
-                            phase = -gamma[k] * e_val
-                            target = q[t_prime][qubits_per_qudit - 1]
-                            last_bit = (x_tp >> (qubits_per_qudit - 1)) & 1
-                            controls = []
-                            for j in range(qubits_per_qudit):
-                                if ((x_t >> j) & 1) == 0:
-                                    x(q[t][j])  # noqa: F821
-                                controls.append(q[t][j])
-                            for j in range(qubits_per_qudit - 1):
-                                if ((x_tp >> j) & 1) == 0:
-                                    x(q[t_prime][j])  # noqa: F821
-                                controls.append(q[t_prime][j])
-                            if last_bit == 0:
-                                x(target)  # noqa: F821
-                            r1.ctrl(controls, target, phase)  # noqa: F821
-                            for j in range(qubits_per_qudit):
-                                if ((x_t >> j) & 1) == 0:
-                                    x(q[t][j])  # noqa: F821
-                            for j in range(qubits_per_qudit - 1):
-                                if ((x_tp >> j) & 1) == 0:
-                                    x(q[t_prime][j])  # noqa: F821
-                            if last_bit == 0:
-                                x(target)  # noqa: F821
+    for qubit_idx in range(n_qubits_total):
+        kernel.h(q_full[qubit_idx])
 
-            # Mixer layer: rx on all qubits of all qudits
-            for i in range(n_qudits):
-                for j in range(qubits_per_qudit):
-                    rx(2.0 * beta[k], q[i][j])  # noqa: F821
+    for layer in range(depth):
+        for left_qudit, right_qudit, left_state, right_state, coeff in etab_terms:
+            _apply_state_conditioned_phase(
+                kernel,
+                q_full,
+                qubits_per_qudit,
+                left_qudit,
+                right_qudit,
+                left_state,
+                right_state,
+                -gamma[layer] * coeff,
+            )
 
-    return qaoa_kernel
+        for left_qudit, right_qudit, left_state, right_state, coeff in ett_terms:
+            _apply_state_conditioned_phase(
+                kernel,
+                q_full,
+                qubits_per_qudit,
+                left_qudit,
+                right_qudit,
+                left_state,
+                right_state,
+                -gamma[layer] * coeff,
+            )
+
+        for qubit_idx in range(n_qubits_total):
+            kernel.rx(2.0 * beta[layer], q_full[qubit_idx])
+
+    return kernel
 
 
 def evaluate_cost(
@@ -222,6 +265,8 @@ def optimize_qaoa(
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
     """
+    ensure_cudaq_target()
+
     if seed is not None:
         np.random.seed(seed)
     kernel = create_qaoa_ansatz(depth, Etab, Ettprimeab)
@@ -344,4 +389,3 @@ def run_qaoa(
         "initial_energy": initial_energy,
         "energy_history": energy_history,
     }
-

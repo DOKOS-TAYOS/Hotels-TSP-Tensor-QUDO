@@ -16,7 +16,6 @@ from cudaq import spin
 from math_utils.qubo_ising import qubo_to_ising
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 
-ensure_cudaq_target()
 
 def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
     """Build a CUDA-Q spin_op from Ising coefficients (h, J).
@@ -164,6 +163,7 @@ def sample_solution(
     beta = params[depth:].tolist()
     return cudaq.sample(kernel, gamma, beta, shots_count=n_shots)
 
+
 def _minimize_options(method: str, max_iter: int) -> dict:
     """Build scipy minimize options dict for the given method."""
     opts: dict = {"maxiter": max_iter, "disp": False}
@@ -201,6 +201,8 @@ def optimize_qaoa(
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
     """
+    ensure_cudaq_target()
+
     if seed is not None:
         np.random.seed(seed)
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
