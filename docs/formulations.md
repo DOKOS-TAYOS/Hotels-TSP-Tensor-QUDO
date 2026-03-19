@@ -81,3 +81,75 @@ $$
 |-------------|------------------------------|------------------|
 | Tensor-QUDO | `ProblemTQUDO`, `generate_TQUDO_from_problem` | `Etab[t,a,b]` = $E_{t,a,b}$, `Ettprimeab[t,t',a,b]` = $E_{t,t',a,b}$ |
 | QUBO        | `ProblemQUBO`, `generate_QUBO_from_problem`  | `qubo_matrix` = $Q$ |
+
+---
+
+## Cirq Tensor-QUDO: Native Qudit Implementation
+
+The Cirq TQUDO backend (`src/solvers/cirq_solver/qaoa_circuit_tqudo.py`) uses
+**native d-dimensional Cirq qudits** (`cirq.LineQid(i, dimension=d)`), not
+qubit emulation.  This section documents the three custom gates that form the
+QAOA ansatz and the key design decisions.
+
+> The previous qubit-emulation approach is preserved in
+> `qaoa_circuit_tqudo_qubit_emulation.py` for reference.
+
+### Qudit allocation
+
+Each logical qudit is a single `cirq.LineQid` with `dimension = d = N - 1`
+(the number of available cities).  The total Hilbert space dimension is $d^n$,
+not $2^{n \lceil\log_2 d\rceil}$, which **eliminates all spurious basis states**
+when $d$ is not a power of two.
+
+### Initial state — `QuditHadamardGate`
+
+Creates the d-dimensional uniform superposition:
+
+$$|+_d\rangle = \frac{1}{\sqrt{d}} \sum_{k=0}^{d-1} |k\rangle$$
+
+The unitary is the $d \times d$ DFT matrix:
+$F_d[j,k] = \omega^{jk} / \sqrt{d}$, with $\omega = e^{2\pi i / d}$.
+For $d = 2$ this is the standard Hadamard $H$ (up to global phase).
+
+### Cost layer — `QuditDiagonalCostGate`
+
+A diagonal two-qudit gate of size $d^2 \times d^2$ that encodes the entire
+cost tensor slice for a pair of qudits $(t, t')$ in a single operation:
+
+$$U_\text{cost} = \text{diag}\!\left(e^{-i\gamma \, E_{t,x_0,x_1}}\right)_{x_0, x_1 \in \{0,\ldots,d-1\}}$$
+
+The basis ordering follows Cirq's convention:
+$|x_0\rangle \otimes |x_1\rangle \to$ index $x_0 \cdot d + x_1$.
+
+This replaces the $d^2$ X-flip → multi-controlled-Z → X-unflip sequences per
+qudit pair in the old qubit-emulation approach, reducing the abstract gate
+count per layer from $O(n^2 \cdot d^2)$ to $O(n^2)$.
+
+### Mixer layer — `QuditRingMixerGate`
+
+Implements the ring mixer:
+
+$$U_\text{mix}(\beta) = \exp\!\left(-i\,\beta\, M_d\right), \quad M_d = \frac{X_d + X_d^\dagger}{2}$$
+
+where $X_d = \sum_{k=0}^{d-1} |k{+}1 \bmod d\rangle\langle k|$ is the
+d-dimensional cyclic-shift operator.  The Hermitian generator
+$M_d = (X_d + X_d^\dagger)/2$ is used instead of $X_d$ alone because $X_d$ is
+**not Hermitian** for $d > 2$, and only Hermitian generators produce unitary
+matrix exponentials.
+
+For $d = 2$: $M_2 = X$ (Pauli-X), and $\exp(-i\beta X) = R_x(2\beta)$,
+exactly matching the standard QAOA qubit mixer.
+
+### Mixer equivalence note
+
+The ring mixer $\exp(-i\beta\, M_d)$ is **not identical** to the old per-qubit
+$R_x(2\beta)$ mixer for $d > 2$.  The qubit-emulation mixer mixed individual
+bits independently, whereas the ring mixer rotates in the d-dimensional
+cyclic-shift basis.  The equivalence holds exactly only for $d = 2$.  For
+$d > 2$ the optimisation landscape changes; this is inherent to the
+native-qudit formulation and should be evaluated experimentally.
+
+### Measurement
+
+Cirq returns integers $0 \ldots d{-}1$ per qudit directly — no bitstring
+decoding is needed.  Sample keys use a dash-separated format (e.g. `"0-3-1"`).

@@ -11,6 +11,7 @@ from utils.costs import (
     calculate_tqudo_cost,
 )
 from utils.logging_utils import configure_logging
+from utils.optimizer import minimize_options
 from utils.output_paths import OutputLayout, build_output_layout
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "calculate_real_cost",
     "calculate_tqudo_cost",
     "configure_logging",
+    "minimize_options",
     "validate_instance_constraints",
     "validate_solution_constraints_qubo",
     "validate_solution_constraints_tqudo",
