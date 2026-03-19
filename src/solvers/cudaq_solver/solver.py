@@ -4,16 +4,10 @@ from __future__ import annotations
 
 import time
 
-from instance_gen_process import ProblemInstance, generate_QUBO_from_problem
+from instance_gen_process import ProblemInstance, generate_QUBO_from_problem, generate_TQUDO_from_problem
 from instance_gen_process.models import RestrictionConfig
 from solvers.base import SolverResult, SolverRunConfig
-from utils.constraints import qubo_binary_to_sequence, validate_solution_constraints_qubo
-
-
-_CUDAQ_TQUDO_UNSUPPORTED_MESSAGE = (
-    "CUDA-Q currently supports only the QUBO formulation. "
-    "Tensor-QUDO is temporarily disabled pending reimplementation."
-)
+from utils.constraints import qubo_binary_to_sequence, validate_solution_constraints_qubo, validate_solution_constraints_tqudo
 
 
 def _default_restriction() -> RestrictionConfig:
@@ -28,12 +22,13 @@ class CudaqSolver:
 
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult:
         """Run QAOA and return standardized result."""
-        if run_config.formulation == "tqudo":
-            raise ValueError(_CUDAQ_TQUDO_UNSUPPORTED_MESSAGE)
-
         restriction = run_config.restriction_config or _default_restriction()
         start = time.perf_counter()
-        result = self._solve_qubo(instance, restriction, run_config)
+
+        if run_config.formulation == "tqudo":
+            result = self._solve_tqudo(instance, restriction, run_config)
+        else:
+            result = self._solve_qubo(instance, restriction, run_config)
 
         runtime_seconds = time.perf_counter() - start
         metadata: dict = {
@@ -59,9 +54,32 @@ class CudaqSolver:
         restriction: RestrictionConfig,
         run_config: SolverRunConfig,
     ) -> dict:
-        """Reject CUDA-Q Tensor-QUDO until the kernel is reimplemented."""
-        del instance, restriction, run_config
-        raise ValueError(_CUDAQ_TQUDO_UNSUPPORTED_MESSAGE)
+        """Solve using TQUDO QAOA."""
+        from solvers.cudaq_solver.qaoa_circuit_tqudo import run_qaoa
+
+        problem = generate_TQUDO_from_problem(instance, restriction)
+        raw = run_qaoa(
+            problem.Etab,
+            problem.Ettprimeab,
+            depth=run_config.qaoa_depth,
+            max_iter=run_config.qaoa_max_iter,
+            n_shots=run_config.qaoa_shots,
+            sample_shots=run_config.qaoa_sample_shots,
+            seed=run_config.seed,
+            optimizer=run_config.optimizer,
+        )
+        best_sequence_array = raw["best_sequence"]
+        best_sequence = best_sequence_array.tolist() if best_sequence_array is not None else None
+        feasible = (
+            best_sequence is not None
+            and validate_solution_constraints_tqudo(instance, best_sequence)
+        )
+        return {
+            "energy": float(raw["energy"]),
+            "feasible": feasible,
+            "best_sequence": best_sequence,
+            "best_bitstring": raw["best_bitstring"],
+        }
 
     def _solve_qubo(
         self,

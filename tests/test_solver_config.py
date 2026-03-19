@@ -68,7 +68,7 @@ def test_load_solver_config_rejects_cobyla_budget_below_parameter_count() -> Non
         cleanup_workspace_tmp_dir(tmp_path)
 
 
-def test_load_solver_config_rejects_cudaq_tqudo_combination() -> None:
+def test_load_solver_config_accepts_cudaq_tqudo_combination() -> None:
     tmp_path = workspace_tmp_dir("solver_config_cudaq_tqudo")
     config_path = tmp_path / "solver_config.yaml"
     try:
@@ -84,8 +84,9 @@ def test_load_solver_config_rejects_cudaq_tqudo_combination() -> None:
             encoding="utf-8",
         )
 
-        with pytest.raises(ValueError, match="supports only the QUBO formulation"):
-            load_solver_config(config_path)
+        config = load_solver_config(config_path)
+        assert config["solver"] == "cudaq"
+        assert config["formulation"] == "tqudo"
     finally:
         cleanup_workspace_tmp_dir(tmp_path)
 
@@ -104,7 +105,7 @@ def test_validate_solver_instance_compatibility_rejects_invalid_tqudo_dimension(
         validate_solver_instance_compatibility(instance_config, solver_config)
 
 
-def test_validate_solver_instance_compatibility_rejects_cudaq_tqudo() -> None:
+def test_validate_solver_instance_compatibility_accepts_cudaq_tqudo_when_dimension_matches() -> None:
     instance_config = InstanceConfig(
         n_cities=5,
         n_precedences_range=(1, 1),
@@ -114,8 +115,7 @@ def test_validate_solver_instance_compatibility_rejects_cudaq_tqudo() -> None:
     )
     solver_config = {"solver": "cudaq", "formulation": "tqudo"}
 
-    with pytest.raises(ValueError, match="supports only the QUBO formulation"):
-        validate_solver_instance_compatibility(instance_config, solver_config)
+    validate_solver_instance_compatibility(instance_config, solver_config)
 
 
 def test_validate_solver_instance_compatibility_accepts_compatible_tqudo_dimension() -> None:

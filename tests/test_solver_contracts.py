@@ -32,38 +32,23 @@ def _cudaq_qubo_test_config() -> InstanceConfig:
     )
 
 
-def test_cudaq_solver_rejects_tqudo_runtime() -> None:
-    """CudaqSolver must fail fast for unsupported Tensor-QUDO execution."""
-    instance_config = _contract_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
-    run_config = SolverRunConfig(
-        formulation="tqudo",
-        qaoa_depth=1,
-        qaoa_max_iter=4,
-        qaoa_shots=20,
-        qaoa_sample_shots=50,
-        seed=42,
-    )
-
-    solver = CudaqSolver()
-    assert solver.solver_name == "cudaq"
-    with pytest.raises(ValueError, match="supports only the QUBO formulation"):
-        solver.solve(instance, run_config)
-
-
-def test_cudaq_solver_requires_nvidia_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("formulation", ["qubo", "tqudo"])
+def test_cudaq_solver_requires_nvidia_gpu(
+    formulation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """CudaqSolver must not fall back silently to CPU when no GPU is available."""
     pytest.importorskip("cudaq")
     from solvers.cudaq_solver import cudaq_target
 
-    instance_config = _cudaq_qubo_test_config()
+    instance_config = _cudaq_qubo_test_config() if formulation == "qubo" else _contract_test_config()
     rng = random.Random(instance_config.seed)
     instance = generate_random_instance(instance_config, rng)
     run_config = SolverRunConfig(
-        formulation="qubo",
+        formulation=formulation,
         qaoa_depth=1,
         qaoa_max_iter=4,
+        qaoa_shots=32,
         qaoa_sample_shots=32,
         seed=42,
     )
@@ -108,6 +93,36 @@ def test_cudaq_solver_contract_qubo_on_nvidia_gpu() -> None:
     assert result.runtime_seconds >= 0
     assert "best_bitstring" in result.metadata
     assert "best_binary" in result.metadata
+
+
+def test_cudaq_solver_contract_tqudo_on_nvidia_gpu() -> None:
+    """CudaqSolver TQUDO should return SolverResult when a real NVIDIA target is available."""
+    cudaq = pytest.importorskip("cudaq")
+    if cudaq.num_available_gpus() < 1 or not cudaq.has_target("nvidia"):
+        pytest.skip("CUDA-Q NVIDIA target unavailable in this environment")
+
+    instance_config = _contract_test_config()
+    rng = random.Random(instance_config.seed)
+    instance = generate_random_instance(instance_config, rng)
+    run_config = SolverRunConfig(
+        formulation="tqudo",
+        qaoa_depth=1,
+        qaoa_max_iter=4,
+        qaoa_shots=32,
+        qaoa_sample_shots=32,
+        seed=42,
+    )
+
+    solver = CudaqSolver()
+    result = solver.solve(instance, run_config)
+
+    assert result.solver_name == "cudaq"
+    assert isinstance(result.objective_value, (int, float))
+    assert isinstance(result.feasible, bool)
+    assert isinstance(result.runtime_seconds, (int, float))
+    assert result.runtime_seconds >= 0
+    assert "best_sequence" in result.metadata
+    assert "best_bitstring" in result.metadata
 
 
 @pytest.mark.parametrize("formulation", ["tqudo", "qubo"])

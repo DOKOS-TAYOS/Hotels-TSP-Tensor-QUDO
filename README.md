@@ -36,8 +36,7 @@ before running setup. The `cudaq` extra installs both CUDA-Q and SciPy.
 
 - `solver: cudaq` requires a Linux environment with a compatible NVIDIA GPU.
 - CUDA-Q now fails fast when no NVIDIA GPU is available; it no longer falls back to CPU.
-- In this iteration, CUDA-Q supports only the `qubo` formulation.
-- `tqudo` with CUDA-Q is temporarily disabled pending kernel reimplementation.
+- CUDA-Q supports both `qubo` and `tqudo` formulations.
 
 ## Run common tasks
 
@@ -74,7 +73,6 @@ tests/              Smoke and contract tests
 2. Adjust backend/output settings if needed.
 3. Update `src/instance_gen_process/config.yaml` for instance generation.
 4. Update `src/instance_gen_process/solver_config.yaml` for solver and QAOA settings.
-   If you select `solver: cudaq`, use `formulation: qubo`.
 
 ## Output policy
 
