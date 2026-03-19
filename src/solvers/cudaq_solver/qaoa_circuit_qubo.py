@@ -15,6 +15,7 @@ from cudaq import spin
 
 from math_utils.qubo_ising import qubo_to_ising
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
+from utils.optimizer import minimize_options
 
 
 def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
@@ -164,16 +165,6 @@ def sample_solution(
     return cudaq.sample(kernel, gamma, beta, shots_count=n_shots)
 
 
-def _minimize_options(method: str, max_iter: int) -> dict:
-    """Build scipy minimize options dict for the given method."""
-    opts: dict = {"maxiter": max_iter, "disp": False}
-    if method in ("Nelder-Mead", "Powell"):
-        opts["maxfev"] = max_iter
-    if method == "L-BFGS-B":
-        opts["maxfun"] = max_iter
-    return opts
-
-
 def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
@@ -229,7 +220,7 @@ def optimize_qaoa(
         cost_fn,
         init_params,
         method=optimizer,
-        options=_minimize_options(optimizer, max_iter),
+        options=minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     # Shift Ising energies back to QUBO scale: E_QUBO = E_Ising + offset

@@ -28,6 +28,7 @@ class SolverRunConfig:
     qaoa_sample_shots: int = 1000
     seed: int | None = None
     optimizer: OptimizerType = "COBYLA"
+    delta_t: float = 0.55
 
 
 @dataclass(frozen=True, slots=True)

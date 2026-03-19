@@ -27,11 +27,6 @@ def generate_random_set_instances(config: InstanceConfig, n_instances: int, seed
     return problem_instances
 
 
-def _is_power_of_two(value: int) -> bool:
-    """Return True when *value* is a positive power of two."""
-    return value > 0 and (value & (value - 1)) == 0
-
-
 def generate_random_instance(config: InstanceConfig, rng: random.Random) -> ProblemInstance:
     """Generate a single random ProblemInstance from InstanceConfig ranges.
 
@@ -95,10 +90,6 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
-    if not _is_power_of_two(n_available):
-        raise ValueError(
-            "Tensor-QUDO requires n_cities - 1 to be a power of two."
-        )
     Etab = np.zeros((n_available, n_available, n_available), dtype=float)
 
     for t in range(n_available-1):

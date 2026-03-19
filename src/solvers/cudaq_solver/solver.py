@@ -67,6 +67,7 @@ class CudaqSolver:
             sample_shots=run_config.qaoa_sample_shots,
             seed=run_config.seed,
             optimizer=run_config.optimizer,
+            delta_t=run_config.delta_t,
         )
         best_sequence_array = raw["best_sequence"]
         best_sequence = best_sequence_array.tolist() if best_sequence_array is not None else None
@@ -79,6 +80,8 @@ class CudaqSolver:
             "feasible": feasible,
             "best_sequence": best_sequence,
             "best_bitstring": raw["best_bitstring"],
+            "initial_energy": raw["initial_energy"],
+            "energy_history": raw["energy_history"],
         }
 
     def _solve_qubo(
@@ -98,6 +101,7 @@ class CudaqSolver:
             sample_shots=run_config.qaoa_sample_shots,
             seed=run_config.seed,
             optimizer=run_config.optimizer,
+            delta_t=run_config.delta_t,
         )
         n_available = instance.n_cities - 1
         best_binary = raw["best_binary"]
@@ -112,4 +116,6 @@ class CudaqSolver:
             "best_sequence": best_sequence.tolist() if best_sequence is not None else None,
             "best_bitstring": raw["best_bitstring"],
             "best_binary": best_binary.tolist(),
+            "initial_energy": raw["initial_energy"],
+            "energy_history": raw["energy_history"],
         }

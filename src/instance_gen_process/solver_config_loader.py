@@ -58,7 +58,8 @@ def validate_solver_instance_compatibility(
     n_available = instance_config.n_cities - 1
     if not _is_power_of_two(n_available):
         raise ValueError(
-            "Tensor-QUDO requires n_cities - 1 to be a power of two. "
+            "Tensor-QUDO with qubit-emulation backends requires n_cities - 1 to be a power of two. "
+            "The native-qudit Cirq backend supports arbitrary dimensions. "
             f"Got n_cities={instance_config.n_cities} (n_cities - 1 = {n_available})."
         )
 

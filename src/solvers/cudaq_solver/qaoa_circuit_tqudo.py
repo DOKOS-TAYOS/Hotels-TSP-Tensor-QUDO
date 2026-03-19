@@ -12,6 +12,7 @@ import cudaq
 from instance_gen_process.models import ProblemTQUDO
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from utils.costs import calculate_tqudo_cost
+from utils.optimizer import minimize_options
 
 
 def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[int, int]:
@@ -224,16 +225,6 @@ def sample_solution(
     return cudaq.sample(kernel, gamma, beta, shots_count=n_shots)
 
 
-def _minimize_options(method: str, max_iter: int) -> dict:
-    """Build scipy minimize options dict for the given method."""
-    opts: dict = {"maxiter": max_iter, "disp": False}
-    if method in ("Nelder-Mead", "Powell"):
-        opts["maxfev"] = max_iter
-    if method == "L-BFGS-B":
-        opts["maxfun"] = max_iter
-    return opts
-
-
 def optimize_qaoa(
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
@@ -293,7 +284,7 @@ def optimize_qaoa(
         cost_fn,
         init_params,
         method=optimizer,
-        options=_minimize_options(optimizer, max_iter),
+        options=minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)

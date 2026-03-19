@@ -1,42 +1,245 @@
-"""QAOA circuit implementation for Tensor QUDO problems using Cirq.
+"""QAOA circuit implementation for Tensor QUDO problems using **native Cirq qudits**.
 
-Cost layer uses multi-controlled phase gates for Etab and Ettprimeab.
-Mirrors the CUDA-Q implementation.
+Each logical qudit of dimension *d* is represented by a single ``cirq.LineQid``
+with ``dimension=d`` — *not* as ⌈log₂ d⌉ qubits.  This removes all binary
+encoding/decoding overhead, eliminates spurious basis states when *d* is not a
+power of two, and makes the circuit structure mirror the Tensor-QUDO
+Hamiltonian directly.
+
+Key differences from the previous qubit-emulation approach
+(preserved in ``qaoa_circuit_tqudo_qubit_emulation.py``):
+
+1. **Initial state**: A custom ``QuditHadamardGate`` (d-dim DFT) creates the
+   uniform superposition |+_d⟩ = (1/√d) Σ |k⟩  on each qudit.
+
+2. **Cost layer**: A single diagonal two-qudit gate ``QuditDiagonalCostGate``
+   of size d²×d² replaces the d² iterations of X-flip → multi-controlled-Z →
+   X-unflip.  The unitary is diag(exp(−iγ E[x₀,x₁])).
+
+3. **Mixer layer**: A ``QuditRingMixerGate`` implements the ring mixer
+   exp(−i·2β·X_d) where X_d is the cyclic-shift (generalized Pauli-X) on d
+   levels.  This is the direct qudit analog of rx(2β) on a qubit.
+
+4. **Measurement**: Cirq returns integers 0…d−1 per qudit; no bitstring→qudit
+   decoding is needed.
+
+Note on mixer equivalence
+-------------------------
+The ring mixer exp(−iβX_d) is *not* identical to the old per-qubit rx(2β).
+The qubit-emulation mixer mixed individual bits independently, whereas the
+ring mixer rotates in the d-dimensional cyclic-shift basis.  For d = 2 the two
+coincide exactly.  For d > 2 the optimization landscape changes; this is
+inherent to the native-qudit formulation and should be evaluated experimentally.
 """
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 import numpy as np
 import sympy
 from scipy.optimize import minimize
+from scipy.linalg import expm
 
 import cirq
 
 from instance_gen_process.models import ProblemTQUDO
 from utils.costs import calculate_tqudo_cost
+from utils.optimizer import minimize_options
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    pass
 
 
-def _multi_controlled_phase(
-    controls: Sequence[cirq.Qid],
-    target: cirq.Qid,
-    phase: float | sympy.Expr,
-) -> cirq.Operation:
-    """Apply phase e^(i*phase) to target when all controls are |1⟩.
+# ---------------------------------------------------------------------------
+# Custom qudit gates
+# ---------------------------------------------------------------------------
 
-    Uses X gates to encode the desired basis state, then multi-controlled Z.
-    ZPowGate(exponent) gives exp(i*π*exponent) on |1⟩, so exponent = phase/π.
+
+class QuditHadamardGate(cirq.Gate):
+    """d-dimensional Hadamard: maps |0⟩ → (1/√d) Σ_k |k⟩.
+
+    Unitary is the d×d Discrete Fourier Transform matrix
+    F_d[j,k] = ω^{jk}/√d  with ω = e^{2πi/d}.
     """
-    exponent = phase / np.pi
-    if not controls:
-        return cirq.ZPowGate(exponent=exponent).on(target)
-    gate = cirq.ZPowGate(exponent=exponent).controlled(len(controls))
-    return gate.on(*controls, target)
+
+    def __init__(self, dimension: int) -> None:
+        super().__init__()
+        self._dimension = dimension
+
+    def _qid_shape_(self) -> tuple[int, ...]:
+        return (self._dimension,)
+
+    def _unitary_(self) -> np.ndarray:
+        d = self._dimension
+        return np.fft.fft(np.eye(d), norm="ortho")
+
+    def _circuit_diagram_info_(self, _args: cirq.CircuitDiagramInfoArgs) -> str:
+        return f"H_d({self._dimension})"
+
+    def __repr__(self) -> str:
+        return f"QuditHadamardGate(dimension={self._dimension})"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, QuditHadamardGate) and self._dimension == other._dimension
+
+    def __hash__(self) -> int:
+        return hash((QuditHadamardGate, self._dimension))
+
+
+class QuditDiagonalCostGate(cirq.Gate):
+    """Diagonal two-qudit cost gate for a pair of d-dimensional qudits.
+
+    Unitary: diag(exp(−i·γ·cost_matrix.flatten()))  of size d²×d².
+
+    The basis ordering follows Cirq's convention for multi-qudit systems:
+    |x₀⟩⊗|x₁⟩  →  index = x₀·d + x₁.
+
+    Parameters
+    ----------
+    dimension : int
+        Qudit dimension d.
+    gamma : float | sympy.Expr
+        QAOA variational parameter γ.
+    cost_matrix : np.ndarray
+        d×d real matrix of cost coefficients (e.g. Etab[t] or Ettprimeab[t,t']).
+    """
+
+    def __init__(
+        self,
+        dimension: int,
+        gamma: float | sympy.Expr,
+        cost_matrix: np.ndarray,
+    ) -> None:
+        super().__init__()
+        self._dimension = dimension
+        self._gamma = gamma
+        self._cost_matrix = np.asarray(cost_matrix, dtype=float)
+
+    def _qid_shape_(self) -> tuple[int, ...]:
+        return (self._dimension, self._dimension)
+
+    # -- Sympy parameterization support --
+    def _is_parameterized_(self) -> bool:
+        return cirq.is_parameterized(self._gamma)
+
+    def _parameter_names_(self) -> frozenset[str]:
+        return cirq.parameter_names(self._gamma)
+
+    def _resolve_parameters_(
+        self,
+        resolver: cirq.ParamResolver,
+        recursive: bool,
+    ) -> QuditDiagonalCostGate:
+        new_gamma = cirq.resolve_parameters(self._gamma, resolver, recursive)
+        return QuditDiagonalCostGate(self._dimension, new_gamma, self._cost_matrix)
+
+    def _unitary_(self) -> np.ndarray | None:
+        if self._is_parameterized_():
+            return None  # Cirq will resolve before calling _unitary_
+        gamma_val = float(self._gamma)
+        phases = -gamma_val * self._cost_matrix.flatten()
+        return np.diag(np.exp(1j * phases))
+
+    def _circuit_diagram_info_(self, _args: cirq.CircuitDiagramInfoArgs) -> list[str]:
+        return [f"Cost_d({self._dimension})", f"Cost_d({self._dimension})"]
+
+    def __repr__(self) -> str:
+        return (
+            f"QuditDiagonalCostGate(dimension={self._dimension}, "
+            f"gamma={self._gamma!r})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, QuditDiagonalCostGate):
+            return NotImplemented
+        return (
+            self._dimension == other._dimension
+            and self._gamma == other._gamma
+            and np.array_equal(self._cost_matrix, other._cost_matrix)
+        )
+
+    def __hash__(self) -> int:
+        return hash((QuditDiagonalCostGate, self._dimension, str(self._gamma)))
+
+
+class QuditRingMixerGate(cirq.Gate):
+    """Ring mixer on a single d-dimensional qudit: exp(−i·angle·M_d).
+
+    M_d is the Hermitian ring-exchange operator:
+        M_d = (X_d + X_d†) / 2
+
+    where X_d = Σ_k |k+1 mod d⟩⟨k| is the cyclic-shift operator.
+
+    For d = 2, M_d = X (Pauli-X) and this gate reduces to
+    exp(−i·angle·X) = Rx(2·angle).
+
+    Note: X_d itself is **not** Hermitian for d > 2 (its adjoint is the
+    backward shift).  Using the Hermitised form (X_d + X_d†)/2 guarantees
+    the resulting matrix exponential is always unitary.
+
+    Parameters
+    ----------
+    dimension : int
+        Qudit dimension d.
+    angle : float | sympy.Expr
+        Rotation angle β (the QAOA variational parameter).
+        The unitary is exp(−i·β·M_d).
+    """
+
+    def __init__(self, dimension: int, angle: float | sympy.Expr) -> None:
+        super().__init__()
+        self._dimension = dimension
+        self._angle = angle
+
+    def _qid_shape_(self) -> tuple[int, ...]:
+        return (self._dimension,)
+
+    def _is_parameterized_(self) -> bool:
+        return cirq.is_parameterized(self._angle)
+
+    def _parameter_names_(self) -> frozenset[str]:
+        return cirq.parameter_names(self._angle)
+
+    def _resolve_parameters_(
+        self,
+        resolver: cirq.ParamResolver,
+        recursive: bool,
+    ) -> QuditRingMixerGate:
+        new_angle = cirq.resolve_parameters(self._angle, resolver, recursive)
+        return QuditRingMixerGate(self._dimension, new_angle)
+
+    def _unitary_(self) -> np.ndarray | None:
+        if self._is_parameterized_():
+            return None
+        d = self._dimension
+        angle_val = float(self._angle)
+        # Build X_d (cyclic shift) and its adjoint (backward shift)
+        x_d = np.zeros((d, d), dtype=complex)
+        for k in range(d):
+            x_d[(k + 1) % d, k] = 1.0
+        # Hermitian generator: M_d = (X_d + X_d†) / 2
+        m_d = (x_d + x_d.conj().T) / 2.0
+        return expm(-1j * angle_val * m_d)
+
+    def _circuit_diagram_info_(self, _args: cirq.CircuitDiagramInfoArgs) -> str:
+        return f"Rx_d({self._dimension})"
+
+    def __repr__(self) -> str:
+        return f"QuditRingMixerGate(dimension={self._dimension}, angle={self._angle!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, QuditRingMixerGate):
+            return NotImplemented
+        return self._dimension == other._dimension and self._angle == other._angle
+
+    def __hash__(self) -> int:
+        return hash((QuditRingMixerGate, self._dimension, str(self._angle)))
+
+
+# ---------------------------------------------------------------------------
+# Circuit construction
+# ---------------------------------------------------------------------------
 
 
 def create_qaoa_circuit(
@@ -44,21 +247,33 @@ def create_qaoa_circuit(
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
 ) -> tuple[cirq.Circuit, dict[str, sympy.Symbol], list[cirq.Qid], int, int]:
-    """Create the parametrized QAOA circuit for Tensor QUDO.
+    """Create the parametrized QAOA circuit for Tensor QUDO on native qudits.
 
-    Cost layer: multi-controlled phase for Etab[t,x_0,x_1] and Ettprimeab[t,t',x_t,x_t'].
-    Mixer: rx(2*beta) on all qubits.
+    Each qudit is a single ``cirq.LineQid(i, dimension=d)`` — **not** a group
+    of qubits.
 
-    Returns:
-        Tuple (circuit, symbols, qubits, n_qudits, qubits_per_qudit).
+    Cost layer
+    ----------
+    For every adjacent pair (t, t+1), a single diagonal d²×d² unitary encodes
+    all Etab[t, x₀, x₁] phases.  Likewise for all long-range pairs (t, t')
+    with Ettprimeab[t, t', x_t, x_t'].
+
+    Mixer layer
+    -----------
+    Ring mixer exp(−i·2β·X_d) on each qudit, where X_d is the cyclic-shift.
+
+    Returns
+    -------
+    circuit : cirq.Circuit
+    symbols : dict mapping "gamma_k"/"beta_k" to sympy.Symbol
+    qudits  : list of ``cirq.LineQid`` (length n_qudits)
+    n_qudits : int
+    dimension : int (the qudit dimension d — replaces the old ``qubits_per_qudit``)
     """
     n_qudits = Etab.shape[0]
-    dimension_qudits = Etab.shape[1]
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(dimension_qudits))))
-    n_qubits_total = n_qudits * qubits_per_qudit
+    dimension = Etab.shape[1]  # d
 
-    qubits = list(cirq.LineQubit.range(n_qubits_total))
-    q = [qubits[i * qubits_per_qudit : (i + 1) * qubits_per_qudit] for i in range(n_qudits)]
+    qudits = list(cirq.LineQid.range(n_qudits, dimension=dimension))
 
     symbols: dict[str, sympy.Symbol] = {}
     for k in range(depth):
@@ -67,85 +282,46 @@ def create_qaoa_circuit(
 
     moments: list[cirq.OP_TREE] = []
 
-    # Initial state |+>^n
-    for i in range(n_qudits):
-        moments.append(cirq.H.on_each(*q[i]))
+    # Initial state: |+_d⟩ on each qudit  (uniform superposition over d levels)
+    h_gate = QuditHadamardGate(dimension)
+    for q in qudits:
+        moments.append(h_gate.on(q))
 
     for k in range(depth):
-        # Cost layer: Etab
+        gamma_k = symbols[f"gamma_{k}"]
+        beta_k = symbols[f"beta_{k}"]
+
+        # Cost layer — Etab: adjacent pairs (t, t+1)
         for t in range(n_qudits - 1):
-            for x_0 in range(dimension_qudits):
-                for x_1 in range(dimension_qudits):
-                    e_val = Etab[t, x_0, x_1]
-                    if abs(e_val) < 1e-14:
-                        continue
-                    phase = -symbols[f"gamma_{k}"] * e_val
-                    target = q[t + 1][qubits_per_qudit - 1]
-                    last_bit = (x_1 >> (qubits_per_qudit - 1)) & 1
+            cost_mat = Etab[t]  # shape (d, d)
+            if np.allclose(cost_mat, 0.0):
+                continue
+            gate = QuditDiagonalCostGate(dimension, gamma_k, cost_mat)
+            moments.append(gate.on(qudits[t], qudits[t + 1]))
 
-                    # X on qubits where bit is 0 (prepare "all 1" for control)
-                    for j in range(qubits_per_qudit):
-                        if ((x_0 >> j) & 1) == 0:
-                            moments.append(cirq.X(q[t][j]))
-                    for j in range(qubits_per_qudit - 1):
-                        if ((x_1 >> j) & 1) == 0:
-                            moments.append(cirq.X(q[t + 1][j]))
-                    if last_bit == 0:
-                        moments.append(cirq.X(target))
-
-                    controls = list(q[t]) + list(q[t + 1][:-1])
-                    moments.append(_multi_controlled_phase(controls, target, phase))
-
-                    # Undo X
-                    for j in range(qubits_per_qudit):
-                        if ((x_0 >> j) & 1) == 0:
-                            moments.append(cirq.X(q[t][j]))
-                    for j in range(qubits_per_qudit - 1):
-                        if ((x_1 >> j) & 1) == 0:
-                            moments.append(cirq.X(q[t + 1][j]))
-                    if last_bit == 0:
-                        moments.append(cirq.X(target))
-
-        # Cost layer: Ettprimeab
+        # Cost layer — Ettprimeab: all pairs (t, t') with t' > t
         for t in range(n_qudits - 1):
             for t_prime in range(t + 1, n_qudits):
-                for x_t in range(dimension_qudits):
-                    for x_tp in range(dimension_qudits):
-                        e_val = Ettprimeab[t, t_prime, x_t, x_tp]
-                        if abs(e_val) < 1e-14:
-                            continue
-                        phase = -symbols[f"gamma_{k}"] * e_val
-                        target = q[t_prime][qubits_per_qudit - 1]
-                        last_bit = (x_tp >> (qubits_per_qudit - 1)) & 1
+                cost_mat = Ettprimeab[t, t_prime]  # shape (d, d)
+                if np.allclose(cost_mat, 0.0):
+                    continue
+                gate = QuditDiagonalCostGate(dimension, gamma_k, cost_mat)
+                moments.append(gate.on(qudits[t], qudits[t_prime]))
 
-                        for j in range(qubits_per_qudit):
-                            if ((x_t >> j) & 1) == 0:
-                                moments.append(cirq.X(q[t][j]))
-                        for j in range(qubits_per_qudit - 1):
-                            if ((x_tp >> j) & 1) == 0:
-                                moments.append(cirq.X(q[t_prime][j]))
-                        if last_bit == 0:
-                            moments.append(cirq.X(target))
-
-                        controls = list(q[t]) + list(q[t_prime][:-1])
-                        moments.append(_multi_controlled_phase(controls, target, phase))
-
-                        for j in range(qubits_per_qudit):
-                            if ((x_t >> j) & 1) == 0:
-                                moments.append(cirq.X(q[t][j]))
-                        for j in range(qubits_per_qudit - 1):
-                            if ((x_tp >> j) & 1) == 0:
-                                moments.append(cirq.X(q[t_prime][j]))
-                        if last_bit == 0:
-                            moments.append(cirq.X(target))
-
-        # Mixer layer
-        for i in range(n_qudits):
-            for j in range(qubits_per_qudit):
-                moments.append(cirq.rx(2.0 * symbols[f"beta_{k}"]).on(q[i][j]))
+        # Mixer layer: ring mixer on each qudit
+        # exp(-i·β·M_d) where M_d = (X_d + X_d†)/2.
+        # For d=2: M_d = X, so exp(-iβX) = Rx(2β), matching standard QAOA.
+        for q in qudits:
+            mixer = QuditRingMixerGate(dimension, beta_k)
+            moments.append(mixer.on(q))
 
     circuit = cirq.Circuit(moments)
-    return circuit, symbols, qubits, n_qudits, qubits_per_qudit
+    return circuit, symbols, qudits, n_qudits, dimension
+
+
+# ---------------------------------------------------------------------------
+# Parameter handling
+# ---------------------------------------------------------------------------
 
 
 def _param_resolver(
@@ -153,7 +329,7 @@ def _param_resolver(
     symbols: dict[str, sympy.Symbol],
     depth: int,
 ) -> cirq.ParamResolver:
-    """Build ParamResolver from params array."""
+    """Build ParamResolver from params array [gamma_0..gamma_{p-1}, beta_0..beta_{p-1}]."""
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
         resolver_dict[symbols[f"gamma_{k}"]] = float(params[k])
@@ -161,12 +337,51 @@ def _param_resolver(
     return cirq.ParamResolver(resolver_dict)
 
 
+# ---------------------------------------------------------------------------
+# Measurement helpers
+# ---------------------------------------------------------------------------
+
+
+def measurement_to_qudit_sequence(
+    row: np.ndarray,
+    n_qudits: int,
+) -> np.ndarray:
+    """Convert a native qudit measurement row to a qudit sequence (route).
+
+    With native qudits, each element of *row* is already an integer in
+    {0, …, d−1}, so this is a trivial reshape.
+    """
+    return np.asarray(row[:n_qudits], dtype=np.int64)
+
+
+def qudit_sequence_to_key(seq: np.ndarray) -> str:
+    """Encode a qudit-value sequence as a dash-separated string for counting.
+
+    Example: [0, 3, 1] → "0-3-1".
+    """
+    return "-".join(str(int(v)) for v in seq)
+
+
+def key_to_qudit_sequence(key: str) -> np.ndarray:
+    """Inverse of ``qudit_sequence_to_key``."""
+    return np.array([int(v) for v in key.split("-")], dtype=np.int64)
+
+
+# Backwards-compatible alias kept for solver.py (signature unchanged).
 def bitstring_to_qudit_sequence(
     bitstring: str,
     n_qudits: int,
     qubits_per_qudit: int,
 ) -> np.ndarray:
-    """Convert a measurement bitstring to qudit sequence (route)."""
+    """Decode a measurement key back to qudit values.
+
+    Accepts **both** the new dash-separated format ("0-3-1") and the legacy
+    binary-encoded bitstring ("0110") so that callers migrating gradually
+    continue to work.
+    """
+    if "-" in bitstring:
+        return key_to_qudit_sequence(bitstring)
+    # Legacy binary format (for any remaining callers)
     seq = np.zeros(n_qudits, dtype=np.int64)
     for i in range(n_qudits):
         start = i * qubits_per_qudit
@@ -176,6 +391,11 @@ def bitstring_to_qudit_sequence(
     return seq
 
 
+# ---------------------------------------------------------------------------
+# Cost evaluation
+# ---------------------------------------------------------------------------
+
+
 def evaluate_cost(
     params: np.ndarray,
     circuit: cirq.Circuit,
@@ -183,25 +403,33 @@ def evaluate_cost(
     Ettprimeab: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qubits: list[cirq.Qid],
+    qudits: list[cirq.Qid],
     n_qudits: int,
-    qubits_per_qudit: int,
+    dimension: int,
     n_shots: int = 1000,
     seed: int | None = None,
 ) -> float:
-    """Evaluate the QAOA cost by sampling and averaging TQUDO cost."""
+    """Evaluate the QAOA cost by sampling and averaging TQUDO cost.
+
+    Parameters mirror the old signature (the 9th positional arg was
+    ``qubits_per_qudit``; it is now ``dimension``).
+    """
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
+    circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
     simulator = cirq.Simulator(seed=seed)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
     total = 0.0
     for row in result.measurements["m"]:
-        bitstring = "".join(str(int(b)) for b in row)
-        seq = bitstring_to_qudit_sequence(bitstring, n_qudits, qubits_per_qudit)
+        seq = measurement_to_qudit_sequence(row, n_qudits)
         total += calculate_tqudo_cost(problem, seq)
     return total / n_shots
+
+
+# ---------------------------------------------------------------------------
+# Sampling
+# ---------------------------------------------------------------------------
 
 
 def sample_solution(
@@ -209,36 +437,37 @@ def sample_solution(
     params: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qubits: list[cirq.Qid],
+    qudits: list[cirq.Qid],
     n_shots: int = 1000,
     seed: int | None = None,
 ) -> dict[str, int]:
-    """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
+    """Sample qudit sequences from the QAOA state.
+
+    Returns dict  { "0-3-1": count, … }  using dash-separated qudit-value keys.
+    """
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
+    circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
     simulator = cirq.Simulator(seed=seed)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     counts: dict[str, int] = {}
     for row in result.measurements["m"]:
-        bitstring = "".join(str(int(b)) for b in row)
-        counts[bitstring] = counts.get(bitstring, 0) + 1
+        seq = measurement_to_qudit_sequence(row, len(qudits))
+        key = qudit_sequence_to_key(seq)
+        counts[key] = counts.get(key, 0) + 1
     return counts
 
 
-def _most_probable(counts: dict[str, int], n_qubits: int) -> str:
-    """Return the bitstring with highest count."""
+def _most_probable(counts: dict[str, int], n_qudits: int) -> str:
+    """Return the key with highest count."""
     if not counts:
-        return "0" * n_qubits
+        return "-".join(["0"] * n_qudits)
     return max(counts, key=lambda k: counts[k])
 
 
-def _minimize_options(method: str, max_iter: int) -> dict:
-    """Build scipy minimize options dict for the given method."""
-    opts: dict = {"maxiter": max_iter}
-    if method == "Nelder-Mead":
-        opts["maxfev"] = max_iter
-    return opts
+# ---------------------------------------------------------------------------
+# Optimization helpers
+# ---------------------------------------------------------------------------
 
 
 def optimize_qaoa(
@@ -250,13 +479,12 @@ def optimize_qaoa(
     sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
-    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
+    delta_t: float = 0.55,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the TQUDO cost."""
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
-    circuit, symbols, qubits, n_qudits, qubits_per_qudit = create_qaoa_circuit(
+    circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
         depth, Etab, Ettprimeab
     )
 
@@ -272,7 +500,7 @@ def optimize_qaoa(
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
             x, circuit, Etab, Ettprimeab, symbols, depth,
-            qubits, n_qudits, qubits_per_qudit,
+            qudits, n_qudits, dimension,
             n_shots=n_shots, seed=seed,
         )
         energy_history.append(val)
@@ -280,7 +508,7 @@ def optimize_qaoa(
 
     initial_energy = evaluate_cost(
         init_params, circuit, Etab, Ettprimeab, symbols, depth,
-        qubits, n_qudits, qubits_per_qudit,
+        qudits, n_qudits, dimension,
         n_shots=n_shots, seed=seed,
     )
 
@@ -288,17 +516,22 @@ def optimize_qaoa(
         cost_fn,
         init_params,
         method=optimizer,
-        options=_minimize_options(optimizer, max_iter),
+        options=minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     samples: dict[str, int] | None = None
     if sample_shots is not None:
         samples = sample_solution(
-            circuit, best_params, symbols, depth, qubits,
+            circuit, best_params, symbols, depth, qudits,
             n_shots=sample_shots, seed=seed,
         )
     return best_energy, best_params, samples, initial_energy, energy_history
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
 
 
 def run_qaoa(
@@ -310,12 +543,10 @@ def run_qaoa(
     sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
-    delta_t: float = 0.55, # Se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
+    delta_t: float = 0.55,
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution."""
     n_qudits = Etab.shape[0]
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
-    n_qubits_total = n_qudits * qubits_per_qudit
 
     best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
         Etab,
@@ -329,14 +560,14 @@ def run_qaoa(
         delta_t=delta_t,
     )
 
-    best_bitstring = _most_probable(samples, n_qubits_total) if samples else "0" * n_qubits_total
-    best_sequence = bitstring_to_qudit_sequence(best_bitstring, n_qudits, qubits_per_qudit)
+    best_key = _most_probable(samples, n_qudits) if samples else "-".join(["0"] * n_qudits)
+    best_sequence = key_to_qudit_sequence(best_key)
 
     return {
         "energy": best_energy,
         "params": best_params,
         "samples": samples,
-        "best_bitstring": best_bitstring,
+        "best_bitstring": best_key,
         "best_sequence": best_sequence,
         "initial_energy": initial_energy,
         "energy_history": energy_history,

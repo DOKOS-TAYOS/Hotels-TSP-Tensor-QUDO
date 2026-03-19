@@ -13,6 +13,7 @@ from scipy.optimize import minimize
 import cirq
 
 from math_utils.qubo_ising import qubo_to_ising
+from utils.optimizer import minimize_options
 
 
 def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
@@ -172,14 +173,6 @@ def sample_solution(
     return counts
 
 
-def _minimize_options(method: str, max_iter: int) -> dict:
-    """Build scipy minimize options dict for the given method."""
-    opts: dict = {"maxiter": max_iter}
-    if method == "Nelder-Mead":
-        opts["maxfev"] = max_iter
-    return opts
-
-
 def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
@@ -194,8 +187,7 @@ def optimize_qaoa(
     QUBO expectations are evaluated exactly with the simulator, so only
     ``sample_shots`` is used for the final state sampling step.
     """
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
@@ -223,7 +215,7 @@ def optimize_qaoa(
         cost_fn,
         init_params,
         method=optimizer,
-        options=_minimize_options(optimizer, max_iter),
+        options=minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun) + offset
