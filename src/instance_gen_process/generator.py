@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import random
-from collections import deque
-
 import numpy as np
 
-from utils.constraints import idx
+from utils.constraints import idx, would_create_cycle
 from instance_gen_process.models import InstanceConfig, ProblemInstance, ProblemQUBO, ProblemTQUDO, RestrictionConfig
 
 def generate_random_set_instances(config: InstanceConfig, n_instances: int, seed: int = 42) -> list[ProblemInstance]:
@@ -27,38 +25,6 @@ def generate_random_set_instances(config: InstanceConfig, n_instances: int, seed
         problem_instances.append(generate_random_instance(config, rng))
 
     return problem_instances
-
-
-def _would_create_cycle(precedences: list[tuple[int, int]], origin: int, destination: int) -> bool:
-    """Check if adding (origin, destination) would create a cycle in the precedence graph.
-
-    A cycle occurs when destination can already reach origin (directly or via other rules).
-    Uses BFS from destination to detect reachability to origin.
-
-    Args:
-        precedences: Existing precedence edges (a, b) meaning a must precede b.
-        origin: Proposed edge origin.
-        destination: Proposed edge destination.
-
-    Returns:
-        True if adding the edge would create a cycle, False otherwise.
-    """
-    # Build adjacency: (a, b) means a -> b. We need to check if destination ->* origin.
-    adj: dict[int, list[int]] = {}
-    for a, b in precedences:
-        adj.setdefault(a, []).append(b)
-    # BFS from destination: can we reach origin?
-    seen: set[int] = {destination}
-    queue = deque([destination])
-    while queue:
-        node = queue.popleft()
-        for neighbor in adj.get(node, []):
-            if neighbor == origin:
-                return True
-            if neighbor not in seen:
-                seen.add(neighbor)
-                queue.append(neighbor)
-    return False
 
 
 def _is_power_of_two(value: int) -> bool:
@@ -90,7 +56,9 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
         origin = rng.randrange(n_available)
         available_destinations = [i for i in range(n_available) if i != origin]
         destination = rng.choice(available_destinations)
-        if (origin, destination) not in precedences and not _would_create_cycle(precedences, origin, destination):
+        if (origin, destination) not in precedences and not would_create_cycle(
+            precedences, origin, destination
+        ):
             precedences.append((origin, destination))
         attempts += 1
 
