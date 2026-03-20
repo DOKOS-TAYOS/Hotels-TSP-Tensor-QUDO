@@ -58,7 +58,7 @@ def test_load_instance_config_rejects_n_cities_below_two() -> None:
             encoding="utf-8",
         )
 
-        with pytest.raises(ValueError, match="at least 2"):
+        with pytest.raises(ValueError, match="at least 3"):
             load_instance_config(config_path)
     finally:
         cleanup_workspace_tmp_dir(tmp_path)

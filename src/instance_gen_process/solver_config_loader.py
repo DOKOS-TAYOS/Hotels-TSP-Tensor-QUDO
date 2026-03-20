@@ -49,17 +49,31 @@ def validate_solver_instance_compatibility(
     instance_config: InstanceConfig,
     solver_config: dict[str, Any],
 ) -> None:
-    """Validate constraints that depend on both instance and solver configuration."""
+    """Validate constraints that depend on both instance and solver configuration.
+
+    The native-qudit Cirq backend (``qaoa_circuit_tqudo.py``) supports
+    arbitrary qudit dimensions, so the power-of-two restriction only
+    applies to qubit-emulation backends (CUDA-Q, simulated annealing,
+    and the Cirq qubit-emulation variant).
+    """
     formulation = solver_config.get("formulation", "tqudo")
 
     if formulation != "tqudo":
         return
 
+    solver = solver_config.get("solver", "cudaq")
+
+    # The native-qudit Cirq backend supports arbitrary dimensions;
+    # only qubit-emulation backends need power-of-two.
+    if solver == "cirq":
+        return
+
     n_available = instance_config.n_cities - 1
     if not _is_power_of_two(n_available):
         raise ValueError(
-            "Tensor-QUDO with qubit-emulation backends requires n_cities - 1 to be a power of two. "
-            "The native-qudit Cirq backend supports arbitrary dimensions. "
+            f"Tensor-QUDO with solver '{solver}' (qubit-emulation) requires "
+            "n_cities - 1 to be a power of two. "
+            "Use solver='cirq' (native qudits) for arbitrary dimensions. "
             f"Got n_cities={instance_config.n_cities} (n_cities - 1 = {n_available})."
         )
 

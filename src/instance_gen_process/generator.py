@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import random
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from utils.constraints import idx, would_create_cycle
 from instance_gen_process.models import InstanceConfig, ProblemInstance, ProblemQUBO, ProblemTQUDO, RestrictionConfig
@@ -56,6 +59,13 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
         ):
             precedences.append((origin, destination))
         attempts += 1
+
+    if len(precedences) < n_precedences:
+        logger.warning(
+            "Could only generate %d of %d requested precedences after %d attempts "
+            "(n_cities=%d). The acyclic constraint may limit the feasible set.",
+            len(precedences), n_precedences, max_attempts, n_cities,
+        )
 
     np_rng = np.random.default_rng(rng.randint(0, 2**32 - 1))
     prices_hotels = np_rng.uniform(
@@ -159,11 +169,11 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
             for j in range(n_available):
                 if i != j:
                     idx_tj = idx(t, j, n_available)
-                    qubo_matrix[idx_ti, idx_tj] += restriction.lambda_0 / 2
+                    qubo_matrix[idx_ti, idx_tj] += restriction.lambda_0
             for t_prime in range(n_available):
                 if t != t_prime:
                     idx_tp_i = idx(t_prime, i, n_available)
-                    qubo_matrix[idx_ti, idx_tp_i] += restriction.lambda_1 / 2
+                    qubo_matrix[idx_ti, idx_tp_i] += restriction.lambda_1
 
         for t_prime in range(t+1, n_available):
             for precedence in problem.precedences:

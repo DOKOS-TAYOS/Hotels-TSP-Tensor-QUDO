@@ -41,12 +41,12 @@ def calculate_tqudo_cost(
     Returns:
         The TQUDO cost value for the given solution.
     """
-    x = np.asarray(solution).flatten()
+    x = np.asarray(solution, dtype=int).flatten()
     cost = 0
     for t, origin in enumerate(x[:-1]):
-        destination = x[t+1]
+        destination = x[t + 1]
         cost += problem.Etab[t, origin, destination]
-        for tp, dest_tp in enumerate(x[t+1:]):
+        for tp, dest_tp in enumerate(x[t + 1:]):
             t_prime = t + 1 + tp
             cost += problem.Ettprimeab[t, t_prime, origin, dest_tp]
 
