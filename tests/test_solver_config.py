@@ -129,3 +129,18 @@ def test_validate_solver_instance_compatibility_accepts_compatible_tqudo_dimensi
     solver_config = {"formulation": "tqudo"}
 
     validate_solver_instance_compatibility(instance_config, solver_config)
+
+
+def test_validate_solver_instance_compatibility_cirq_accepts_non_power_of_two() -> None:
+    """Native-qudit Cirq backend supports arbitrary dimensions (not just power-of-2)."""
+    instance_config = InstanceConfig(
+        n_cities=6,  # n_available = 5, NOT a power of two
+        n_precedences_range=(1, 1),
+        prices_range_hotels=(30.0, 30.0),
+        prices_range_travels=(40.0, 40.0),
+        seed=123,
+    )
+    solver_config = {"solver": "cirq", "formulation": "tqudo"}
+
+    # Should NOT raise — Cirq native qudits support any dimension.
+    validate_solver_instance_compatibility(instance_config, solver_config)

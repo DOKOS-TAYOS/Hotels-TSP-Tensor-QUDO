@@ -60,7 +60,8 @@ class QuditHadamardGate(cirq.Gate):
     """d-dimensional Hadamard: maps |0⟩ → (1/√d) Σ_k |k⟩.
 
     Unitary is the d×d Discrete Fourier Transform matrix
-    F_d[j,k] = ω^{jk}/√d  with ω = e^{2πi/d}.
+    F_d[j,k] = e^{−2πi jk/d} / √d  (np.fft.fft convention).
+    For d = 2 this is the standard Hadamard H (up to global phase).
     """
 
     def __init__(self, dimension: int) -> None:

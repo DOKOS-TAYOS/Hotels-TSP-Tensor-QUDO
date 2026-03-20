@@ -64,11 +64,12 @@ def _insert_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarr
     i = int(rng.integers(0, n))
     j = int(rng.integers(0, n - 1))
     if j >= i:
-        j += 1
+        j += 1  # skip position i → j ∈ {0..n-1} \ {i}
+    element = sequence[i]
     neighbor = np.delete(sequence, i)
-    # After deletion the target shifts when j > i
-    insert_pos = j if j < i else j
-    neighbor = np.insert(neighbor, insert_pos, sequence[i])
+    # j is a valid np.insert index in the shortened array (length n-1);
+    # inserting at any position other than i guarantees a different permutation.
+    neighbor = np.insert(neighbor, j, element)
     return neighbor
 
 

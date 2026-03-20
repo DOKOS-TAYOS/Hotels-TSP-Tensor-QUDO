@@ -122,24 +122,35 @@ def create_qaoa_ansatz(
 def evaluate_cost(
     params: np.ndarray,
     kernel: "cudaq.Kernel",
-    hamiltonian: "cudaq.SpinOperator",
+    qubo_matrix: np.ndarray,
     depth: int,
+    n_shots: int = 500,
 ) -> float:
-    """Evaluate the QAOA cost (expectation of H_C) at given parameters.
+    """Evaluate the QAOA cost by sampling and averaging QUBO cost.
+
+    Uses the same sampling-based approach as the TQUDO backend so that
+    both formulations are compared on equal footing.
 
     Args:
         params: Concatenated [gamma_1...gamma_p, beta_1...beta_p], length 2*depth.
         kernel: QAOA kernel from create_qaoa_ansatz (captures h, J; takes gamma, beta).
-        hamiltonian: Cost Hamiltonian H_C (spin_op).
+        qubo_matrix: The original QUBO matrix for direct cost evaluation.
         depth: Number of QAOA layers.
+        n_shots: Shots for cost estimation.
 
     Returns:
-        float: Expectation value <psi(params)|H_C|psi(params)>.
+        float: Average x^T Q x over sampled bitstrings.
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
-    result = cudaq.observe(kernel, hamiltonian, gamma, beta)
-    return float(result.expectation())
+    samples = cudaq.sample(kernel, gamma, beta, shots_count=n_shots)
+    total = 0.0
+    count = 0
+    for bitstring, cnt in samples.items():
+        x = bitstring_to_binary(bitstring).astype(np.float64)
+        total += float(x @ qubo_matrix @ x) * cnt
+        count += cnt
+    return total / count if count > 0 else 0.0
 
 
 def sample_solution(
@@ -169,6 +180,7 @@ def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
+    n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
@@ -176,10 +188,15 @@ def optimize_qaoa(
 ) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian.
 
+    Cost is evaluated by sampling ``n_shots`` bitstrings and averaging
+    x^T Q x, consistent with the TQUDO backend.  ``sample_shots`` controls
+    the final solution-sampling step.
+
     Args:
         qubo_matrix: Symmetric QUBO matrix.
         depth: QAOA depth (number of layers).
         max_iter: Maximum optimizer iterations.
+        n_shots: Shots per cost evaluation during optimization.
         sample_shots: If set, also sample the solution state (None = no sampling).
         seed: Random seed for initial parameters (None = no seed).
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
@@ -194,10 +211,8 @@ def optimize_qaoa(
     """
     ensure_cudaq_target()
 
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
-    hamiltonian = ising_to_spin_op(h, j_matrix)
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
 
     # TQA (Trotterized Quantum Annealing) initialization:
@@ -210,11 +225,13 @@ def optimize_qaoa(
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
-        val = evaluate_cost(x, kernel, hamiltonian, depth)
+        val = evaluate_cost(x, kernel, qubo_matrix, depth, n_shots=n_shots)
         energy_history.append(val)
         return val
 
-    initial_energy = evaluate_cost(init_params, kernel, hamiltonian, depth)
+    initial_energy = evaluate_cost(
+        init_params, kernel, qubo_matrix, depth, n_shots=n_shots
+    )
 
     opt_result = minimize(
         cost_fn,
@@ -223,10 +240,7 @@ def optimize_qaoa(
         options=minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
-    # Shift Ising energies back to QUBO scale: E_QUBO = E_Ising + offset
-    best_energy = float(opt_result.fun) + offset
-    initial_energy = initial_energy + offset
-    energy_history = [e + offset for e in energy_history]
+    best_energy = float(opt_result.fun)
     samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         samples = sample_solution(kernel, best_params, depth, sample_shots)
@@ -251,6 +265,7 @@ def run_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
+    n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
@@ -258,10 +273,15 @@ def run_qaoa(
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
+    Cost evaluation uses ``n_shots`` samples per optimizer step (sampling-based,
+    consistent with the TQUDO backend).  ``sample_shots`` controls the final
+    solution-sampling step.
+
     Args:
         qubo_matrix: Symmetric QUBO matrix.
         depth: QAOA depth.
         max_iter: Optimizer iterations.
+        n_shots: Shots per cost evaluation during optimization.
         sample_shots: Shots for sampling the final state.
         seed: Random seed.
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
@@ -277,6 +297,7 @@ def run_qaoa(
         qubo_matrix,
         depth=depth,
         max_iter=max_iter,
+        n_shots=n_shots,
         sample_shots=sample_shots,
         seed=seed,
         optimizer=optimizer,

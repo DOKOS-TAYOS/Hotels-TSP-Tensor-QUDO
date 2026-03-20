@@ -258,8 +258,7 @@ def optimize_qaoa(
     """
     ensure_cudaq_target()
 
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     kernel = create_qaoa_ansatz(depth, Etab, Ettprimeab)
 
     # TQA (Trotterized Quantum Annealing) initialization:

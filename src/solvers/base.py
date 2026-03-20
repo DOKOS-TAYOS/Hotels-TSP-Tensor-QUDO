@@ -22,7 +22,8 @@ class SolverRunConfig:
     restriction_config: RestrictionConfig | None = None
     qaoa_depth: int = 1
     qaoa_max_iter: int = 100
-    # Shots per objective evaluation for sampling-based QAOA (for example TQUDO).
+    # Shots per objective evaluation for all sampling-based QAOA backends
+    # (both TQUDO and QUBO formulations).
     qaoa_shots: int = 500
     # Shots used to sample the final candidate solution for any QAOA backend.
     qaoa_sample_shots: int = 1000

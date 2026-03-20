@@ -100,6 +100,10 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
+    # Shape (n_available, d, d) where d = n_available.  The first dimension
+    # doubles as the qudit count (n_qudits = n_available) even though only
+    # indices 0..n_available-2 carry cost data — the last slice is all-zero
+    # padding so that downstream code can infer n_qudits from Etab.shape[0].
     Etab = np.zeros((n_available, n_available, n_available), dtype=float)
 
     for t in range(n_available-1):
@@ -113,7 +117,8 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                     Etab[t, origin, destination] += problem.prices_travels[n_available, destination, n_available]  # Closed loop
                     Etab[t, origin, destination] += problem.prices_hotels[n_available - 1, destination]
                 
-    # This may be changed to Tab if in the solver we take into acount that t'>t
+    # Same first-dimension convention as Etab: shape (n_available, n_available, d, d)
+    # so that Ettprimeab.shape[:2] matches Etab.shape[0] for n_qudits.
     Ettprimeab = np.zeros((n_available, n_available, n_available, n_available), dtype=float)
     for t in range(n_available-1):
         for t_prime in range(t+1, n_available):

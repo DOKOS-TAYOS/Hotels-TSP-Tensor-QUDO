@@ -88,8 +88,9 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         Dict with keys: n_instances, solver, formulation, optimizer, restriction,
         qaoa_depth, qaoa_max_iter, qaoa_shots, qaoa_sample_shots, seed,
         max_iterations, timeout_seconds. restriction is a RestrictionConfig.
-        qaoa_shots controls objective-evaluation shots for sampling-based QAOA
-        backends, while qaoa_sample_shots controls final solution sampling.
+        qaoa_shots controls objective-evaluation shots for all sampling-based
+        QAOA backends (both QUBO and TQUDO formulations), while
+        qaoa_sample_shots controls final solution sampling.
 
     Raises:
         ValueError: If required fields are missing or invalid.
