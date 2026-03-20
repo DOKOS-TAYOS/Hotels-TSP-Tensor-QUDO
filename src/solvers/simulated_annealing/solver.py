@@ -123,10 +123,10 @@ class SimulatedAnnealingSolver:
         best_cost = current_cost
         energy_history: list[float] = [initial_energy]
 
-        # SA parameters
-        T_initial = 1000.0 # TODO esto habria que ajustarlo mejor, con un muestreo inicial de deltas
-        T_final = 1e-6
-        alpha = 0.995
+        # SA parameters (configurable via SolverRunConfig)
+        T_initial = run_config.sa_t_initial
+        T_final = run_config.sa_t_final
+        alpha = run_config.sa_alpha
         T = T_initial
 
         max_iter = run_config.max_iterations

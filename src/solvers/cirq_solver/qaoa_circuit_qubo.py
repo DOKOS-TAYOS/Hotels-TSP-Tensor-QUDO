@@ -202,8 +202,6 @@ def optimize_qaoa(
     x^T Q x, consistent with the TQUDO backend.  ``sample_shots`` controls
     the final solution-sampling step.
     """
-    rng = np.random.default_rng(seed)
-
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
     qubits = list(cirq.LineQubit.range(n))

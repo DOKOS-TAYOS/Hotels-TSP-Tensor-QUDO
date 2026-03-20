@@ -87,7 +87,8 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     Returns:
         Dict with keys: n_instances, solver, formulation, optimizer, restriction,
         qaoa_depth, qaoa_max_iter, qaoa_shots, qaoa_sample_shots, seed,
-        max_iterations, timeout_seconds. restriction is a RestrictionConfig.
+        max_iterations, timeout_seconds, sa_t_initial, sa_t_final, sa_alpha.
+        restriction is a RestrictionConfig.
         qaoa_shots controls objective-evaluation shots for all sampling-based
         QAOA backends (both QUBO and TQUDO formulations), while
         qaoa_sample_shots controls final solution sampling.
@@ -146,6 +147,18 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     if timeout_seconds is not None:
         timeout_seconds = float(timeout_seconds)
 
+    sa_t_initial = float(data.get("sa_t_initial", 1000.0))
+    if sa_t_initial <= 0:
+        raise ValueError("sa_t_initial must be positive")
+    sa_t_final = float(data.get("sa_t_final", 1e-6))
+    if sa_t_final <= 0:
+        raise ValueError("sa_t_final must be positive")
+    if sa_t_final >= sa_t_initial:
+        raise ValueError("sa_t_final must be less than sa_t_initial")
+    sa_alpha = float(data.get("sa_alpha", 0.995))
+    if not (0 < sa_alpha < 1):
+        raise ValueError("sa_alpha must be between 0 and 1 (exclusive)")
+
     _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
 
     return {
@@ -161,6 +174,9 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         "seed": seed,
         "max_iterations": max_iterations,
         "timeout_seconds": timeout_seconds,
+        "sa_t_initial": sa_t_initial,
+        "sa_t_final": sa_t_final,
+        "sa_alpha": sa_alpha,
     }
 
 
@@ -177,4 +193,7 @@ def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
         qaoa_sample_shots=config["qaoa_sample_shots"],
         seed=config["seed"],
         optimizer=config["optimizer"],
+        sa_t_initial=config["sa_t_initial"],
+        sa_t_final=config["sa_t_final"],
+        sa_alpha=config["sa_alpha"],
     )

@@ -8,6 +8,7 @@ from instance_gen_process import ProblemInstance, generate_QUBO_from_problem, ge
 from instance_gen_process.models import RestrictionConfig
 from solvers.base import SolverResult, SolverRunConfig
 from utils.constraints import qubo_binary_to_sequence, validate_solution_constraints_qubo, validate_solution_constraints_tqudo
+from utils.costs import calculate_real_cost
 
 
 def _default_restriction() -> RestrictionConfig:
@@ -40,6 +41,10 @@ class CirqSolver:
             metadata["initial_energy"] = result["initial_energy"]
         if "energy_history" in result:
             metadata["energy_history"] = result["energy_history"]
+        if result["feasible"] and result.get("best_sequence") is not None:
+            metadata["real_cost"] = float(
+                calculate_real_cost(instance, result["best_sequence"])
+            )
         return SolverResult(
             solver_name=self.solver_name,
             objective_value=result["energy"],

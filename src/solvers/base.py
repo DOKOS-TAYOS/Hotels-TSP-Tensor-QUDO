@@ -30,6 +30,10 @@ class SolverRunConfig:
     seed: int | None = None
     optimizer: OptimizerType = "COBYLA"
     delta_t: float = 0.55
+    # Simulated annealing parameters
+    sa_t_initial: float = 1000.0    # Initial temperature
+    sa_t_final: float = 1e-6        # Final (minimum) temperature
+    sa_alpha: float = 0.995         # Geometric cooling factor (T *= alpha each step)
 
 
 @dataclass(frozen=True, slots=True)

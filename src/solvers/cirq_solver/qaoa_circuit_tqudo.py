@@ -483,8 +483,6 @@ def optimize_qaoa(
     delta_t: float = 0.55,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the TQUDO cost."""
-    rng = np.random.default_rng(seed)
-
     circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
         depth, Etab, Ettprimeab
     )

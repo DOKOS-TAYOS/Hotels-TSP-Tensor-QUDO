@@ -119,6 +119,14 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                 
     # Same first-dimension convention as Etab: shape (n_available, n_available, d, d)
     # so that Ettprimeab.shape[:2] matches Etab.shape[0] for n_qudits.
+    #
+    # NOTE: λ₀ (one-city-per-timestep) does NOT appear in Ettprimeab because
+    # the qudit encoding inherently enforces exactly one city per timestep —
+    # each qudit can only take a single value in {0, …, d-1}.  Only λ₁
+    # (one-timestep-per-city, i.e. no duplicate cities) and λ₂ (precedence)
+    # require explicit penalty terms.  In contrast, the QUBO formulation
+    # uses binary one-hot encoding and needs λ₀ to penalize multiple active
+    # bits per timestep.
     Ettprimeab = np.zeros((n_available, n_available, n_available, n_available), dtype=float)
     for t in range(n_available-1):
         for t_prime in range(t+1, n_available):
@@ -137,6 +145,19 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
 
     Encodes costs and constraint penalties into a quadratic matrix for x^T Q x.
     See docs/formulations.md for the cost equations.
+
+    .. note:: Objective value offset vs. TQUDO
+
+       For any **feasible** solution (valid permutation), the QUBO objective
+       includes a constant offset from the one-hot penalty linear terms::
+
+           QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available
+
+       The TQUDO objective equals ``real_cost`` directly (no offset) for
+       feasible solutions.  Therefore raw objective values from the two
+       formulations are **not** directly comparable.  Use
+       ``utils.costs.calculate_real_cost`` for formulation-independent
+       comparisons.
 
     Args:
         problem: Canonical problem with precedences and price matrices.

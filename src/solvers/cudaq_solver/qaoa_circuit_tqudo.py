@@ -257,8 +257,9 @@ def optimize_qaoa(
         energy_history: List of energies at each optimizer evaluation.
     """
     ensure_cudaq_target()
+    if seed is not None:
+        cudaq.set_random_seed(seed)
 
-    rng = np.random.default_rng(seed)
     kernel = create_qaoa_ansatz(depth, Etab, Ettprimeab)
 
     # TQA (Trotterized Quantum Annealing) initialization:

@@ -210,8 +210,9 @@ def optimize_qaoa(
         energy_history: List of energies at each optimizer evaluation.
     """
     ensure_cudaq_target()
+    if seed is not None:
+        cudaq.set_random_seed(seed)
 
-    rng = np.random.default_rng(seed)
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
 
