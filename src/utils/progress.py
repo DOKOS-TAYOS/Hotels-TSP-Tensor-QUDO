@@ -47,7 +47,7 @@ class ProgressReporter:
 
         Always rewrites the same line (\r). Never commits with \n.
         """
-        is_checkpoint = (step % (max_steps//10) == 0) or (step >= max_steps)
+        is_checkpoint = (step % max(1, max_steps // 10) == 0) or (step >= max_steps)
 
         if not self._is_tty and not is_checkpoint:
             return

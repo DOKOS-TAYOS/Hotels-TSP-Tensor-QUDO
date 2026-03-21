@@ -96,7 +96,13 @@ def load_settings(env_file: Path | str | None = None, project_root: Path | None 
     enable_noise_simulation = _as_bool(
         _get_setting("HTSP_ENABLE_NOISE_SIMULATION", "false", env_values)
     )
-    random_seed = int(_get_setting("HTSP_RANDOM_SEED", "42", env_values))
+    raw_seed = _get_setting("HTSP_RANDOM_SEED", "42", env_values)
+    try:
+        random_seed = int(raw_seed)
+    except ValueError:
+        raise ValueError(
+            f"HTSP_RANDOM_SEED must be an integer, got {raw_seed!r}"
+        ) from None
 
     return Settings(
         quantum_backend=backend,  # type: ignore[arg-type]

@@ -48,24 +48,36 @@ def calculate_tqudo_cost(
     The stored tensors may be normalised; this function always returns the
     cost rescaled to original problem units via ``problem.energy_scale``.
 
+    Equivalent loop-based form (for reference)::
+
+        cost = 0.0
+        for t, origin in enumerate(x[:-1]):
+            destination = x[t + 1]
+            cost += Etab[t, origin, destination]
+            for tp, dest_tp in enumerate(x[t + 1:]):
+                t_prime = t + 1 + tp
+                cost += Ettprimeab[t, t_prime, origin, dest_tp]
+
     Args:
         problem: The TQUDO problem with Etab and Ettprimeab tensors
             (potentially normalised).
-        solution: Solution tensor/vector (format TBD).
+        solution: Qudit sequence of city indices, shape (n_qudits,).
 
     Returns:
         The TQUDO cost value for the given solution in original problem units.
     """
     x = np.asarray(solution, dtype=int).flatten()
-    cost = 0.0
-    for t, origin in enumerate(x[:-1]):
-        destination = x[t + 1]
-        cost += problem.Etab[t, origin, destination]
-        for tp, dest_tp in enumerate(x[t + 1:]):
-            t_prime = t + 1 + tp
-            cost += problem.Ettprimeab[t, t_prime, origin, dest_tp]
+    n = len(x)
 
-    return float(cost) * problem.energy_scale
+    ts = np.arange(n - 1)
+    etab_cost = float(np.sum(problem.Etab[ts, x[:-1], x[1:]]))
+
+    t_left, t_right = np.triu_indices(n, k=1)
+    ett_cost = float(np.sum(
+        problem.Ettprimeab[t_left, t_right, x[t_left], x[t_right]]
+    ))
+
+    return (etab_cost + ett_cost) * problem.energy_scale
 
 
 def calculate_real_cost(problem: ProblemInstance, sequence: list[int]) -> float:

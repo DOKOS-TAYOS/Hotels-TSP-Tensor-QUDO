@@ -210,8 +210,9 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = load_settings()
+    instance_config_path = args.instance_config or settings.instance_config_path
     run_workflow(
-        instance_config_path=args.instance_config,
+        instance_config_path=instance_config_path,
         solver_config_path=args.solver_config,
         output_root=args.output,
         settings=settings,

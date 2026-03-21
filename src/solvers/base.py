@@ -14,6 +14,11 @@ if TYPE_CHECKING:
 OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
 
 
+def _default_noise_config() -> NoiseConfig:
+    from solvers.noise import NoiseConfig
+    return NoiseConfig()
+
+
 @dataclass(frozen=True, slots=True)
 class SolverRunConfig:
     """Generic run controls shared across solver backends."""
@@ -33,7 +38,7 @@ class SolverRunConfig:
     optimizer: OptimizerType = "COBYLA"
     delta_t: float = 0.55
     # Noise simulation (optional, disabled by default)
-    noise_config: NoiseConfig = field(default_factory=lambda: __import__('solvers.noise', fromlist=['NoiseConfig']).NoiseConfig())
+    noise_config: NoiseConfig = field(default_factory=_default_noise_config)
     # Simulated annealing parameters
     sa_t_initial: float = 1000.0    # Initial temperature
     sa_t_final: float = 1e-6        # Final (minimum) temperature
