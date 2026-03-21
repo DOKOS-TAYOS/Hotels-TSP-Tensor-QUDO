@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from solvers.base import SolverRunConfig
@@ -47,6 +50,9 @@ def _validate_cobyla_budget(qaoa_depth: int, qaoa_max_iter: int, optimizer: str)
         )
 
 
+_QUBO_QUBIT_WARN_THRESHOLD = 30
+
+
 def validate_solver_instance_compatibility(
     instance_config: InstanceConfig,
     solver_config: dict[str, Any],
@@ -59,18 +65,28 @@ def validate_solver_instance_compatibility(
     and the Cirq qubit-emulation variant).
     """
     formulation = solver_config.get("formulation", "tqudo")
+    solver = solver_config.get("solver", "cudaq")
+    n_available = instance_config.n_cities - 1
+
+    if formulation == "qubo" and solver in ("cudaq", "cirq"):
+        n_qubits = n_available * n_available
+        if n_qubits > _QUBO_QUBIT_WARN_THRESHOLD:
+            raise ValueError(
+                f"QUBO formulation with {instance_config.n_cities} cities requires "
+                f"{n_qubits} qubits for quantum simulation, which exceeds the "
+                f"practical limit (~{_QUBO_QUBIT_WARN_THRESHOLD}). "
+                "Use formulation='tqudo' for quantum backends, or "
+                "solver='simulated_annealing' for QUBO at this scale."
+            )
 
     if formulation != "tqudo":
         return
-
-    solver = solver_config.get("solver", "cudaq")
 
     # The native-qudit Cirq backend supports arbitrary dimensions;
     # only qubit-emulation backends need power-of-two.
     if solver == "cirq":
         return
 
-    n_available = instance_config.n_cities - 1
     if not _is_power_of_two(n_available):
         raise ValueError(
             f"Tensor-QUDO with solver '{solver}' (qubit-emulation) requires "

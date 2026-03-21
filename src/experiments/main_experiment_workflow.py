@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import gc
 import json
+import logging
 import signal
 import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,8 +27,11 @@ from solvers import CudaqSolver, CirqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverResult
 from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
+from utils.constraints import validate_instance_constraints
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
@@ -149,11 +155,19 @@ def run_workflow(
 
     signal.signal(signal.SIGINT, _handle_sigint)
 
+    last_completed = -1
+    n_failed = 0
     for i, instance in enumerate(instances):
         if _interrupted:
             break
         reporter.instance_start(i)
-        result = solver.solve(instance, run_config)
+
+        try:
+            validate_instance_constraints(instance)
+        except ValueError:
+            logger.exception("Instance %d failed validation — skipping.", i)
+            n_failed += 1
+            continue
 
         solver_config_serializable: dict[str, Any] = {
             k: v for k, v in solver_config_dict.items() if k != "restriction"
@@ -164,13 +178,28 @@ def run_workflow(
             "lambda_2": restriction.lambda_2,
         }
 
-        payload: dict[str, Any] = {
-            "instance": _serialize_instance(instance),
-            "instance_config": _serialize_instance_config(instance_config),
-            "instance_index": i,
-            "solver_config": _to_json_serializable(solver_config_serializable),
-            "solver_output": _serialize_solver_result(result),
-        }
+        try:
+            result = solver.solve(instance, run_config)
+            payload: dict[str, Any] = {
+                "instance": _serialize_instance(instance),
+                "instance_config": _serialize_instance_config(instance_config),
+                "instance_index": i,
+                "solver_config": _to_json_serializable(solver_config_serializable),
+                "solver_output": _serialize_solver_result(result),
+            }
+        except Exception:
+            logger.exception("Instance %d solver failed — saving error record.", i)
+            n_failed += 1
+            payload = {
+                "instance": _serialize_instance(instance),
+                "instance_config": _serialize_instance_config(instance_config),
+                "instance_index": i,
+                "solver_config": _to_json_serializable(solver_config_serializable),
+                "solver_output": {
+                    "solver_name": solver_name,
+                    "error": traceback.format_exc(),
+                },
+            }
 
         filename = f"exp_{timestamp}_inst_{i}_{solver_name}_{formulation}.json"
         out_path = layout.raw / filename
@@ -178,10 +207,18 @@ def run_workflow(
             json.dump(payload, f, indent=2)
 
         reporter.instance_done(i, str(out_path))
+        last_completed = i
+        gc.collect()
 
     if _interrupted:
-        print("[interrupted] stopped after instance", i, flush=True)
+        print(
+            f"[interrupted] completed {last_completed + 1} of {n_instances} instances",
+            flush=True,
+        )
         sys.exit(130)
+
+    if n_failed:
+        logger.warning("%d of %d instances failed.", n_failed, n_instances)
 
 
 def main() -> None:
