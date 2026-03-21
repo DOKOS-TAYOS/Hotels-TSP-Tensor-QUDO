@@ -14,6 +14,24 @@ Supported noise model types
 
 When ``enabled`` is ``False`` (the default), the solvers behave exactly as in
 the noiseless case — no simulator swap, no overhead.
+
+Multi-qubit/qudit gate noise
+-----------------------------
+Non-depolarizing channels (amplitude_damping, phase_damping, bit_flip,
+phase_flip) are inherently single-qubit/qudit phenomena with no standard
+correlated multi-qubit generalisation.  The backends handle this as follows:
+
+- **Cirq qubit** (d = 2): the single-qubit channel is applied
+  **independently to each qubit** after every gate, including multi-qubit
+  gates.
+- **CUDA-Q**: non-depolarizing channels are applied **only to single-qubit
+  gates**; two-qubit gates receive no noise for these channel types.  Only
+  ``"depolarizing"`` is applied to two-qubit gates.
+- **Cirq native qudit** (d > 2): two-qudit gates always receive a
+  **correlated two-qudit depolarizing** channel (on the d²-dimensional
+  joint space), regardless of the selected ``noise_type``.
+
+If exact cross-backend comparability matters, use ``"depolarizing"``.
 """
 
 from __future__ import annotations

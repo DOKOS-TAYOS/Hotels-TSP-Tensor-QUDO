@@ -11,9 +11,9 @@ Design notes
 * When noise is **enabled**, it returns a ``cirq.DensityMatrixSimulator`` and
   the caller must wrap the circuit with ``circuit.with_noise(noise_model)``
   before running it.
-* For **qubit** circuits (``qudit_dimension=2``), the standard Cirq built-in
-  channels (``cirq.depolarize``, ``cirq.amplitude_damp``, etc.) are used via
-  ``cirq.ConstantQubitNoiseModel``.
+* For **qubit** circuits (``qudit_dimension=2``), a custom
+  :class:`ConstantQubitNoiseModelWithOverrides` applies per-gate probability
+  overrides from ``NoiseConfig.gate_noise``.
 * For **native qudit** circuits (``qudit_dimension > 2``), custom
   d-dimensional channels from :mod:`solvers.cirq_solver.qudit_noise_channels`
   are used via :class:`ConstantQuditNoiseModel`.  Two-qudit gates receive
@@ -41,6 +41,63 @@ _CHANNEL_FACTORIES: dict[str, type] = {
     "bit_flip": lambda p: cirq.bit_flip(p=p),
     "phase_flip": lambda p: cirq.phase_flip(p=p),
 }
+
+# Mapping from Cirq gate class names to the lowercase gate keys used in
+# NoiseConfig.gate_noise.  Extends naturally as new gates are used.
+_CIRQ_GATE_NAME_TO_KEY: dict[str, str] = {
+    "HPowGate": "h",
+    "XPowGate": "x",
+    "YPowGate": "y",
+    "ZPowGate": "z",
+    "Rx": "rx",
+    "Ry": "ry",
+    "Rz": "rz",
+    "CXPowGate": "cx",
+    "CZPowGate": "cz",
+    "CNotPowGate": "cx",
+    "SwapPowGate": "swap",
+    "MeasurementGate": "",  # never noised
+}
+
+
+class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
+    """Qubit noise model that supports per-gate probability overrides.
+
+    Unlike ``cirq.ConstantQubitNoiseModel`` which applies a single noise
+    channel to every gate uniformly, this model checks
+    ``NoiseConfig.gate_noise`` for per-gate probability overrides before
+    falling back to ``NoiseConfig.probability``.
+
+    For multi-qubit gates the single-qubit noise channel is applied
+    **independently** to each qubit involved in the operation.
+    """
+
+    def __init__(self, config: NoiseConfig) -> None:
+        self._config = config
+
+    def _get_probability(self, gate: cirq.Gate | None) -> float:
+        """Look up the error probability for *gate*, checking overrides."""
+        if gate is not None:
+            key = _CIRQ_GATE_NAME_TO_KEY.get(type(gate).__name__)
+            if key is not None and key in self._config.gate_noise:
+                return self._config.gate_noise[key]
+        return self._config.probability
+
+    def noisy_operation(self, op: cirq.Operation) -> cirq.OP_TREE:
+        """Append noise after every non-measurement gate operation."""
+        if isinstance(op.gate, cirq.MeasurementGate) or op.gate is None:
+            return op
+
+        prob = self._get_probability(op.gate)
+        factory = _CHANNEL_FACTORIES.get(self._config.noise_type)
+        if factory is None:
+            raise ValueError(
+                f"Unknown noise type for Cirq: {self._config.noise_type!r}"
+            )
+
+        noise_gate = factory(prob)
+        noise_ops = [noise_gate.on(q) for q in op.qubits]
+        return [op, *noise_ops]
 
 
 def build_noise_model(
@@ -72,8 +129,7 @@ def build_noise_model(
     if factory is None:
         raise ValueError(f"Unknown noise type for Cirq: {config.noise_type!r}")
 
-    noise_gate = factory(config.probability)
-    return cirq.ConstantQubitNoiseModel(qubit_noise_gate=noise_gate)
+    return ConstantQubitNoiseModelWithOverrides(config)
 
 
 def get_simulator(

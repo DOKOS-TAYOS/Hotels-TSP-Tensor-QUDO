@@ -96,9 +96,14 @@ def build_noise_model(config: NoiseConfig) -> cudaq.NoiseModel:
             channel = _make_channel(config.noise_type, config.probability)
             noise.add_all_qubit_channel(gate_name, channel)
 
-    # Depolarizing noise on two-qubit gates (using 2-qubit variant when
-    # available; otherwise fall back to no two-qubit noise for non-depolarizing
-    # channel types — they are inherently single-qubit).
+    # Two-qubit gate noise: only depolarizing is applied.  Non-depolarizing
+    # channels (amplitude_damping, phase_damping, bit_flip, phase_flip) are
+    # inherently single-qubit and have no standard two-qubit generalisation,
+    # so they are intentionally skipped here.  Note: this differs from the
+    # Cirq qubit backend, which applies the single-qubit channel independently
+    # to each qubit after every gate (including multi-qubit gates).
+    # See the NoiseConfig docstring in solvers/noise.py for the full
+    # cross-backend comparison.
     if config.noise_type == "depolarizing":
         for gate_name in _DEFAULT_TWO_QUBIT_GATES:
             if gate_name not in overridden_gates:
