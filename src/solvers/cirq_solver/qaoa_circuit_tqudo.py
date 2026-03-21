@@ -402,33 +402,22 @@ def bitstring_to_qudit_sequence(
 
 def evaluate_cost(
     params: np.ndarray,
-    circuit: cirq.Circuit,
-    Etab: np.ndarray,
-    Ettprimeab: np.ndarray,
+    circuit_with_measure: cirq.Circuit,
+    problem: ProblemTQUDO,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qudits: list[cirq.Qid],
     n_qudits: int,
-    dimension: int,
-    n_shots: int = 1000,
-    seed: int | None = None,
-    noise_config: NoiseConfig | None = None,
+    n_shots: int,
+    simulator: cirq.SimulatesSamples,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging TQUDO cost.
 
-    Parameters mirror the old signature (the 9th positional arg was
-    ``qubits_per_qudit``; it is now ``dimension``).
+    The circuit (with measurement gates already appended and noise applied)
+    and the simulator are created once and reused across all optimizer steps.
     """
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
-    simulator, noise_model = get_simulator(
-        noise_config, qudit_dimension=dimension, seed=seed,
-    )
-    if noise_model is not None:
-        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
     total = 0.0
     for row in result.measurements["m"]:
         seq = measurement_to_qudit_sequence(row, n_qudits)
@@ -442,32 +431,24 @@ def evaluate_cost(
 
 
 def sample_solution(
-    circuit: cirq.Circuit,
+    circuit_with_measure: cirq.Circuit,
     params: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qudits: list[cirq.Qid],
-    n_shots: int = 1000,
-    seed: int | None = None,
-    noise_config: NoiseConfig | None = None,
+    n_qudits: int,
+    n_shots: int,
+    simulator: cirq.SimulatesSamples,
 ) -> dict[str, int]:
     """Sample qudit sequences from the QAOA state.
 
-    Returns dict  { "0-3-1": count, … }  using dash-separated qudit-value keys.
+    Returns dict  { "0-3-1": count, ... }  using dash-separated qudit-value keys.
     """
-    dimension = qudits[0].dimension if qudits else 2
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
-    simulator, noise_model = get_simulator(
-        noise_config, qudit_dimension=dimension, seed=seed,
-    )
-    if noise_model is not None:
-        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     counts: dict[str, int] = {}
     for row in result.measurements["m"]:
-        seq = measurement_to_qudit_sequence(row, len(qudits))
+        seq = measurement_to_qudit_sequence(row, n_qudits)
         key = qudit_sequence_to_key(seq)
         counts[key] = counts.get(key, 0) + 1
     return counts
@@ -509,6 +490,14 @@ def optimize_qaoa(
         depth, Etab, Ettprimeab
     )
 
+    problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+    simulator, noise_model = get_simulator(
+        noise_config, qudit_dimension=dimension, seed=seed,
+    )
+    circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
+
     # TQA (Trotterized Quantum Annealing) initialization:
     # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
     indices = np.arange(1, depth + 1)
@@ -520,28 +509,23 @@ def optimize_qaoa(
 
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
-            x, circuit, Etab, Ettprimeab, symbols, depth,
-            qudits, n_qudits, dimension,
-            n_shots=n_shots, seed=seed,
-            noise_config=noise_config,
+            x, circuit_with_measure, problem, symbols, depth,
+            n_qudits, n_shots, simulator,
         )
         energy_history.append(val)
         reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(
-        init_params, circuit, Etab, Ettprimeab, symbols, depth,
-        qudits, n_qudits, dimension,
-        n_shots=n_shots, seed=seed,
-        noise_config=noise_config,
+        init_params, circuit_with_measure, problem, symbols, depth,
+        n_qudits, n_shots, simulator,
     )
 
     initial_samples: dict[str, int] | None = None
     if sample_shots is not None:
         initial_samples = sample_solution(
-            circuit, init_params, symbols, depth, qudits,
-            n_shots=sample_shots, seed=seed,
-            noise_config=noise_config,
+            circuit_with_measure, init_params, symbols, depth,
+            n_qudits, sample_shots, simulator,
         )
 
     opt_result = minimize(
@@ -555,9 +539,8 @@ def optimize_qaoa(
     final_samples: dict[str, int] | None = None
     if sample_shots is not None:
         final_samples = sample_solution(
-            circuit, best_params, symbols, depth, qudits,
-            n_shots=sample_shots, seed=seed,
-            noise_config=noise_config,
+            circuit_with_measure, best_params, symbols, depth,
+            n_qudits, sample_shots, simulator,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 

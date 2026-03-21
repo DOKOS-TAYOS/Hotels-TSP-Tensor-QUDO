@@ -280,15 +280,20 @@ class TestEvaluateCost:
 
     @pytest.mark.parametrize("d", [2, 4])
     def test_evaluate_cost_returns_float(self, d: int) -> None:
+        from instance_gen_process.models import ProblemTQUDO
+        from solvers.cirq_solver.noise_model import get_simulator
+
         Etab, Ettprimeab = _synthetic_tqudo_tensors(n_qudits=3, dimension=d)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
             depth=1, Etab=Etab, Ettprimeab=Ettprimeab
         )
+        problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+        simulator, _ = get_simulator(None, qudit_dimension=dimension, seed=42)
+        circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
         params = np.array([0.3, 0.2])
         val = evaluate_cost(
-            params, circuit, Etab, Ettprimeab, symbols, 1,
-            qudits, n_qudits, dimension,
-            n_shots=20, seed=42,
+            params, circuit_with_measure, problem, symbols, 1,
+            n_qudits, 20, simulator,
         )
         assert isinstance(val, float)
 

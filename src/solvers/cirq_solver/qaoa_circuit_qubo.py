@@ -141,25 +141,19 @@ def _param_resolver(params: np.ndarray, symbols: dict[str, sympy.Symbol], depth:
 
 def evaluate_cost(
     params: np.ndarray,
-    circuit: cirq.Circuit,
+    circuit_with_measure: cirq.Circuit,
     qubo_matrix: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qubits: list[cirq.Qid],
-    n_shots: int = 500,
-    seed: int | None = None,
-    noise_config: NoiseConfig | None = None,
+    n_shots: int,
+    simulator: cirq.SimulatesSamples,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging QUBO cost.
 
-    Uses the same sampling-based approach as the TQUDO backend so that
-    both formulations are compared on equal footing.
+    The circuit (with measurement gates already appended and noise applied)
+    and the simulator are created once and reused across all optimizer steps.
     """
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator, noise_model = get_simulator(noise_config, seed=seed)
-    if noise_model is not None:
-        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     total = 0.0
@@ -170,24 +164,17 @@ def evaluate_cost(
 
 
 def sample_solution(
-    circuit: cirq.Circuit,
+    circuit_with_measure: cirq.Circuit,
     params: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qubits: list[cirq.Qid],
-    n_shots: int = 1000,
-    seed: int | None = None,
-    noise_config: NoiseConfig | None = None,
+    n_shots: int,
+    simulator: cirq.SimulatesSamples,
 ) -> dict[str, int]:
     """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator, noise_model = get_simulator(noise_config, seed=seed)
-    if noise_model is not None:
-        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    # result.measurements['m'] is (n_shots, n_qubits)
     counts: dict[str, int] = {}
     for row in result.measurements["m"]:
         bitstring = "".join(str(int(b)) for b in row)
@@ -223,6 +210,11 @@ def optimize_qaoa(
     qubits = list(cirq.LineQubit.range(n))
     circuit, symbols = create_qaoa_circuit(depth, h, j_matrix, qubits)
 
+    simulator, noise_model = get_simulator(noise_config, seed=seed)
+    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
+
     # TQA (Trotterized Quantum Annealing) initialization:
     # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
     indices = np.arange(1, depth + 1)
@@ -234,25 +226,23 @@ def optimize_qaoa(
 
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
-            x, circuit, qubo_matrix, symbols, depth,
-            qubits, n_shots=n_shots, seed=seed,
-            noise_config=noise_config,
+            x, circuit_with_measure, qubo_matrix, symbols, depth,
+            n_shots, simulator,
         )
         energy_history.append(val)
         reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(
-        init_params, circuit, qubo_matrix, symbols, depth,
-        qubits, n_shots=n_shots, seed=seed,
-        noise_config=noise_config,
+        init_params, circuit_with_measure, qubo_matrix, symbols, depth,
+        n_shots, simulator,
     )
 
     initial_samples: dict[str, int] | None = None
     if sample_shots is not None:
         initial_samples = sample_solution(
-            circuit, init_params, symbols, depth, qubits, sample_shots, seed,
-            noise_config=noise_config,
+            circuit_with_measure, init_params, symbols, depth,
+            sample_shots, simulator,
         )
 
     opt_result = minimize(
@@ -266,8 +256,8 @@ def optimize_qaoa(
     final_samples: dict[str, int] | None = None
     if sample_shots is not None:
         final_samples = sample_solution(
-            circuit, best_params, symbols, depth, qubits, sample_shots, seed,
-            noise_config=noise_config,
+            circuit_with_measure, best_params, symbols, depth,
+            sample_shots, simulator,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
