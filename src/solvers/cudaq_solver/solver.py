@@ -73,6 +73,7 @@ class CudaqSolver:
             seed=run_config.seed,
             optimizer=run_config.optimizer,
             delta_t=run_config.delta_t,
+            noise_config=run_config.noise_config,
         )
         best_sequence_array = raw["best_sequence"]
         best_sequence = best_sequence_array.tolist() if best_sequence_array is not None else None
@@ -108,6 +109,7 @@ class CudaqSolver:
             seed=run_config.seed,
             optimizer=run_config.optimizer,
             delta_t=run_config.delta_t,
+            noise_config=run_config.noise_config,
         )
         n_available = instance.n_cities - 1
         best_binary = raw["best_binary"]

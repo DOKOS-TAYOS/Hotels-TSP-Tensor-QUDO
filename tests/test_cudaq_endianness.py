@@ -4,6 +4,9 @@ Verifies that the bit-ordering convention assumed by our
 ``bitstring_to_qudit_sequence`` and ``bitstring_to_binary`` decoders
 matches what ``cudaq.sample()`` actually returns.
 
+Also includes GPU-level noise target selection tests (trajectory noise
+when the ``nvidia`` target supports a ``noise_model`` kwarg).
+
 Requires a working CUDA-Q installation with GPU access.
 """
 
@@ -115,3 +118,77 @@ class TestCudaqTqudoEndianness:
             f"Expected qudit[1]==2. Got bitstring='{top_bitstring}', "
             f"decoded={seq.tolist()}. Endianness mismatch?"
         )
+
+
+# ---------------------------------------------------------------------------
+# Noise target selection (GPU integration)
+# ---------------------------------------------------------------------------
+
+
+class TestCudaqNoiseTargetSelection:
+    """Verify GPU trajectory-based noise probe and noisy circuit execution."""
+
+    def test_gpu_noise_probe_returns_bool(self) -> None:
+        """``_gpu_supports_noise`` must return a boolean on a real GPU."""
+        from solvers.cudaq_solver.cudaq_target import (
+            _gpu_supports_noise,
+            reset_target_state,
+        )
+
+        reset_target_state()
+        result = _gpu_supports_noise()
+        assert isinstance(result, bool)
+
+    def test_ensure_target_with_noise_selects_valid_target(self) -> None:
+        """With noise enabled, ``ensure_cudaq_target`` must pick a valid target."""
+        from solvers.cudaq_solver.cudaq_target import (
+            ensure_cudaq_target,
+            get_current_target,
+            reset_target_state,
+        )
+        from solvers.noise import NoiseConfig
+
+        reset_target_state()
+        noise = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
+        target = ensure_cudaq_target(noise)
+
+        assert target in ("nvidia", "density-matrix-cpu")
+        assert get_current_target() == target
+
+    def test_noisy_bell_circuit_produces_samples(self) -> None:
+        """A simple noisy 2-qubit circuit must sample without crashing."""
+        from solvers.cudaq_solver.cudaq_target import (
+            ensure_cudaq_target,
+            reset_target_state,
+        )
+        from solvers.cudaq_solver.noise_model import get_noise_model
+        from solvers.noise import NoiseConfig
+
+        reset_target_state()
+        noise = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.02)
+        ensure_cudaq_target(noise)
+        noise_model = get_noise_model(noise)
+
+        @cudaq.kernel
+        def bell():
+            q = cudaq.qvector(2)
+            h(q[0])  # noqa: F821
+            x.ctrl(q[0], q[1])  # noqa: F821
+
+        result = cudaq.sample(bell, shots_count=100, noise_model=noise_model)
+        assert result.get_total_shots() == 100
+
+    def test_idempotent_noisy_target(self) -> None:
+        """Calling ``ensure_cudaq_target`` twice with noise should be idempotent."""
+        from solvers.cudaq_solver.cudaq_target import (
+            ensure_cudaq_target,
+            reset_target_state,
+        )
+        from solvers.noise import NoiseConfig
+
+        reset_target_state()
+        noise = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
+
+        t1 = ensure_cudaq_target(noise)
+        t2 = ensure_cudaq_target(noise)
+        assert t1 == t2

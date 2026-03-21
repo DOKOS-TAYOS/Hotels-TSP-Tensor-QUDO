@@ -8,7 +8,6 @@ from typing import Any
 import yaml
 
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
-from solvers.base import SolverRunConfig
 
 
 DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
@@ -161,6 +160,29 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
 
     _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
 
+    # --- Noise configuration (optional) ---
+    from solvers.noise import NoiseConfig, VALID_NOISE_TYPES
+
+    noise_data = data.get("noise") or {}
+    noise_enabled = bool(noise_data.get("enabled", False))
+    noise_type = noise_data.get("noise_type", "depolarizing")
+    if noise_type not in VALID_NOISE_TYPES:
+        raise ValueError(
+            f"noise.noise_type must be one of {sorted(VALID_NOISE_TYPES)}, "
+            f"got: {noise_type!r}"
+        )
+    noise_probability = float(noise_data.get("probability", 0.01))
+    if not 0.0 <= noise_probability <= 1.0:
+        raise ValueError(f"noise.probability must be in [0, 1], got {noise_probability}")
+    gate_noise_raw = noise_data.get("gate_noise") or {}
+    gate_noise = {str(k): float(v) for k, v in gate_noise_raw.items()}
+    noise_config = NoiseConfig(
+        enabled=noise_enabled,
+        noise_type=noise_type,  # type: ignore[arg-type]
+        probability=noise_probability,
+        gate_noise=gate_noise,
+    )
+
     return {
         "n_instances": n_instances,
         "solver": solver,
@@ -177,11 +199,15 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         "sa_t_initial": sa_t_initial,
         "sa_t_final": sa_t_final,
         "sa_alpha": sa_alpha,
+        "noise_config": noise_config,
     }
 
 
-def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
+def solver_config_to_run_config(config: dict[str, Any]) -> "SolverRunConfig":
     """Build SolverRunConfig from a loaded solver config dict."""
+    from solvers.base import SolverRunConfig
+    from solvers.noise import NoiseConfig
+
     return SolverRunConfig(
         max_iterations=config["max_iterations"],
         timeout_seconds=config["timeout_seconds"],
@@ -193,6 +219,7 @@ def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
         qaoa_sample_shots=config["qaoa_sample_shots"],
         seed=config["seed"],
         optimizer=config["optimizer"],
+        noise_config=config.get("noise_config", NoiseConfig()),
         sa_t_initial=config["sa_t_initial"],
         sa_t_final=config["sa_t_final"],
         sa_alpha=config["sa_alpha"],

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
-from instance_gen_process import ProblemInstance
-from instance_gen_process.models import RestrictionConfig
+from instance_gen_process.models import ProblemInstance, RestrictionConfig
+
+if TYPE_CHECKING:
+    from solvers.noise import NoiseConfig
 
 
 OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
@@ -30,6 +32,8 @@ class SolverRunConfig:
     seed: int | None = None
     optimizer: OptimizerType = "COBYLA"
     delta_t: float = 0.55
+    # Noise simulation (optional, disabled by default)
+    noise_config: NoiseConfig = field(default_factory=lambda: __import__('solvers.noise', fromlist=['NoiseConfig']).NoiseConfig())
     # Simulated annealing parameters
     sa_t_initial: float = 1000.0    # Initial temperature
     sa_t_final: float = 1e-6        # Final (minimum) temperature

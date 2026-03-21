@@ -13,6 +13,8 @@ from scipy.optimize import minimize
 import cirq
 
 from math_utils.qubo_ising import qubo_to_ising
+from solvers.cirq_solver.noise_model import get_simulator
+from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
 
 
@@ -145,6 +147,7 @@ def evaluate_cost(
     qubits: list[cirq.Qid],
     n_shots: int = 500,
     seed: int | None = None,
+    noise_config: NoiseConfig | None = None,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging QUBO cost.
 
@@ -153,7 +156,9 @@ def evaluate_cost(
     """
     resolver = _param_resolver(params, symbols, depth)
     circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator = cirq.Simulator(seed=seed)
+    simulator, noise_model = get_simulator(noise_config, seed=seed)
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     total = 0.0
@@ -171,11 +176,14 @@ def sample_solution(
     qubits: list[cirq.Qid],
     n_shots: int = 1000,
     seed: int | None = None,
+    noise_config: NoiseConfig | None = None,
 ) -> dict[str, int]:
     """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
     resolver = _param_resolver(params, symbols, depth)
     circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator = cirq.Simulator(seed=seed)
+    simulator, noise_model = get_simulator(noise_config, seed=seed)
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     # result.measurements['m'] is (n_shots, n_qubits)
@@ -194,7 +202,8 @@ def optimize_qaoa(
     sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
-    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
+    delta_t: float = 0.55,
+    noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian.
 
@@ -220,6 +229,7 @@ def optimize_qaoa(
         val = evaluate_cost(
             x, circuit, qubo_matrix, symbols, depth,
             qubits, n_shots=n_shots, seed=seed,
+            noise_config=noise_config,
         )
         energy_history.append(val)
         return val
@@ -227,6 +237,7 @@ def optimize_qaoa(
     initial_energy = evaluate_cost(
         init_params, circuit, qubo_matrix, symbols, depth,
         qubits, n_shots=n_shots, seed=seed,
+        noise_config=noise_config,
     )
 
     opt_result = minimize(
@@ -240,7 +251,8 @@ def optimize_qaoa(
     samples: dict[str, int] | None = None
     if sample_shots is not None:
         samples = sample_solution(
-            circuit, best_params, symbols, depth, qubits, sample_shots, seed
+            circuit, best_params, symbols, depth, qubits, sample_shots, seed,
+            noise_config=noise_config,
         )
     return best_energy, best_params, samples, initial_energy, energy_history
 
@@ -265,7 +277,8 @@ def run_qaoa(
     sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
-    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
+    delta_t: float = 0.55,
+    noise_config: NoiseConfig | None = None,
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
@@ -282,6 +295,7 @@ def run_qaoa(
         seed=seed,
         optimizer=optimizer,
         delta_t=delta_t,
+        noise_config=noise_config,
     )
     n = qubo_matrix.shape[0]
     best_bitstring = _most_probable(samples, n) if samples else "0" * n
