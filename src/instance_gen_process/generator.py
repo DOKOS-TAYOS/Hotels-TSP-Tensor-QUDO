@@ -137,8 +137,11 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                     for precedence in problem.precedences:
                         if origin == precedence[1] and destination == precedence[0]:
                             Ettprimeab[t, t_prime, origin, destination] += restriction.lambda_2
-    
-    return ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+
+    max_etab = float(np.abs(Etab).max())
+    max_ett = float(np.abs(Ettprimeab).max()) if Ettprimeab.size > 0 else 0.0
+    energy_scale = float(max(max_etab, max_ett, 1.0))
+    return ProblemTQUDO(Etab=Etab / energy_scale, Ettprimeab=Ettprimeab / energy_scale, energy_scale=energy_scale)
 
 
 def generate_QUBO_from_problem(problem: ProblemInstance, restriction: RestrictionConfig) -> ProblemQUBO:
@@ -209,8 +212,9 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
                 idx_tj = idx(t, j, n_available)
                 qubo_matrix[idx_tp_i, idx_tj] += restriction.lambda_2 / 2
                 qubo_matrix[idx_tj, idx_tp_i] += restriction.lambda_2 / 2 # Symmetry
-                        
-    return ProblemQUBO(qubo_matrix=qubo_matrix)
+
+    energy_scale = float(max(float(np.abs(qubo_matrix).max()), 1.0))
+    return ProblemQUBO(qubo_matrix=qubo_matrix / energy_scale, energy_scale=energy_scale)
 
 
     
