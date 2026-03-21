@@ -16,7 +16,9 @@ from math_utils.qubo_ising import qubo_to_ising
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
+from solvers.base import OptimizerType
 from utils.progress import reporter
+from utils.qaoa_helpers import bitstring_to_binary, most_probable_key, tqa_init_params
 
 
 def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
@@ -189,7 +191,7 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
@@ -215,12 +217,7 @@ def optimize_qaoa(
     if noise_model is not None:
         circuit_with_measure = circuit_with_measure.with_noise(noise_model)
 
-    # TQA (Trotterized Quantum Annealing) initialization:
-    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
-    indices = np.arange(1, depth + 1)
-    gamma_init = (indices / depth) * delta_t
-    beta_init = (1 - indices / depth) * delta_t
-    init_params = np.concatenate([gamma_init, beta_init])
+    init_params = tqa_init_params(depth, delta_t)
 
     energy_history: list[float] = []
 
@@ -262,18 +259,6 @@ def optimize_qaoa(
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
-def bitstring_to_binary(bitstring: str) -> np.ndarray:
-    """Convert a measurement bitstring to a binary solution vector."""
-    return np.array([int(b) for b in bitstring], dtype=np.int64)
-
-
-def _most_probable(counts: dict[str, int], n_qubits: int) -> str:
-    """Return the bitstring with highest count, or '0'*n if empty."""
-    if not counts:
-        return "0" * n_qubits
-    return max(counts, key=lambda k: counts[k])
-
-
 def run_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
@@ -281,7 +266,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
@@ -305,7 +290,7 @@ def run_qaoa(
         )
     )
     n = qubo_matrix.shape[0]
-    best_bitstring = _most_probable(final_samples, n) if final_samples else "0" * n
+    best_bitstring = most_probable_key(final_samples, "0" * n) if final_samples else "0" * n
 
     return {
         "energy": best_energy,

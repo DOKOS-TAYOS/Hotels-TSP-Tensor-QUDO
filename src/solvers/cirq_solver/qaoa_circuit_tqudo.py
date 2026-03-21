@@ -34,8 +34,6 @@ inherent to the native-qudit formulation and should be evaluated experimentally.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 import sympy
 from scipy.optimize import minimize
@@ -48,10 +46,9 @@ from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
+from solvers.base import OptimizerType
 from utils.progress import reporter
-
-if TYPE_CHECKING:
-    pass
+from utils.qaoa_helpers import most_probable_key, tqa_init_params
 
 
 # ---------------------------------------------------------------------------
@@ -454,13 +451,6 @@ def sample_solution(
     return counts
 
 
-def _most_probable(counts: dict[str, int], n_qudits: int) -> str:
-    """Return the key with highest count."""
-    if not counts:
-        return "-".join(["0"] * n_qudits)
-    return max(counts, key=lambda k: counts[k])
-
-
 # ---------------------------------------------------------------------------
 # Optimization helpers
 # ---------------------------------------------------------------------------
@@ -474,7 +464,7 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
@@ -498,12 +488,7 @@ def optimize_qaoa(
     if noise_model is not None:
         circuit_with_measure = circuit_with_measure.with_noise(noise_model)
 
-    # TQA (Trotterized Quantum Annealing) initialization:
-    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
-    indices = np.arange(1, depth + 1)
-    gamma_init = (indices / depth) * delta_t
-    beta_init = (1 - indices / depth) * delta_t
-    init_params = np.concatenate([gamma_init, beta_init])
+    init_params = tqa_init_params(depth, delta_t)
 
     energy_history: list[float] = []
 
@@ -558,7 +543,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
@@ -580,7 +565,8 @@ def run_qaoa(
         )
     )
 
-    best_key = _most_probable(final_samples, n_qudits) if final_samples else "-".join(["0"] * n_qudits)
+    fallback_key = "-".join(["0"] * n_qudits)
+    best_key = most_probable_key(final_samples, fallback_key) if final_samples else fallback_key
     best_sequence = key_to_qudit_sequence(best_key)
 
     return {

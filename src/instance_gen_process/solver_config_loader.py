@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
+from utils.qaoa_helpers import is_power_of_two
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
 
 VALID_SOLVERS = frozenset({"cudaq", "cirq", "simulated_annealing"})
-VALID_FORMULATIONS = frozenset({"qubo", "tqudo"})
+VALID_FORMULATIONS = frozenset({"qubo", "tqudo", "tqudo_virtual"})
 VALID_OPTIMIZERS = frozenset({"COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"})
 
 
@@ -30,11 +31,6 @@ def _parse_int_setting(raw_value: Any, field_name: str, minimum: int) -> int:
         comparator = "at least" if minimum > 0 else "greater than or equal to"
         raise ValueError(f"{field_name} must be {comparator} {minimum}")
     return value
-
-
-def _is_power_of_two(value: int) -> bool:
-    """Return True when *value* is a positive power of two."""
-    return value > 0 and (value & (value - 1)) == 0
 
 
 def _validate_cobyla_budget(qaoa_depth: int, qaoa_max_iter: int, optimizer: str) -> None:
@@ -59,10 +55,11 @@ def validate_solver_instance_compatibility(
 ) -> None:
     """Validate constraints that depend on both instance and solver configuration.
 
-    The native-qudit Cirq backend (``qaoa_circuit_tqudo.py``) supports
-    arbitrary qudit dimensions, so the power-of-two restriction only
-    applies to qubit-emulation backends (CUDA-Q, simulated annealing,
-    and the Cirq qubit-emulation variant).
+    Backend capability matrix:
+
+    - Cirq:  qubo, tqudo (native qudits), tqudo_virtual (qubit emulation)
+    - CUDA-Q: qubo, tqudo_virtual
+    - SA:    qubo, tqudo
     """
     formulation = solver_config.get("formulation", "tqudo")
     solver = solver_config.get("solver", "cudaq")
@@ -75,23 +72,28 @@ def validate_solver_instance_compatibility(
                 f"QUBO formulation with {instance_config.n_cities} cities requires "
                 f"{n_qubits} qubits for quantum simulation, which exceeds the "
                 f"practical limit (~{_QUBO_QUBIT_WARN_THRESHOLD}). "
-                "Use formulation='tqudo' for quantum backends, or "
-                "solver='simulated_annealing' for QUBO at this scale."
+                "Use formulation='tqudo' or 'tqudo_virtual' for quantum backends, "
+                "or solver='simulated_annealing' for QUBO at this scale."
             )
 
-    if formulation != "tqudo":
-        return
-
-    # The native-qudit Cirq backend supports arbitrary dimensions;
-    # only qubit-emulation backends need power-of-two.
-    if solver == "cirq":
-        return
-
-    if not _is_power_of_two(n_available):
+    if formulation == "tqudo" and solver == "cudaq":
         raise ValueError(
-            f"Tensor-QUDO with solver '{solver}' (qubit-emulation) requires "
-            "n_cities - 1 to be a power of two. "
-            "Use solver='cirq' (native qudits) for arbitrary dimensions. "
+            "Native TQUDO (real qudits) is not supported by the CUDA-Q backend. "
+            "Use formulation='tqudo_virtual' for qubit-emulated TQUDO on CUDA-Q, "
+            "or use solver='cirq' for native qudit support."
+        )
+
+    if formulation == "tqudo_virtual" and solver == "simulated_annealing":
+        raise ValueError(
+            "TQUDO virtual (qubit emulation) is not supported by simulated annealing. "
+            "Use formulation='tqudo' or 'qubo' instead."
+        )
+
+    if formulation == "tqudo_virtual" and not is_power_of_two(n_available):
+        raise ValueError(
+            f"TQUDO virtual (qubit emulation) requires n_cities - 1 to be a "
+            "power of two. Use formulation='tqudo' with solver='cirq' (native "
+            "qudits) for arbitrary dimensions. "
             f"Got n_cities={instance_config.n_cities} (n_cities - 1 = {n_available})."
         )
 
@@ -179,17 +181,17 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
 
     _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
 
-    # --- Noise configuration (optional) ---
-    from solvers.noise import NoiseConfig, VALID_NOISE_TYPES
+    from solvers.noise import NoiseConfig, NoiseModelType, VALID_NOISE_TYPES
 
     noise_data = data.get("noise") or {}
     noise_enabled = bool(noise_data.get("enabled", False))
-    noise_type = noise_data.get("noise_type", "depolarizing")
-    if noise_type not in VALID_NOISE_TYPES:
+    noise_type_raw = noise_data.get("noise_type", "depolarizing")
+    if noise_type_raw not in VALID_NOISE_TYPES:
         raise ValueError(
             f"noise.noise_type must be one of {sorted(VALID_NOISE_TYPES)}, "
-            f"got: {noise_type!r}"
+            f"got: {noise_type_raw!r}"
         )
+    noise_type: NoiseModelType = noise_type_raw  # validated above
     noise_probability = float(noise_data.get("probability", 0.01))
     if not 0.0 <= noise_probability <= 1.0:
         raise ValueError(f"noise.probability must be in [0, 1], got {noise_probability}")
@@ -197,7 +199,7 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     gate_noise = {str(k): float(v) for k, v in gate_noise_raw.items()}
     noise_config = NoiseConfig(
         enabled=noise_enabled,
-        noise_type=noise_type,  # type: ignore[arg-type]
+        noise_type=noise_type,
         probability=noise_probability,
         gate_noise=gate_noise,
     )

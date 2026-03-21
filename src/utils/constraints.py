@@ -38,7 +38,10 @@ def validate_instance_constraints(instance: ProblemInstance) -> bool:
     return True
 
 
-def _has_cycle(precedences: list[tuple[int, int]], n_nodes: int) -> bool:
+def _has_cycle(
+    precedences: list[tuple[int, int]] | tuple[tuple[int, int], ...],
+    n_nodes: int,
+) -> bool:
     """True if the precedence graph contains a cycle."""
     adj: dict[int, list[int]] = {}
     for a, b in precedences:
@@ -66,7 +69,9 @@ def _has_cycle(precedences: list[tuple[int, int]], n_nodes: int) -> bool:
 
 
 def would_create_cycle(
-    precedences: list[tuple[int, int]], origin: int, destination: int
+    precedences: list[tuple[int, int]] | tuple[tuple[int, int], ...],
+    origin: int,
+    destination: int,
 ) -> bool:
     """True if adding (origin, destination) would create a cycle in the precedence graph.
 
@@ -87,6 +92,18 @@ def would_create_cycle(
                 seen.add(neighbor)
                 queue.append(neighbor)
     return False
+
+
+def _check_precedences(
+    seq: np.ndarray,
+    precedences: list[tuple[int, int]] | tuple[tuple[int, int], ...],
+) -> bool:
+    """Return True when every precedence (a before b) is satisfied in *seq*."""
+    pos: dict[int, int] = {int(seq[t]): t for t in range(len(seq))}
+    return all(
+        a in pos and b in pos and pos[a] < pos[b]
+        for a, b in precedences
+    )
 
 
 def validate_solution_constraints_tqudo(
@@ -111,23 +128,13 @@ def validate_solution_constraints_tqudo(
     if len(seq) != n_available:
         return False
 
-    # No duplicates: all elements must be unique
     if len(set(seq)) != n_available:
         return False
 
-    # All nodes must be in valid range
     if not all(0 <= x < n_available for x in seq):
         return False
 
-    # Precedence: precedence[0] must appear before precedence[1]
-    pos: dict[int, int] = {int(seq[t]): t for t in range(n_available)}
-    for a, b in instance.precedences:
-        if a not in pos or b not in pos:
-            return False
-        if pos[a] >= pos[b]:
-            return False
-
-    return True
+    return _check_precedences(seq, instance.precedences)
 
 
 def qubo_binary_to_sequence(solution: np.ndarray, n_available: int) -> np.ndarray | None:
@@ -201,13 +208,5 @@ def validate_solution_constraints_qubo(
     if seq is None:
         return False
 
-    # Precedence: precedence[0] must appear before precedence[1]
-    pos: dict[int, int] = {int(seq[t]): t for t in range(n_available)}
-    for a, b in instance.precedences:
-        if a not in pos or b not in pos:
-            return False
-        if pos[a] >= pos[b]:
-            return False
-
-    return True
+    return _check_precedences(seq, instance.precedences)
 

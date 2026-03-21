@@ -17,7 +17,9 @@ from cudaq import spin
 
 from math_utils.qubo_ising import qubo_to_ising
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
+from solvers.base import OptimizerType
 from solvers.cudaq_solver.noise_model import get_noise_model
+from utils.qaoa_helpers import bitstring_to_binary, tqa_init_params
 from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
 from utils.progress import reporter
@@ -162,7 +164,9 @@ def evaluate_cost(
         x = bitstring_to_binary(bitstring).astype(np.float64)
         total += float(x @ qubo_matrix @ x) * cnt
         count += cnt
-    return total / count if count > 0 else 0.0
+    if count == 0:
+        raise RuntimeError("QUBO evaluate_cost received zero samples — sampling failure.")
+    return total / count
 
 
 def sample_solution(
@@ -200,7 +204,7 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[
@@ -244,12 +248,7 @@ def optimize_qaoa(
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
     noise_model = get_noise_model(noise_config)
 
-    # TQA (Trotterized Quantum Annealing) initialization:
-    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
-    indices = np.arange(1, depth + 1)
-    gamma_init = (indices / depth) * delta_t
-    beta_init = (1 - indices / depth) * delta_t
-    init_params = np.concatenate([gamma_init, beta_init])
+    init_params = tqa_init_params(depth, delta_t)
 
     energy_history: list[float] = []
 
@@ -296,20 +295,6 @@ def optimize_qaoa(
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
-def bitstring_to_binary(bitstring: str) -> np.ndarray:
-    """Convert a measurement bitstring to a binary solution vector.
-
-    Convention: qubit i in |0> -> x_i=0, qubit i in |1> -> x_i=1.
-
-    Args:
-        bitstring: String of '0' and '1', e.g. "1010".
-
-    Returns:
-        1D array of 0s and 1s, shape (len(bitstring),).
-    """
-    return np.array([int(b) for b in bitstring], dtype=np.int64)
-
-
 def run_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
@@ -317,7 +302,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:

@@ -33,34 +33,11 @@ from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqud
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _small_instance(
-    n_cities: int = 4,
-    precedences: list[tuple[int, int]] | None = None,
-) -> ProblemInstance:
-    """Deterministic small instance with known costs for testing."""
-    n_available = n_cities - 1
-    # Simple hotel costs: hotel[t, city] = 1 for all
-    prices_hotels = np.ones((n_available, n_available), dtype=float)
-    # Simple travel costs: travel[t, i, j] = 1 for i!=j, 0 for i==j
-    prices_travels = np.ones((n_cities, n_cities, n_cities), dtype=float)
-    for k in range(n_cities):
-        prices_travels[:, k, k] = 0.0
-    return ProblemInstance(
-        n_cities=n_cities,
-        precedences=precedences or [],
-        prices_hotels=prices_hotels,
-        prices_travels=prices_travels,
-    )
+from conftest import make_problem_instance as _small_instance
 
 
-def _high_penalty_restriction() -> RestrictionConfig:
-    """Penalties much larger than any feasible cost to test constraint enforcement."""
-    return RestrictionConfig(lambda_0=1000.0, lambda_1=1000.0, lambda_2=1000.0)
-
-
-def _zero_penalty_restriction() -> RestrictionConfig:
-    """Zero penalties to isolate cost terms from constraint penalties."""
-    return RestrictionConfig(lambda_0=0.0, lambda_1=0.0, lambda_2=0.0)
+from conftest import high_penalty_restriction as _high_penalty_restriction
+from conftest import zero_penalty_restriction as _zero_penalty_restriction
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +148,7 @@ class TestQUBOConstraintPenalties:
         # With zero-cost instance, all should be equal
         zero_instance = ProblemInstance(
             n_cities=4,
-            precedences=[],
+            precedences=(),
             prices_hotels=np.zeros((3, 3)),
             prices_travels=np.zeros((4, 4, 4)),
         )

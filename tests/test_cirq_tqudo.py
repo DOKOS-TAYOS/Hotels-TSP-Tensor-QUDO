@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import synthetic_tqudo_tensors as _synthetic_tqudo_tensors
 
 cirq = pytest.importorskip("cirq")
 
@@ -41,27 +42,6 @@ measurement_to_qudit_sequence = _mod.measurement_to_qudit_sequence
 qudit_sequence_to_key = _mod.qudit_sequence_to_key
 run_qaoa = _mod.run_qaoa
 sample_solution = _mod.sample_solution
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _synthetic_tqudo_tensors(
-    n_qudits: int,
-    dimension: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Build small sparse tensors that exercise both local and long-range phases."""
-    Etab = np.zeros((n_qudits, dimension, dimension), dtype=float)
-    Ettprimeab = np.zeros(
-        (n_qudits, n_qudits, dimension, dimension),
-        dtype=float,
-    )
-    Etab[0, 0, dimension - 1] = 1.0
-    if n_qudits > 2:
-        Etab[1, min(1, dimension - 1), max(0, dimension - 2)] = 0.5
-        Ettprimeab[0, n_qudits - 1, dimension - 1, 0] = 0.75
-    return Etab, Ettprimeab
 
 
 # ---------------------------------------------------------------------------

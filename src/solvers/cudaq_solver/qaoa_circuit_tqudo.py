@@ -16,14 +16,11 @@ from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
+from solvers.base import OptimizerType
 from utils.progress import reporter
+from utils.qaoa_helpers import is_power_of_two, tqa_init_params
 
 logger = logging.getLogger(__name__)
-
-
-def _is_power_of_two(value: int) -> bool:
-    """Return True when *value* is a positive power of two."""
-    return value > 0 and (value & (value - 1)) == 0
 
 
 def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[int, int]:
@@ -48,7 +45,7 @@ def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[in
             "Ettprimeab shape does not match Etab. "
             f"Expected {expected_ett_shape}, got {Ettprimeab.shape}."
         )
-    if not _is_power_of_two(dimension_qudits):
+    if not is_power_of_two(dimension_qudits):
         raise ValueError(
             f"CUDA-Q qubit-emulation TQUDO requires the qudit dimension "
             f"(n_cities - 1 = {dimension_qudits}) to be a power of two. "
@@ -255,7 +252,7 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[
@@ -296,12 +293,7 @@ def optimize_qaoa(
     problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
     noise_model = get_noise_model(noise_config)
 
-    # TQA (Trotterized Quantum Annealing) initialization:
-    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
-    indices = np.arange(1, depth + 1)
-    gamma_init = (indices / depth) * delta_t
-    beta_init = (1 - indices / depth) * delta_t
-    init_params = np.concatenate([gamma_init, beta_init])
+    init_params = tqa_init_params(depth, delta_t)
 
     energy_history: list[float] = []
 
@@ -380,7 +372,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:

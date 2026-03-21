@@ -101,6 +101,11 @@ class SimulatedAnnealingSolver:
         """Run simulated annealing and return standardized result."""
         restriction = run_config.restriction_config or _default_restriction()
         formulation = run_config.formulation
+        if formulation == "tqudo_virtual":
+            raise ValueError(
+                "Formulation 'tqudo_virtual' (qubit emulation) is not supported by "
+                "simulated annealing. Use 'tqudo' or 'qubo' instead."
+            )
         n_available = instance.n_cities - 1
 
         rng = np.random.default_rng(run_config.seed)

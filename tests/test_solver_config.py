@@ -99,13 +99,14 @@ def test_validate_solver_instance_compatibility_rejects_invalid_tqudo_dimension(
         prices_range_travels=(40.0, 40.0),
         seed=123,
     )
-    solver_config = {"formulation": "tqudo"}
+    solver_config = {"formulation": "tqudo_virtual"}
 
     with pytest.raises(ValueError, match="power of two"):
         validate_solver_instance_compatibility(instance_config, solver_config)
 
 
-def test_validate_solver_instance_compatibility_accepts_cudaq_tqudo_when_dimension_matches() -> None:
+def test_validate_solver_instance_compatibility_rejects_cudaq_native_tqudo() -> None:
+    """CUDA-Q does not support native TQUDO (real qudits)."""
     instance_config = InstanceConfig(
         n_cities=5,
         n_precedences_range=(1, 1),
@@ -115,7 +116,37 @@ def test_validate_solver_instance_compatibility_accepts_cudaq_tqudo_when_dimensi
     )
     solver_config = {"solver": "cudaq", "formulation": "tqudo"}
 
+    with pytest.raises(ValueError, match="not supported by the CUDA-Q"):
+        validate_solver_instance_compatibility(instance_config, solver_config)
+
+
+def test_validate_solver_instance_compatibility_accepts_cudaq_tqudo_virtual() -> None:
+    """CUDA-Q accepts tqudo_virtual when dimension is power of two."""
+    instance_config = InstanceConfig(
+        n_cities=5,
+        n_precedences_range=(1, 1),
+        prices_range_hotels=(30.0, 30.0),
+        prices_range_travels=(40.0, 40.0),
+        seed=123,
+    )
+    solver_config = {"solver": "cudaq", "formulation": "tqudo_virtual"}
+
     validate_solver_instance_compatibility(instance_config, solver_config)
+
+
+def test_validate_solver_instance_compatibility_rejects_sa_tqudo_virtual() -> None:
+    """SA does not support tqudo_virtual."""
+    instance_config = InstanceConfig(
+        n_cities=5,
+        n_precedences_range=(1, 1),
+        prices_range_hotels=(30.0, 30.0),
+        prices_range_travels=(40.0, 40.0),
+        seed=123,
+    )
+    solver_config = {"solver": "simulated_annealing", "formulation": "tqudo_virtual"}
+
+    with pytest.raises(ValueError, match="not supported by simulated annealing"):
+        validate_solver_instance_compatibility(instance_config, solver_config)
 
 
 def test_validate_solver_instance_compatibility_accepts_compatible_tqudo_dimension() -> None:
@@ -126,7 +157,7 @@ def test_validate_solver_instance_compatibility_accepts_compatible_tqudo_dimensi
         prices_range_travels=(40.0, 40.0),
         seed=123,
     )
-    solver_config = {"formulation": "tqudo"}
+    solver_config = {"solver": "cirq", "formulation": "tqudo"}
 
     validate_solver_instance_compatibility(instance_config, solver_config)
 

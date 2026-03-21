@@ -1,7 +1,7 @@
 # Solver and experiment configuration
 n_instances: 1
 solver: cudaq  # cudaq | cirq | simulated_annealing
-formulation: tqudo  # qubo | tqudo
+formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
 optimizer: COBYLA  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
 restriction:
   lambda_0: 1000.0
