@@ -7,6 +7,8 @@ before building the spin_op.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from scipy.optimize import minimize
 
@@ -19,6 +21,8 @@ from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
 from utils.progress import reporter
+
+logger = logging.getLogger(__name__)
 
 
 def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
@@ -128,7 +132,7 @@ def evaluate_cost(
     qubo_matrix: np.ndarray,
     depth: int,
     n_shots: int = 500,
-    noise_config: NoiseConfig | None = None,
+    noise_model: "cudaq.NoiseModel | None" = None,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging QUBO cost.
 
@@ -141,14 +145,13 @@ def evaluate_cost(
         qubo_matrix: The original QUBO matrix for direct cost evaluation.
         depth: Number of QAOA layers.
         n_shots: Shots for cost estimation.
-        noise_config: Optional noise parameters.
+        noise_model: Pre-built cudaq.NoiseModel, or None for noiseless.
 
     Returns:
         float: Average x^T Q x over sampled bitstrings.
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
-    noise_model = get_noise_model(noise_config)
     sample_kwargs: dict = {"shots_count": n_shots}
     if noise_model is not None:
         sample_kwargs["noise_model"] = noise_model
@@ -167,7 +170,7 @@ def sample_solution(
     params: np.ndarray,
     depth: int,
     n_shots: int = 1000,
-    noise_config: NoiseConfig | None = None,
+    noise_model: "cudaq.NoiseModel | None" = None,
 ) -> "cudaq.SampleResult":
     """Sample bitstrings from the QAOA state at the given parameters.
 
@@ -176,7 +179,7 @@ def sample_solution(
         params: [gamma_1..gamma_p, beta_1..beta_p].
         depth: Number of QAOA layers.
         n_shots: Number of measurement shots.
-        noise_config: Optional noise parameters.
+        noise_model: Pre-built cudaq.NoiseModel, or None for noiseless.
 
     Returns:
         cudaq.SampleResult: Dict-like object with bitstring counts.
@@ -184,7 +187,6 @@ def sample_solution(
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
-    noise_model = get_noise_model(noise_config)
     sample_kwargs: dict = {"shots_count": n_shots}
     if noise_model is not None:
         sample_kwargs["noise_model"] = noise_model
@@ -240,6 +242,7 @@ def optimize_qaoa(
 
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
+    noise_model = get_noise_model(noise_config)
 
     # TQA (Trotterized Quantum Annealing) initialization:
     # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
@@ -253,7 +256,7 @@ def optimize_qaoa(
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
             x, kernel, qubo_matrix, depth, n_shots=n_shots,
-            noise_config=noise_config,
+            noise_model=noise_model,
         )
         energy_history.append(val)
         reporter.opt_step(len(energy_history), max_iter, val)
@@ -261,14 +264,14 @@ def optimize_qaoa(
 
     initial_energy = evaluate_cost(
         init_params, kernel, qubo_matrix, depth, n_shots=n_shots,
-        noise_config=noise_config,
+        noise_model=noise_model,
     )
 
     initial_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         initial_samples = sample_solution(
             kernel, init_params, depth, sample_shots,
-            noise_config=noise_config,
+            noise_model=noise_model,
         )
 
     opt_result = minimize(
@@ -277,13 +280,18 @@ def optimize_qaoa(
         method=optimizer,
         options=minimize_options(optimizer, max_iter),
     )
+    if not opt_result.success:
+        logger.warning(
+            "QUBO QAOA optimizer (%s) did not converge: %s",
+            optimizer, opt_result.message,
+        )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     final_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         final_samples = sample_solution(
             kernel, best_params, depth, sample_shots,
-            noise_config=noise_config,
+            noise_model=noise_model,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
@@ -327,7 +335,7 @@ def run_qaoa(
         sample_shots: Shots for sampling the final state.
         seed: Random seed.
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
-        delta_t: Time step for TQA initialization (default0.55).
+        delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
         Dict with keys: energy, params, initial_samples, final_samples, best_bitstring,
