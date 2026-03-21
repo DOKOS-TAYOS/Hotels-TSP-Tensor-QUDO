@@ -16,6 +16,7 @@ from math_utils.qubo_ising import qubo_to_ising
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
+from utils.progress import reporter
 
 
 def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
@@ -238,6 +239,7 @@ def optimize_qaoa(
             noise_config=noise_config,
         )
         energy_history.append(val)
+        reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(

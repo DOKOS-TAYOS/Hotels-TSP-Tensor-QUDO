@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import signal
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,7 @@ from solvers.base import SolverResult
 from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
 from utils.output_paths import build_output_layout
+from utils.progress import reporter
 
 
 def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
@@ -135,7 +138,21 @@ def run_workflow(
     formulation = solver_config_dict["formulation"]
     restriction = solver_config_dict["restriction"]
 
+    reporter.configure(n_instances=n_instances)
+
+    _interrupted = False
+
+    def _handle_sigint(sig: int, frame: object) -> None:
+        nonlocal _interrupted
+        _interrupted = True
+        print("\n[interrupted] finishing current instance then stopping...", flush=True)
+
+    signal.signal(signal.SIGINT, _handle_sigint)
+
     for i, instance in enumerate(instances):
+        if _interrupted:
+            break
+        reporter.instance_start(i)
         result = solver.solve(instance, run_config)
 
         solver_config_serializable: dict[str, Any] = {
@@ -160,7 +177,11 @@ def run_workflow(
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        print(f"Saved: {out_path}")
+        reporter.instance_done(i, str(out_path))
+
+    if _interrupted:
+        print("[interrupted] stopped after instance", i, flush=True)
+        sys.exit(130)
 
 
 def main() -> None:

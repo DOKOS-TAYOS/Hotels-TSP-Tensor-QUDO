@@ -19,6 +19,7 @@ from utils.constraints import (
     validate_solution_constraints_tqudo,
 )
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
+from utils.progress import reporter
 
 
 def _default_restriction() -> RestrictionConfig:
@@ -153,6 +154,7 @@ class SimulatedAnnealingSolver:
             energy_history.append(current_cost)
             T = max(T_final, T * alpha)
             iterations_completed = iteration + 1
+            reporter.opt_step(iterations_completed, max_iter, current_cost)
 
         runtime_seconds = time.perf_counter() - start
 

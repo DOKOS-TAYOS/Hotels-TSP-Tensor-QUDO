@@ -18,6 +18,7 @@ from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
+from utils.progress import reporter
 
 
 def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
@@ -255,6 +256,7 @@ def optimize_qaoa(
             noise_config=noise_config,
         )
         energy_history.append(val)
+        reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(

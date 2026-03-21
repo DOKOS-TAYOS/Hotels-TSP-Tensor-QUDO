@@ -48,6 +48,7 @@ from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
+from utils.progress import reporter
 
 if TYPE_CHECKING:
     pass
@@ -525,6 +526,7 @@ def optimize_qaoa(
             noise_config=noise_config,
         )
         energy_history.append(val)
+        reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(
