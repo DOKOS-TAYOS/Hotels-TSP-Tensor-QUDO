@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import random
+
 import numpy as np
 
-logger = logging.getLogger(__name__)
-
-from utils.constraints import idx, would_create_cycle
 from instance_gen_process.models import InstanceConfig, ProblemInstance, ProblemQUBO, ProblemTQUDO, RestrictionConfig
+from utils.constraints import idx, would_create_cycle
+
+logger = logging.getLogger(__name__)
 
 def generate_random_set_instances(config: InstanceConfig, n_instances: int, seed: int = 42) -> list[ProblemInstance]:
     """Generate a set of random ProblemInstance from InstanceConfig ranges.

@@ -24,7 +24,6 @@ from instance_gen_process.models import (
 from utils.constraints import (
     idx,
     sequence_to_qubo_binary,
-    validate_solution_constraints_qubo,
     validate_solution_constraints_tqudo,
 )
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
@@ -340,7 +339,8 @@ class TestConfigValidation:
         """n_cities=2 should be rejected to avoid degenerate TQUDO costs."""
         from instance_gen_process.config_loader import load_instance_config
         from pathlib import Path
-        import tempfile, yaml
+        import tempfile
+        import yaml
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump({
@@ -358,7 +358,8 @@ class TestConfigValidation:
         """n_cities=3 should be accepted."""
         from instance_gen_process.config_loader import load_instance_config
         from pathlib import Path
-        import tempfile, yaml
+        import tempfile
+        import yaml
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump({

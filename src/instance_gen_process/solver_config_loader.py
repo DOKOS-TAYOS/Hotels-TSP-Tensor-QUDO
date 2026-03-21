@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
+
+if TYPE_CHECKING:
+    from solvers.base import SolverRunConfig
 
 
 DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
@@ -203,7 +206,7 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     }
 
 
-def solver_config_to_run_config(config: dict[str, Any]) -> "SolverRunConfig":
+def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
     """Build SolverRunConfig from a loaded solver config dict."""
     from solvers.base import SolverRunConfig
     from solvers.noise import NoiseConfig

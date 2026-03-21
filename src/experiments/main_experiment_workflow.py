@@ -20,7 +20,6 @@ from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
 from solvers import CudaqSolver, CirqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverResult
-from solvers.noise import NoiseConfig
 from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
 from utils.output_paths import build_output_layout

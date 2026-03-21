@@ -1,5 +1,5 @@
 # Solver and experiment configuration
-n_instances: 5
+n_instances: 1
 solver: cudaq  # cudaq | cirq | simulated_annealing
 formulation: qubo  # qubo | tqudo
 optimizer: COBYLA  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
