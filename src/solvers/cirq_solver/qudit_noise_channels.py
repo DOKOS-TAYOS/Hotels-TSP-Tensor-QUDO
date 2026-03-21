@@ -12,7 +12,9 @@ Channel generalizations
 - **Amplitude damping**: cascade decay — every excited level |k⟩ (k > 0)
   decays to |0⟩ with probability γ.
 - **Phase damping**: off-diagonal dephasing — coherences with |0⟩ decay by
-  √(1−γ), populations unchanged.
+  √(1−γ), coherences between excited states decay by (1−γ), populations
+  unchanged.  For d = 2 only |0⟩-coherences exist, so both descriptions
+  coincide.
 - **Bit flip**: cyclic shift X_d applied with probability p.
 - **Phase flip**: clock matrix Z_d = diag(1, ω, ω², …) applied with
   probability p, where ω = exp(2πi/d).
@@ -120,14 +122,17 @@ class QuditAmplitudeDampingChannel(cirq.Gate):
 
 
 class QuditPhaseDampingChannel(cirq.Gate):
-    r"""d-dimensional phase damping: coherences with |0⟩ decay by √(1−γ).
+    r"""d-dimensional phase damping (generalised pure dephasing).
 
     Kraus operators:
       - K_0 = |0⟩⟨0| + √(1−γ) Σ_{k≥1} |k⟩⟨k|
       - K_k = √γ · |k⟩⟨k|   for k = 1, …, d−1
 
-    Populations are unchanged; only off-diagonal elements involving |0⟩ are
-    suppressed.  For d = 2 this matches the standard qubit phase-damping.
+    Populations are unchanged.  All off-diagonal elements are suppressed:
+    coherences involving |0⟩ decay by √(1−γ), while coherences between
+    excited states (m, n ≥ 1, m ≠ n) decay by (1−γ).  For d = 2 only
+    |0⟩-coherences exist, so this reduces to the standard qubit
+    phase-damping channel.
     """
 
     def __init__(self, dimension: int, gamma: float) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +57,8 @@ def _to_json_serializable(obj: Any) -> Any:
         return {str(k): _to_json_serializable(v) for k, v in obj.items()}
     if hasattr(obj, "tolist"):
         return obj.tolist()
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return _to_json_serializable(dataclasses.asdict(obj))
     return obj
 
 
@@ -119,7 +122,6 @@ def run_workflow(
     # YAML noise.enabled flag to guarantee noise is off.
     if settings is not None and not settings.enable_noise_simulation:
         if run_config.noise_config.enabled:
-            import dataclasses
             silenced = dataclasses.replace(run_config.noise_config, enabled=False)
             run_config = dataclasses.replace(run_config, noise_config=silenced)
 
@@ -150,7 +152,7 @@ def run_workflow(
             "instance": _serialize_instance(instance),
             "instance_config": _serialize_instance_config(instance_config),
             "instance_index": i,
-            "solver_config": solver_config_serializable,
+            "solver_config": _to_json_serializable(solver_config_serializable),
             "solver_output": _serialize_solver_result(result),
         }
 
