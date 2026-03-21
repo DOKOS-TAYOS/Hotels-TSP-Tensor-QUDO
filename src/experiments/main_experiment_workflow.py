@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import gc
 import json
+import logging
+import signal
+import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -20,10 +25,13 @@ from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
 from solvers import CudaqSolver, CirqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverResult
-from solvers.noise import NoiseConfig
 from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
+from utils.constraints import validate_instance_constraints
 from utils.output_paths import build_output_layout
+from utils.progress import reporter
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
@@ -136,8 +144,28 @@ def run_workflow(
     formulation = solver_config_dict["formulation"]
     restriction = solver_config_dict["restriction"]
 
+    reporter.configure(n_instances=n_instances)
+
+    _interrupted = False
+
+    def _handle_sigint(sig: int, frame: object) -> None:
+        nonlocal _interrupted
+        _interrupted = True
+        print("\n[interrupted] finishing current instance then stopping...", flush=True)
+
+    signal.signal(signal.SIGINT, _handle_sigint)
+
+    last_completed = -1
+    n_failed = 0
     for i, instance in enumerate(instances):
-        result = solver.solve(instance, run_config)
+        if _interrupted:
+            break
+        reporter.instance_start(i)
+
+        if not validate_instance_constraints(instance):
+            logger.warning("Instance %d failed validation — skipping.", i)
+            n_failed += 1
+            continue
 
         solver_config_serializable: dict[str, Any] = {
             k: v for k, v in solver_config_dict.items() if k != "restriction"
@@ -148,20 +176,47 @@ def run_workflow(
             "lambda_2": restriction.lambda_2,
         }
 
-        payload: dict[str, Any] = {
-            "instance": _serialize_instance(instance),
-            "instance_config": _serialize_instance_config(instance_config),
-            "instance_index": i,
-            "solver_config": _to_json_serializable(solver_config_serializable),
-            "solver_output": _serialize_solver_result(result),
-        }
+        try:
+            result = solver.solve(instance, run_config)
+            payload: dict[str, Any] = {
+                "instance": _serialize_instance(instance),
+                "instance_config": _serialize_instance_config(instance_config),
+                "instance_index": i,
+                "solver_config": _to_json_serializable(solver_config_serializable),
+                "solver_output": _serialize_solver_result(result),
+            }
+        except Exception:
+            logger.exception("Instance %d solver failed — saving error record.", i)
+            n_failed += 1
+            payload = {
+                "instance": _serialize_instance(instance),
+                "instance_config": _serialize_instance_config(instance_config),
+                "instance_index": i,
+                "solver_config": _to_json_serializable(solver_config_serializable),
+                "solver_output": {
+                    "solver_name": solver_name,
+                    "error": traceback.format_exc(),
+                },
+            }
 
         filename = f"exp_{timestamp}_inst_{i}_{solver_name}_{formulation}.json"
         out_path = layout.raw / filename
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        print(f"Saved: {out_path}")
+        reporter.instance_done(i, str(out_path))
+        last_completed = i
+        gc.collect()
+
+    if _interrupted:
+        print(
+            f"[interrupted] completed {last_completed + 1} of {n_instances} instances",
+            flush=True,
+        )
+        sys.exit(130)
+
+    if n_failed:
+        logger.warning("%d of %d instances failed.", n_failed, n_instances)
 
 
 def main() -> None:
@@ -190,8 +245,9 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = load_settings()
+    instance_config_path = args.instance_config or settings.instance_config_path
     run_workflow(
-        instance_config_path=args.instance_config,
+        instance_config_path=instance_config_path,
         solver_config_path=args.solver_config,
         output_root=args.output,
         settings=settings,

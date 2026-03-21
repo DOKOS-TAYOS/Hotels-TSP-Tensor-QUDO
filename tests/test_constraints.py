@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from conftest import make_problem_instance
 from instance_gen_process.models import ProblemInstance
 from utils.constraints import (
     idx,
@@ -14,13 +15,13 @@ from utils.constraints import (
 
 def _minimal_instance(
     n_cities: int = 5,
-    precedences: list[tuple[int, int]] | None = None,
+    precedences: tuple[tuple[int, int], ...] | list[tuple[int, int]] | None = None,
 ) -> ProblemInstance:
     """Create a minimal ProblemInstance for constraint testing."""
     n_available = n_cities - 1
-    return ProblemInstance(
+    return make_problem_instance(
         n_cities=n_cities,
-        precedences=precedences or [],
+        precedences=precedences,
         prices_hotels=np.zeros((n_available, n_available)),
         prices_travels=np.zeros((n_cities, n_cities, n_cities)),
     )

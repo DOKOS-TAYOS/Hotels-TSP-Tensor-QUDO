@@ -11,7 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -467,44 +466,57 @@ class TestCirqNativeQuditNoisyRun:
         "amplitude_damping", "phase_damping", "bit_flip", "phase_flip",
     ])
     def test_all_noise_types_evaluate_cost(self, noise_type: str) -> None:
+        from instance_gen_process.models import ProblemTQUDO
         from solvers.cirq_solver.qaoa_circuit_tqudo import (
             evaluate_cost, create_qaoa_circuit,
         )
+        from solvers.cirq_solver.noise_model import get_simulator
 
         Etab, Ettprimeab = self._small_tensors(d=3)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
             1, Etab, Ettprimeab,
         )
-        params = np.array([0.5, 0.5])
+        problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
         cfg = NoiseConfig(enabled=True, noise_type=noise_type, probability=0.02)
+        simulator, noise_model = get_simulator(cfg, qudit_dimension=dimension, seed=42)
+        circuit_with_measure = self.cirq.measure(*qudits, key="m")
+        circuit_m = circuit + circuit_with_measure
+        if noise_model is not None:
+            circuit_m = circuit_m.with_noise(noise_model)
+        params = np.array([0.5, 0.5])
         val = evaluate_cost(
-            params, circuit, Etab, Ettprimeab, symbols, 1,
-            qudits, n_qudits, dimension,
-            n_shots=10, seed=42, noise_config=cfg,
+            params, circuit_m, problem, symbols, 1,
+            n_qudits, 10, simulator,
         )
         assert isinstance(val, float)
 
     def test_disabled_noise_matches_noiseless(self) -> None:
+        from instance_gen_process.models import ProblemTQUDO
         from solvers.cirq_solver.qaoa_circuit_tqudo import (
             evaluate_cost, create_qaoa_circuit,
         )
+        from solvers.cirq_solver.noise_model import get_simulator
 
         Etab, Ettprimeab = self._small_tensors(d=3)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
             1, Etab, Ettprimeab,
         )
+        problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
         params = np.array([0.3, 0.2])
 
+        sim_none, _ = get_simulator(None, qudit_dimension=dimension, seed=42)
+        circuit_m_none = circuit + self.cirq.measure(*qudits, key="m")
         val_none = evaluate_cost(
-            params, circuit, Etab, Ettprimeab, symbols, 1,
-            qudits, n_qudits, dimension,
-            n_shots=50, seed=42, noise_config=None,
+            params, circuit_m_none, problem, symbols, 1,
+            n_qudits, 50, sim_none,
         )
+
         cfg_off = NoiseConfig(enabled=False, noise_type="depolarizing", probability=0.5)
+        sim_off, _ = get_simulator(cfg_off, qudit_dimension=dimension, seed=42)
+        circuit_m_off = circuit + self.cirq.measure(*qudits, key="m")
         val_off = evaluate_cost(
-            params, circuit, Etab, Ettprimeab, symbols, 1,
-            qudits, n_qudits, dimension,
-            n_shots=50, seed=42, noise_config=cfg_off,
+            params, circuit_m_off, problem, symbols, 1,
+            n_qudits, 50, sim_off,
         )
         assert val_none == pytest.approx(val_off)
 

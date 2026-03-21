@@ -4,50 +4,60 @@ from __future__ import annotations
 
 import logging
 import random
+
 import numpy as np
+
+from instance_gen_process.models import InstanceConfig, ProblemInstance, ProblemQUBO, ProblemTQUDO, RestrictionConfig
+from utils.constraints import idx, would_create_cycle
 
 logger = logging.getLogger(__name__)
 
-from utils.constraints import idx, would_create_cycle
-from instance_gen_process.models import InstanceConfig, ProblemInstance, ProblemQUBO, ProblemTQUDO, RestrictionConfig
 
 def generate_random_set_instances(config: InstanceConfig, n_instances: int, seed: int = 42) -> list[ProblemInstance]:
     """Generate a set of random ProblemInstance from InstanceConfig ranges.
 
+    Each instance is assigned a unique seed drawn from a master RNG seeded with
+    ``seed``.  The per-instance seed is stored in ``ProblemInstance.seed`` so
+    any individual instance can be reproduced without regenerating the others::
+
+        instance = generate_random_instance(config, instance.seed)
+
     Args:
         config: Instance generation configuration (n_cities, price ranges, etc.).
         n_instances: Number of random instances to generate.
-        seed: Random seed for reproducibility.
+        seed: Master random seed that drives per-instance seed generation.
 
     Returns:
         List of n_instances ProblemInstance with valid precedences and price matrices.
     """
-    rng = random.Random(seed)
-    problem_instances = []
-    for _ in range(n_instances):
-        problem_instances.append(generate_random_instance(config, rng))
-
-    return problem_instances
+    master_rng = random.Random(seed)
+    instance_seeds = [master_rng.randint(0, 2**32 - 1) for _ in range(n_instances)]
+    return [generate_random_instance(config, s) for s in instance_seeds]
 
 
-def generate_random_instance(config: InstanceConfig, rng: random.Random) -> ProblemInstance:
+def generate_random_instance(config: InstanceConfig, seed: int) -> ProblemInstance:
     """Generate a single random ProblemInstance from InstanceConfig ranges.
+
+    The ``seed`` is stored inside the returned ``ProblemInstance`` so the
+    instance can be reproduced exactly by calling this function again with the
+    same ``config`` and ``seed``.
 
     Args:
         config: Instance generation configuration.
-        rng: Seeded random generator for reproducibility.
+        seed: Integer seed for this specific instance.
 
     Returns:
         ProblemInstance with acyclic precedences and random price matrices.
     """
+    rng = random.Random(seed)
 
     n_cities = config.n_cities
     n_available = n_cities - 1
     precedences: list[tuple[int, int]] = []
     n_precedences = rng.randint(
-                        config.n_precedences_range[0],
-                        config.n_precedences_range[1]
-                        )
+        config.n_precedences_range[0],
+        config.n_precedences_range[1],
+    )
     attempts = 0
     max_attempts = n_precedences * 20  # Avoid infinite loop when no more valid precedences can be added
     while len(precedences) < n_precedences and attempts < max_attempts:
@@ -71,18 +81,23 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
     prices_hotels = np_rng.uniform(
         config.prices_range_hotels[0],
         config.prices_range_hotels[1],
-        size=(n_available, n_available)
+        size=(n_available, n_available),
     )
     prices_travels = np_rng.uniform(
         config.prices_range_travels[0],
         config.prices_range_travels[1],
-        size=(n_cities, n_cities, n_cities)
+        size=(n_cities, n_cities, n_cities),
     )
-    # Set diagonals of the last two indices to 0
     for i in range(n_cities):
         prices_travels[:, i, i] = 0
 
-    return ProblemInstance(n_cities=n_cities, precedences=precedences, prices_hotels=prices_hotels, prices_travels=prices_travels)
+    return ProblemInstance(
+        n_cities=n_cities,
+        precedences=tuple(precedences),
+        prices_hotels=prices_hotels,
+        prices_travels=prices_travels,
+        seed=seed,
+    )
 
 
 def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: RestrictionConfig) -> ProblemTQUDO:
@@ -136,8 +151,11 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                     for precedence in problem.precedences:
                         if origin == precedence[1] and destination == precedence[0]:
                             Ettprimeab[t, t_prime, origin, destination] += restriction.lambda_2
-    
-    return ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+
+    max_etab = float(np.abs(Etab).max())
+    max_ett = float(np.abs(Ettprimeab).max()) if Ettprimeab.size > 0 else 0.0
+    energy_scale = float(max(max_etab, max_ett, 1.0))
+    return ProblemTQUDO(Etab=Etab / energy_scale, Ettprimeab=Ettprimeab / energy_scale, energy_scale=energy_scale)
 
 
 def generate_QUBO_from_problem(problem: ProblemInstance, restriction: RestrictionConfig) -> ProblemQUBO:
@@ -208,8 +226,9 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
                 idx_tj = idx(t, j, n_available)
                 qubo_matrix[idx_tp_i, idx_tj] += restriction.lambda_2 / 2
                 qubo_matrix[idx_tj, idx_tp_i] += restriction.lambda_2 / 2 # Symmetry
-                        
-    return ProblemQUBO(qubo_matrix=qubo_matrix)
+
+    energy_scale = float(max(float(np.abs(qubo_matrix).max()), 1.0))
+    return ProblemQUBO(qubo_matrix=qubo_matrix / energy_scale, energy_scale=energy_scale)
 
 
     

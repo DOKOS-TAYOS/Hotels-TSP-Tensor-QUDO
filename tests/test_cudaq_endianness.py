@@ -12,7 +12,6 @@ Requires a working CUDA-Q installation with GPU access.
 
 from __future__ import annotations
 
-import math
 
 import pytest
 

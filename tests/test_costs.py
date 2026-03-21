@@ -3,22 +3,9 @@
 import numpy as np
 import pytest
 
+from conftest import make_problem_instance as _minimal_instance
 from instance_gen_process.models import ProblemInstance, ProblemQUBO, ProblemTQUDO
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
-
-
-def _minimal_instance(
-    n_cities: int = 4,
-    precedences: list[tuple[int, int]] | None = None,
-) -> ProblemInstance:
-    """Create a minimal ProblemInstance for cost testing."""
-    n_available = n_cities - 1
-    return ProblemInstance(
-        n_cities=n_cities,
-        precedences=precedences or [],
-        prices_hotels=np.ones((n_available, n_available)),
-        prices_travels=np.ones((n_cities, n_cities, n_cities)),
-    )
 
 
 class TestCalculateQuboCost:
@@ -91,7 +78,7 @@ class TestCalculateRealCost:
 
         instance = ProblemInstance(
             n_cities=n_cities,
-            precedences=[],
+            precedences=(),
             prices_hotels=prices_hotels,
             prices_travels=prices_travels,
         )

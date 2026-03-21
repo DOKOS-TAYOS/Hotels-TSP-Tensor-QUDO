@@ -24,7 +24,6 @@ from instance_gen_process.models import (
 from utils.constraints import (
     idx,
     sequence_to_qubo_binary,
-    validate_solution_constraints_qubo,
     validate_solution_constraints_tqudo,
 )
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
@@ -34,34 +33,11 @@ from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqud
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _small_instance(
-    n_cities: int = 4,
-    precedences: list[tuple[int, int]] | None = None,
-) -> ProblemInstance:
-    """Deterministic small instance with known costs for testing."""
-    n_available = n_cities - 1
-    # Simple hotel costs: hotel[t, city] = 1 for all
-    prices_hotels = np.ones((n_available, n_available), dtype=float)
-    # Simple travel costs: travel[t, i, j] = 1 for i!=j, 0 for i==j
-    prices_travels = np.ones((n_cities, n_cities, n_cities), dtype=float)
-    for k in range(n_cities):
-        prices_travels[:, k, k] = 0.0
-    return ProblemInstance(
-        n_cities=n_cities,
-        precedences=precedences or [],
-        prices_hotels=prices_hotels,
-        prices_travels=prices_travels,
-    )
+from conftest import make_problem_instance as _small_instance
 
 
-def _high_penalty_restriction() -> RestrictionConfig:
-    """Penalties much larger than any feasible cost to test constraint enforcement."""
-    return RestrictionConfig(lambda_0=1000.0, lambda_1=1000.0, lambda_2=1000.0)
-
-
-def _zero_penalty_restriction() -> RestrictionConfig:
-    """Zero penalties to isolate cost terms from constraint penalties."""
-    return RestrictionConfig(lambda_0=0.0, lambda_1=0.0, lambda_2=0.0)
+from conftest import high_penalty_restriction as _high_penalty_restriction
+from conftest import zero_penalty_restriction as _zero_penalty_restriction
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +148,7 @@ class TestQUBOConstraintPenalties:
         # With zero-cost instance, all should be equal
         zero_instance = ProblemInstance(
             n_cities=4,
-            precedences=[],
+            precedences=(),
             prices_hotels=np.zeros((3, 3)),
             prices_travels=np.zeros((4, 4, 4)),
         )
@@ -224,7 +200,6 @@ class TestTQUDOGeneration:
 
     def test_tqudo_cost_matches_real_cost_no_penalties(self) -> None:
         """With zero penalties, TQUDO cost should equal real cost for feasible routes."""
-        import random
         config = InstanceConfig(
             n_cities=5,
             n_precedences_range=(0, 0),
@@ -232,8 +207,7 @@ class TestTQUDOGeneration:
             prices_range_travels=(10.0, 50.0),
             seed=42,
         )
-        rng = random.Random(42)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, 42)
         restriction = _zero_penalty_restriction()
         tqudo = generate_TQUDO_from_problem(instance, restriction)
 
@@ -285,7 +259,6 @@ class TestCrossFormulationConsistency:
     def test_qubo_and_tqudo_agree_on_best_route(self) -> None:
         """Both formulations should identify the same optimal feasible route."""
         import itertools
-        import random
 
         config = InstanceConfig(
             n_cities=4,
@@ -294,8 +267,7 @@ class TestCrossFormulationConsistency:
             prices_range_travels=(10.0, 100.0),
             seed=123,
         )
-        rng = random.Random(123)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, 123)
         restriction = _high_penalty_restriction()
 
         qubo = generate_QUBO_from_problem(instance, restriction)
@@ -340,7 +312,8 @@ class TestConfigValidation:
         """n_cities=2 should be rejected to avoid degenerate TQUDO costs."""
         from instance_gen_process.config_loader import load_instance_config
         from pathlib import Path
-        import tempfile, yaml
+        import tempfile
+        import yaml
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump({
@@ -358,7 +331,8 @@ class TestConfigValidation:
         """n_cities=3 should be accepted."""
         from instance_gen_process.config_loader import load_instance_config
         from pathlib import Path
-        import tempfile, yaml
+        import tempfile
+        import yaml
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump({

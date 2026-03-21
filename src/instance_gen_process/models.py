@@ -18,12 +18,22 @@ class InstanceConfig:
 
 @dataclass(frozen=True, slots=True)
 class ProblemInstance:
-    """Canonical in-memory problem representation consumed by solvers."""
+    """Canonical in-memory problem representation consumed by solvers.
+
+    Attributes:
+        n_cities: Total number of cities (including the depot).
+        precedences: List of (origin, destination) precedence pairs.
+        prices_hotels: 2D array of hotel prices (n_available x n_available).
+        prices_travels: 3D array of travel prices (n_cities x n_cities x n_cities).
+        seed: Integer seed used to generate this instance. Store it to allow
+            exact reproduction via ``generate_random_instance(config, seed)``.
+    """
 
     n_cities: int
-    precedences: list[tuple[int, int]]
-    prices_hotels: np.ndarray # 2 dimensions
-    prices_travels: np.ndarray # 3 dimensions
+    precedences: tuple[tuple[int, int], ...]
+    prices_hotels: np.ndarray  # 2 dimensions
+    prices_travels: np.ndarray  # 3 dimensions
+    seed: int = 0
 
 @dataclass(frozen=True, slots=True)
 class ProblemTQUDO:
@@ -34,11 +44,17 @@ class ProblemTQUDO:
 
     Attributes:
         Etab: 3D tensor (t, origin, destination) for travel and hotel costs.
+            Normalised so that max(|Etab|, |Ettprimeab|) == 1.
         Ettprimeab: 4D tensor (t, t_prime, origin, destination) for penalties.
+            Normalised together with Etab.
+        energy_scale: Factor by which the original tensors were divided during
+            normalisation.  Multiply any sampled cost by this value to recover
+            the original-units objective.
     """
 
     Etab: np.ndarray  # 3 dimensions
     Ettprimeab: np.ndarray  # 4 dimensions
+    energy_scale: float = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,10 +65,15 @@ class ProblemQUBO:
     See docs/formulations.md for full equations.
 
     Attributes:
-        qubo_matrix: Symmetric matrix of shape (n_vars, n_vars) where n_vars = n_available^2.
+        qubo_matrix: Symmetric normalised matrix of shape (n_vars, n_vars)
+            where n_vars = n_available^2.  All entries are in [-1, 1].
+        energy_scale: Factor by which the original matrix was divided during
+            normalisation.  Multiply any sampled cost by this value to recover
+            the original-units objective.
     """
 
     qubo_matrix: np.ndarray  # 2 dimensions
+    energy_scale: float = 1.0
 
 
 @dataclass(frozen=True, slots=True)

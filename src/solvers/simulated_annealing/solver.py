@@ -19,6 +19,7 @@ from utils.constraints import (
     validate_solution_constraints_tqudo,
 )
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
+from utils.progress import reporter
 
 
 def _default_restriction() -> RestrictionConfig:
@@ -78,11 +79,7 @@ def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndar
     n = len(sequence)
     if n < 3:
         return _swap_neighbor(sequence, rng)
-    i, j = sorted(rng.integers(0, n, size=2))
-    while i == j:
-        j = int(rng.integers(0, n))
-        if j < i:
-            i, j = j, i
+    i, j = sorted(rng.choice(n, size=2, replace=False))
     neighbor = sequence.copy()
     neighbor[i : j + 1] = neighbor[i : j + 1][::-1]
     return neighbor
@@ -104,6 +101,11 @@ class SimulatedAnnealingSolver:
         """Run simulated annealing and return standardized result."""
         restriction = run_config.restriction_config or _default_restriction()
         formulation = run_config.formulation
+        if formulation == "tqudo_virtual":
+            raise ValueError(
+                "Formulation 'tqudo_virtual' (qubit emulation) is not supported by "
+                "simulated annealing. Use 'tqudo' or 'qubo' instead."
+            )
         n_available = instance.n_cities - 1
 
         rng = np.random.default_rng(run_config.seed)
@@ -153,6 +155,7 @@ class SimulatedAnnealingSolver:
             energy_history.append(current_cost)
             T = max(T_final, T * alpha)
             iterations_completed = iteration + 1
+            reporter.opt_step(iterations_completed, max_iter, current_cost)
 
         runtime_seconds = time.perf_counter() - start
 

@@ -20,6 +20,9 @@ from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
+from solvers.base import OptimizerType
+from utils.progress import reporter
+from utils.qaoa_helpers import is_power_of_two, most_probable_key, tqa_init_params
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -42,11 +45,6 @@ def _multi_controlled_phase(
     return gate.on(*controls, target)
 
 
-def _is_power_of_two(value: int) -> bool:
-    """Return True when *value* is a positive power of two."""
-    return value > 0 and (value & (value - 1)) == 0
-
-
 def create_qaoa_circuit(
     depth: int,
     Etab: np.ndarray,
@@ -62,7 +60,7 @@ def create_qaoa_circuit(
     """
     n_qudits = Etab.shape[0]
     dimension_qudits = Etab.shape[1]
-    if not _is_power_of_two(dimension_qudits):
+    if not is_power_of_two(dimension_qudits):
         raise ValueError(
             f"Qubit-emulation TQUDO requires the qudit dimension (n_cities - 1 = "
             f"{dimension_qudits}) to be a power of two. Use the native-qudit "
@@ -192,27 +190,19 @@ def bitstring_to_qudit_sequence(
 
 def evaluate_cost(
     params: np.ndarray,
-    circuit: cirq.Circuit,
-    Etab: np.ndarray,
-    Ettprimeab: np.ndarray,
+    circuit_with_measure: cirq.Circuit,
+    problem: ProblemTQUDO,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qubits: list[cirq.Qid],
     n_qudits: int,
     qubits_per_qudit: int,
-    n_shots: int = 1000,
-    seed: int | None = None,
-    noise_config: NoiseConfig | None = None,
+    n_shots: int,
+    simulator: cirq.SimulatesSamples,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging TQUDO cost."""
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator, noise_model = get_simulator(noise_config, seed=seed)
-    if noise_model is not None:
-        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
     total = 0.0
     for row in result.measurements["m"]:
         bitstring = "".join(str(int(b)) for b in row)
@@ -222,21 +212,15 @@ def evaluate_cost(
 
 
 def sample_solution(
-    circuit: cirq.Circuit,
+    circuit_with_measure: cirq.Circuit,
     params: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
-    qubits: list[cirq.Qid],
-    n_shots: int = 1000,
-    seed: int | None = None,
-    noise_config: NoiseConfig | None = None,
+    n_shots: int,
+    simulator: cirq.SimulatesSamples,
 ) -> dict[str, int]:
     """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
     resolver = _param_resolver(params, symbols, depth)
-    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator, noise_model = get_simulator(noise_config, seed=seed)
-    if noise_model is not None:
-        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     counts: dict[str, int] = {}
@@ -244,13 +228,6 @@ def sample_solution(
         bitstring = "".join(str(int(b)) for b in row)
         counts[bitstring] = counts.get(bitstring, 0) + 1
     return counts
-
-
-def _most_probable(counts: dict[str, int], n_qubits: int) -> str:
-    """Return the bitstring with highest count."""
-    if not counts:
-        return "0" * n_qubits
-    return max(counts, key=lambda k: counts[k])
 
 
 def optimize_qaoa(
@@ -261,40 +238,50 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
-) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
-    """Optimize QAOA parameters to minimize the TQUDO cost."""
+) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
+    """Optimize QAOA parameters to minimize the TQUDO cost.
+
+    Returns:
+        Tuple of (best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history).
+    """
     circuit, symbols, qubits, n_qudits, qubits_per_qudit = create_qaoa_circuit(
         depth, Etab, Ettprimeab
     )
 
-    # TQA (Trotterized Quantum Annealing) initialization:
-    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
-    indices = np.arange(1, depth + 1)
-    gamma_init = (indices / depth) * delta_t
-    beta_init = (1 - indices / depth) * delta_t
-    init_params = np.concatenate([gamma_init, beta_init])
+    problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+    simulator, noise_model = get_simulator(noise_config, seed=seed)
+    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
+
+    init_params = tqa_init_params(depth, delta_t)
 
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
-            x, circuit, Etab, Ettprimeab, symbols, depth,
-            qubits, n_qudits, qubits_per_qudit,
-            n_shots=n_shots, seed=seed,
-            noise_config=noise_config,
+            x, circuit_with_measure, problem, symbols, depth,
+            n_qudits, qubits_per_qudit, n_shots, simulator,
         )
         energy_history.append(val)
+        reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(
-        init_params, circuit, Etab, Ettprimeab, symbols, depth,
-        qubits, n_qudits, qubits_per_qudit,
-        n_shots=n_shots, seed=seed,
-        noise_config=noise_config,
+        init_params, circuit_with_measure, problem, symbols, depth,
+        n_qudits, qubits_per_qudit, n_shots, simulator,
     )
+
+    initial_samples: dict[str, int] | None = None
+    if sample_shots is not None:
+        initial_samples = sample_solution(
+            circuit_with_measure, init_params, symbols, depth,
+            sample_shots, simulator,
+        )
 
     opt_result = minimize(
         cost_fn,
@@ -304,14 +291,13 @@ def optimize_qaoa(
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    samples: dict[str, int] | None = None
+    final_samples: dict[str, int] | None = None
     if sample_shots is not None:
-        samples = sample_solution(
-            circuit, best_params, symbols, depth, qubits,
-            n_shots=sample_shots, seed=seed,
-            noise_config=noise_config,
+        final_samples = sample_solution(
+            circuit_with_measure, best_params, symbols, depth,
+            sample_shots, simulator,
         )
-    return best_energy, best_params, samples, initial_energy, energy_history
+    return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
 def run_qaoa(
@@ -322,7 +308,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
@@ -331,26 +317,30 @@ def run_qaoa(
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
     n_qubits_total = n_qudits * qubits_per_qudit
 
-    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
-        Etab,
-        Ettprimeab,
-        depth=depth,
-        max_iter=max_iter,
-        n_shots=n_shots,
-        sample_shots=sample_shots,
-        seed=seed,
-        optimizer=optimizer,
-        delta_t=delta_t,
-        noise_config=noise_config,
+    best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
+        optimize_qaoa(
+            Etab,
+            Ettprimeab,
+            depth=depth,
+            max_iter=max_iter,
+            n_shots=n_shots,
+            sample_shots=sample_shots,
+            seed=seed,
+            optimizer=optimizer,
+            delta_t=delta_t,
+            noise_config=noise_config,
+        )
     )
 
-    best_bitstring = _most_probable(samples, n_qubits_total) if samples else "0" * n_qubits_total
+    fallback = "0" * n_qubits_total
+    best_bitstring = most_probable_key(final_samples, fallback) if final_samples else fallback
     best_sequence = bitstring_to_qudit_sequence(best_bitstring, n_qudits, qubits_per_qudit)
 
     return {
         "energy": best_energy,
         "params": best_params,
-        "samples": samples,
+        "initial_samples": initial_samples,
+        "final_samples": final_samples,
         "best_bitstring": best_bitstring,
         "best_sequence": best_sequence,
         "initial_energy": initial_energy,

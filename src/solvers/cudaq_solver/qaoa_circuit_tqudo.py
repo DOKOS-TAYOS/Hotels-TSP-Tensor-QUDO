@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 
 import numpy as np
@@ -15,6 +16,11 @@ from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
+from solvers.base import OptimizerType
+from utils.progress import reporter
+from utils.qaoa_helpers import is_power_of_two, tqa_init_params
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[int, int]:
@@ -39,41 +45,45 @@ def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[in
             "Ettprimeab shape does not match Etab. "
             f"Expected {expected_ett_shape}, got {Ettprimeab.shape}."
         )
+    if not is_power_of_two(dimension_qudits):
+        raise ValueError(
+            f"CUDA-Q qubit-emulation TQUDO requires the qudit dimension "
+            f"(n_cities - 1 = {dimension_qudits}) to be a power of two. "
+            f"Use the native-qudit Cirq backend for arbitrary dimensions."
+        )
 
     return n_qudits, dimension_qudits
 
 
 def _nonzero_etab_terms(Etab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
-    """Return sparse adjacent-qudit terms as (left, right, x_left, x_right, coeff)."""
+    """Return sparse adjacent-qudit terms as (left, right, x_left, x_right, coeff).
+
+    Only adjacent timesteps (t, t+1) are included, so the first axis is
+    sliced to ``Etab[:n_qudits-1]`` before extracting non-zeros.
+    """
     n_qudits = Etab.shape[0]
-    dimension_qudits = Etab.shape[1]
-    terms: list[tuple[int, int, int, int, float]] = []
-
-    for t in range(n_qudits - 1):
-        for x_left in range(dimension_qudits):
-            for x_right in range(dimension_qudits):
-                coeff = float(Etab[t, x_left, x_right])
-                if abs(coeff) > 1e-14:
-                    terms.append((t, t + 1, x_left, x_right, coeff))
-
-    return terms
+    adjacent = Etab[:n_qudits - 1]
+    idx = np.argwhere(np.abs(adjacent) > 1e-14)
+    return [
+        (int(t), int(t) + 1, int(xl), int(xr), float(adjacent[t, xl, xr]))
+        for t, xl, xr in idx
+    ]
 
 
 def _nonzero_ett_terms(Ettprimeab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
-    """Return sparse long-range terms as (left, right, x_left, x_right, coeff)."""
+    """Return sparse long-range terms as (left, right, x_left, x_right, coeff).
+
+    Only upper-triangular timestep pairs (t < t') are included.
+    """
     n_qudits = Ettprimeab.shape[0]
-    dimension_qudits = Ettprimeab.shape[2]
-    terms: list[tuple[int, int, int, int, float]] = []
-
-    for t in range(n_qudits - 1):
-        for t_prime in range(t + 1, n_qudits):
-            for x_left in range(dimension_qudits):
-                for x_right in range(dimension_qudits):
-                    coeff = float(Ettprimeab[t, t_prime, x_left, x_right])
-                    if abs(coeff) > 1e-14:
-                        terms.append((t, t_prime, x_left, x_right, coeff))
-
-    return terms
+    mask = np.abs(Ettprimeab) > 1e-14
+    triu_mask = np.triu(np.ones((n_qudits, n_qudits), dtype=bool), k=1)
+    mask &= triu_mask[:, :, np.newaxis, np.newaxis]
+    idx = np.argwhere(mask)
+    return [
+        (int(t), int(tp), int(xl), int(xr), float(Ettprimeab[t, tp, xl, xr]))
+        for t, tp, xl, xr in idx
+    ]
 
 
 def _apply_state_conditioned_phase(
@@ -84,7 +94,7 @@ def _apply_state_conditioned_phase(
     right_qudit: int,
     left_state: int,
     right_state: int,
-    angle: object,
+    angle: "float | cudaq.QuakeValue",
 ) -> None:
     """Apply a multi-controlled phase conditioned on two encoded qudit states."""
     left_base = left_qudit * qubits_per_qudit
@@ -172,38 +182,34 @@ def create_qaoa_ansatz(
 def evaluate_cost(
     params: np.ndarray,
     kernel: "cudaq.Kernel",
-    Etab: np.ndarray,
-    Ettprimeab: np.ndarray,
+    problem: ProblemTQUDO,
     depth: int,
     n_shots: int = 1000,
-    noise_config: NoiseConfig | None = None,
+    noise_model: "cudaq.NoiseModel | None" = None,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging TQUDO cost.
 
     Args:
         params: [gamma_1...gamma_p, beta_1...beta_p].
         kernel: QAOA kernel from create_qaoa_ansatz.
-        Etab: 3D cost tensor.
-        Ettprimeab: 4D penalty tensor.
+        problem: Pre-built ProblemTQUDO (reused across calls to avoid re-allocation).
         depth: QAOA depth.
         n_shots: Shots for cost estimation.
-        noise_config: Optional noise parameters.
+        noise_model: Pre-built cudaq.NoiseModel, or None for noiseless.
 
     Returns:
         Average TQUDO cost over samples.
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
-    noise_model = get_noise_model(noise_config)
     sample_kwargs: dict = {"shots_count": n_shots}
     if noise_model is not None:
         sample_kwargs["noise_model"] = noise_model
     samples = cudaq.sample(kernel, gamma, beta, **sample_kwargs)
-    n_qudits = Etab.shape[0]
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
+    n_qudits = problem.Etab.shape[0]
+    qubits_per_qudit = max(1, int(math.ceil(math.log2(problem.Etab.shape[1]))))
     total = 0.0
     count = 0
-    problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
     for bitstring, cnt in samples.items():
         seq = bitstring_to_qudit_sequence(bitstring, n_qudits, qubits_per_qudit)
         total += calculate_tqudo_cost(problem, seq) * cnt
@@ -216,7 +222,7 @@ def sample_solution(
     params: np.ndarray,
     depth: int,
     n_shots: int = 1000,
-    noise_config: NoiseConfig | None = None,
+    noise_model: "cudaq.NoiseModel | None" = None,
 ) -> "cudaq.SampleResult":
     """Sample bitstrings from the QAOA state at the given parameters.
 
@@ -225,14 +231,13 @@ def sample_solution(
         params: [gamma_1...gamma_p, beta_1...beta_p].
         depth: Number of QAOA layers.
         n_shots: Number of measurement shots.
-        noise_config: Optional noise parameters.
+        noise_model: Pre-built cudaq.NoiseModel, or None for noiseless.
 
     Returns:
         cudaq.SampleResult: Dict-like object with bitstring counts.
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
-    noise_model = get_noise_model(noise_config)
     sample_kwargs: dict = {"shots_count": n_shots}
     if noise_model is not None:
         sample_kwargs["noise_model"] = noise_model
@@ -247,10 +252,17 @@ def optimize_qaoa(
     n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
-) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
+) -> tuple[
+    float,
+    np.ndarray,
+    "cudaq.SampleResult | None",
+    "cudaq.SampleResult | None",
+    float,
+    list[float],
+]:
     """Optimize QAOA parameters to minimize the TQUDO cost.
 
     Args:
@@ -265,9 +277,11 @@ def optimize_qaoa(
         delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
-        Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
+        Tuple of (best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history).
         best_params: [gamma_1..gamma_p, beta_1..beta_p].
-        samples: SampleResult when sample_shots is set, else None.
+        initial_samples: SampleResult at TQA init params when sample_shots is set, else None.
+        final_samples: SampleResult at best_params when sample_shots is set, else None.
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
     """
@@ -276,28 +290,33 @@ def optimize_qaoa(
         cudaq.set_random_seed(seed)
 
     kernel = create_qaoa_ansatz(depth, Etab, Ettprimeab)
+    problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+    noise_model = get_noise_model(noise_config)
 
-    # TQA (Trotterized Quantum Annealing) initialization:
-    # gamma_i = (i / p) * delta_t,  beta_i = (1 - i / p) * delta_t
-    indices = np.arange(1, depth + 1)
-    gamma_init = (indices / depth) * delta_t
-    beta_init = (1 - indices / depth) * delta_t
-    init_params = np.concatenate([gamma_init, beta_init])
+    init_params = tqa_init_params(depth, delta_t)
 
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
-            x, kernel, Etab, Ettprimeab, depth, n_shots=n_shots,
-            noise_config=noise_config,
+            x, kernel, problem, depth, n_shots=n_shots,
+            noise_model=noise_model,
         )
         energy_history.append(val)
+        reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
     initial_energy = evaluate_cost(
-        init_params, kernel, Etab, Ettprimeab, depth, n_shots=n_shots,
-        noise_config=noise_config,
+        init_params, kernel, problem, depth, n_shots=n_shots,
+        noise_model=noise_model,
     )
+
+    initial_samples: "cudaq.SampleResult | None" = None
+    if sample_shots is not None:
+        initial_samples = sample_solution(
+            kernel, init_params, depth, n_shots=sample_shots,
+            noise_model=noise_model,
+        )
 
     opt_result = minimize(
         cost_fn,
@@ -305,15 +324,20 @@ def optimize_qaoa(
         method=optimizer,
         options=minimize_options(optimizer, max_iter),
     )
+    if not opt_result.success:
+        logger.warning(
+            "TQUDO QAOA optimizer (%s) did not converge: %s",
+            optimizer, opt_result.message,
+        )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    samples: "cudaq.SampleResult | None" = None
+    final_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
-        samples = sample_solution(
+        final_samples = sample_solution(
             kernel, best_params, depth, n_shots=sample_shots,
-            noise_config=noise_config,
+            noise_model=noise_model,
         )
-    return best_energy, best_params, samples, initial_energy, energy_history
+    return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
 def bitstring_to_qudit_sequence(
@@ -348,7 +372,7 @@ def run_qaoa(
     n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
-    optimizer: str = "COBYLA",
+    optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
@@ -366,30 +390,34 @@ def run_qaoa(
         delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
-        Dict with keys: energy, params, samples, best_bitstring, best_sequence,
-        initial_energy, energy_history.
-        best_bitstring: Most frequent bitstring from sampling.
+        Dict with keys: energy, params, initial_samples, final_samples, best_bitstring,
+        best_sequence, initial_energy, energy_history.
+        initial_samples: SampleResult at TQA init params (before optimization).
+        final_samples: SampleResult at best params (after optimization).
+        best_bitstring: Most frequent bitstring from final_samples.
         best_sequence: Qudit sequence (route) from best_bitstring.
     """
     n_qudits = Etab.shape[0]
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
     n_qubits_total = n_qudits * qubits_per_qudit
 
-    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
-        Etab,
-        Ettprimeab,
-        depth=depth,
-        max_iter=max_iter,
-        n_shots=n_shots,
-        sample_shots=sample_shots,
-        seed=seed,
-        optimizer=optimizer,
-        delta_t=delta_t,
-        noise_config=noise_config,
+    best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
+        optimize_qaoa(
+            Etab,
+            Ettprimeab,
+            depth=depth,
+            max_iter=max_iter,
+            n_shots=n_shots,
+            sample_shots=sample_shots,
+            seed=seed,
+            optimizer=optimizer,
+            delta_t=delta_t,
+            noise_config=noise_config,
+        )
     )
 
     best_bitstring = (
-        samples.most_probable() if samples else "0" * n_qubits_total
+        final_samples.most_probable() if final_samples else "0" * n_qubits_total
     )
     best_sequence = bitstring_to_qudit_sequence(
         best_bitstring, n_qudits, qubits_per_qudit
@@ -398,7 +426,8 @@ def run_qaoa(
     return {
         "energy": best_energy,
         "params": best_params,
-        "samples": samples,
+        "initial_samples": initial_samples,
+        "final_samples": final_samples,
         "best_bitstring": best_bitstring,
         "best_sequence": best_sequence,
         "initial_energy": initial_energy,

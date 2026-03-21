@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import synthetic_tqudo_tensors as _synthetic_tqudo_tensors
 
 cirq = pytest.importorskip("cirq")
 
@@ -41,27 +42,6 @@ measurement_to_qudit_sequence = _mod.measurement_to_qudit_sequence
 qudit_sequence_to_key = _mod.qudit_sequence_to_key
 run_qaoa = _mod.run_qaoa
 sample_solution = _mod.sample_solution
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _synthetic_tqudo_tensors(
-    n_qudits: int,
-    dimension: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Build small sparse tensors that exercise both local and long-range phases."""
-    Etab = np.zeros((n_qudits, dimension, dimension), dtype=float)
-    Ettprimeab = np.zeros(
-        (n_qudits, n_qudits, dimension, dimension),
-        dtype=float,
-    )
-    Etab[0, 0, dimension - 1] = 1.0
-    if n_qudits > 2:
-        Etab[1, min(1, dimension - 1), max(0, dimension - 2)] = 0.5
-        Ettprimeab[0, n_qudits - 1, dimension - 1, 0] = 0.75
-    return Etab, Ettprimeab
 
 
 # ---------------------------------------------------------------------------
@@ -280,15 +260,20 @@ class TestEvaluateCost:
 
     @pytest.mark.parametrize("d", [2, 4])
     def test_evaluate_cost_returns_float(self, d: int) -> None:
+        from instance_gen_process.models import ProblemTQUDO
+        from solvers.cirq_solver.noise_model import get_simulator
+
         Etab, Ettprimeab = _synthetic_tqudo_tensors(n_qudits=3, dimension=d)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
             depth=1, Etab=Etab, Ettprimeab=Ettprimeab
         )
+        problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
+        simulator, _ = get_simulator(None, qudit_dimension=dimension, seed=42)
+        circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
         params = np.array([0.3, 0.2])
         val = evaluate_cost(
-            params, circuit, Etab, Ettprimeab, symbols, 1,
-            qudits, n_qudits, dimension,
-            n_shots=20, seed=42,
+            params, circuit_with_measure, problem, symbols, 1,
+            n_qudits, 20, simulator,
         )
         assert isinstance(val, float)
 
@@ -322,7 +307,6 @@ class TestRunQaoa:
 
     def test_run_qaoa_with_real_instance(self) -> None:
         """Use generate_TQUDO_from_problem for a realistic smoke test."""
-        import random
         from instance_gen_process import InstanceConfig, generate_random_instance, generate_TQUDO_from_problem
         from instance_gen_process.models import RestrictionConfig
 
@@ -333,8 +317,7 @@ class TestRunQaoa:
             prices_range_travels=(1.0, 2.0),
             seed=17,
         )
-        rng = random.Random(config.seed)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, config.seed)
         problem = generate_TQUDO_from_problem(
             instance,
             RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0),
