@@ -19,14 +19,9 @@ Design notes
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import cudaq
 
 from solvers.noise import NoiseConfig
-
-if TYPE_CHECKING:
-    pass
 
 
 # Gate names that typically receive single-qubit noise.
@@ -44,30 +39,55 @@ _DEFAULT_SINGLE_QUBIT_GATES: tuple[str, ...] = (
     "t",
 )
 
-# Gate names for two-qubit noise (CNOT, CZ, etc.).
-_DEFAULT_TWO_QUBIT_GATES: tuple[str, ...] = (
-    "cx",
-    "cz",
-    "swap",
+# Depolarizing after controlled gates: CUDA-Q expects the *base* op name plus
+# ``num_controls``, not composite names like ``cx`` / ``cz`` (those raise
+# ``Invalid quantum op for noise_model::add_channel`` on current targets).
+_DEFAULT_TWO_QUBIT_NOISE: tuple[tuple[str, int], ...] = (
+    ("x", 1),  # CNOT, ``x.ctrl``, ``cx`` in kernels
+    ("z", 1),  # CZ, ``z.ctrl``
 )
+
+# Map :class:`NoiseConfig` / YAML ``gate_noise`` keys to CUDA-Q (op, num_controls).
+_TWO_QUBIT_GATE_NOISE_ALIASES: dict[str, tuple[str, int]] = {
+    "cx": ("x", 1),
+    "cnot": ("x", 1),
+    "cz": ("z", 1),
+    "swap": ("swap", 0),
+}
 
 
 def _make_channel(noise_type: str, probability: float) -> cudaq.KrausChannel:
     """Create a single CUDA-Q noise channel from a type name and probability.
 
+    Channel constructors are resolved lazily so one missing symbol (e.g. across
+    CUDA-Q versions) does not break unrelated noise types.  Phase dephasing is
+    ``cudaq.PhaseDamping`` in current releases; older builds used
+    ``PhaseDampingChannel`` when present.
+
     Raises:
         ValueError: If ``noise_type`` is not recognized.
     """
-    factories: dict[str, type] = {
-        "depolarizing": cudaq.DepolarizationChannel,
-        "amplitude_damping": cudaq.AmplitudeDampingChannel,
-        "phase_damping": cudaq.PhaseDampingChannel,
-        "bit_flip": cudaq.BitFlipChannel,
-        "phase_flip": cudaq.PhaseFlipChannel,
-    }
-    factory = factories.get(noise_type)
+    if noise_type == "depolarizing":
+        return cudaq.DepolarizationChannel(probability)
+    if noise_type == "amplitude_damping":
+        return cudaq.AmplitudeDampingChannel(probability)
+    if noise_type == "phase_damping":
+        legacy = getattr(cudaq, "PhaseDampingChannel", None)
+        if legacy is not None:
+            return legacy(probability)
+        return cudaq.PhaseDamping(probability)
+    if noise_type == "bit_flip":
+        return cudaq.BitFlipChannel(probability)
+    if noise_type == "phase_flip":
+        return cudaq.PhaseFlipChannel(probability)
+    raise ValueError(f"Unknown noise type for CUDA-Q: {noise_type!r}")
+
+
+def _two_qubit_depolarizing_channel(probability: float) -> cudaq.KrausChannel | None:
+    """2-qubit depolarizing Kraus ops for controlled gates (dim 4).  Returns ``None`` if unsupported."""
+    factory = getattr(cudaq, "Depolarization2", None)
     if factory is None:
-        raise ValueError(f"Unknown noise type for CUDA-Q: {noise_type!r}")
+        return None
     return factory(probability)
 
 
@@ -84,15 +104,33 @@ def build_noise_model(config: NoiseConfig) -> cudaq.NoiseModel:
     noise = cudaq.NoiseModel()
 
     # Apply per-gate overrides first, then the default to remaining gates.
-    overridden_gates: set[str] = set()
+    overridden_single: set[str] = set()
+    overridden_two_qubit: set[tuple[str, int]] = set()
     for gate_name, gate_prob in config.gate_noise.items():
+        alias = _TWO_QUBIT_GATE_NOISE_ALIASES.get(gate_name)
+        if alias is not None:
+            op, num_controls = alias
+            if config.noise_type != "depolarizing":
+                # Non-depolarizing channels have no standard 2-qubit generalisation;
+                # skip them here just as the default two-qubit path does below.
+                continue
+            channel = _two_qubit_depolarizing_channel(gate_prob)
+            if channel is None:
+                continue
+            try:
+                noise.add_all_qubit_channel(op, channel, num_controls=num_controls)
+            except RuntimeError:
+                # e.g. ``swap`` not supported as a noise hook on some targets
+                continue
+            overridden_two_qubit.add((op, num_controls))
+            continue
         channel = _make_channel(config.noise_type, gate_prob)
         noise.add_all_qubit_channel(gate_name, channel)
-        overridden_gates.add(gate_name)
+        overridden_single.add(gate_name)
 
     # Default probability for all single-qubit gates not explicitly overridden.
     for gate_name in _DEFAULT_SINGLE_QUBIT_GATES:
-        if gate_name not in overridden_gates:
+        if gate_name not in overridden_single:
             channel = _make_channel(config.noise_type, config.probability)
             noise.add_all_qubit_channel(gate_name, channel)
 
@@ -105,10 +143,13 @@ def build_noise_model(config: NoiseConfig) -> cudaq.NoiseModel:
     # See the NoiseConfig docstring in solvers/noise.py for the full
     # cross-backend comparison.
     if config.noise_type == "depolarizing":
-        for gate_name in _DEFAULT_TWO_QUBIT_GATES:
-            if gate_name not in overridden_gates:
-                two_q_channel = cudaq.DepolarizationChannel(config.probability)
-                noise.add_all_qubit_channel(gate_name, two_q_channel, num_controls=1)
+        two_q_channel = _two_qubit_depolarizing_channel(config.probability)
+        if two_q_channel is not None:
+            for op, num_controls in _DEFAULT_TWO_QUBIT_NOISE:
+                if (op, num_controls) not in overridden_two_qubit:
+                    noise.add_all_qubit_channel(
+                        op, two_q_channel, num_controls=num_controls
+                    )
 
     return noise
 
