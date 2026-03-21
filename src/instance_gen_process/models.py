@@ -18,12 +18,22 @@ class InstanceConfig:
 
 @dataclass(frozen=True, slots=True)
 class ProblemInstance:
-    """Canonical in-memory problem representation consumed by solvers."""
+    """Canonical in-memory problem representation consumed by solvers.
+
+    Attributes:
+        n_cities: Total number of cities (including the depot).
+        precedences: List of (origin, destination) precedence pairs.
+        prices_hotels: 2D array of hotel prices (n_available x n_available).
+        prices_travels: 3D array of travel prices (n_cities x n_cities x n_cities).
+        seed: Integer seed used to generate this instance. Store it to allow
+            exact reproduction via ``generate_random_instance(config, seed)``.
+    """
 
     n_cities: int
     precedences: list[tuple[int, int]]
-    prices_hotels: np.ndarray # 2 dimensions
-    prices_travels: np.ndarray # 3 dimensions
+    prices_hotels: np.ndarray  # 2 dimensions
+    prices_travels: np.ndarray  # 3 dimensions
+    seed: int = 0
 
 @dataclass(frozen=True, slots=True)
 class ProblemTQUDO:

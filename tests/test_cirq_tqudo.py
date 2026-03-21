@@ -322,7 +322,6 @@ class TestRunQaoa:
 
     def test_run_qaoa_with_real_instance(self) -> None:
         """Use generate_TQUDO_from_problem for a realistic smoke test."""
-        import random
         from instance_gen_process import InstanceConfig, generate_random_instance, generate_TQUDO_from_problem
         from instance_gen_process.models import RestrictionConfig
 
@@ -333,8 +332,7 @@ class TestRunQaoa:
             prices_range_travels=(1.0, 2.0),
             seed=17,
         )
-        rng = random.Random(config.seed)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, config.seed)
         problem = generate_TQUDO_from_problem(
             instance,
             RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0),

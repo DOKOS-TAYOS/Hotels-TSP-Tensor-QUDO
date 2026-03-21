@@ -1,7 +1,5 @@
 """Tests for instance config loading and generation."""
 
-import random
-
 import pytest
 
 from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
@@ -26,8 +24,7 @@ def test_load_instance_config_and_generate() -> None:
         )
 
         config = load_instance_config(config_path)
-        rng = random.Random(config.seed)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, config.seed)
 
         assert config.n_cities == 5
         assert config.n_precedences_range == (2, 5)
@@ -105,8 +102,7 @@ def test_load_instance_config_accepts_valid_precedence_upper_bound_edge_case() -
         )
 
         config = load_instance_config(config_path)
-        rng = random.Random(config.seed)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, config.seed)
 
         assert config.n_precedences_range == (0, 6)
         assert len(instance.precedences) <= 6
@@ -132,8 +128,7 @@ def test_load_instance_config_accepts_fixed_ranges_for_deterministic_experiments
         )
 
         config = load_instance_config(config_path)
-        rng = random.Random(config.seed)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, config.seed)
 
         assert config.n_precedences_range == (2, 2)
         assert config.prices_range_hotels == (30.0, 30.0)

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import random
-
 import numpy as np
 import pytest
 
@@ -67,8 +65,7 @@ def test_cudaq_tqudo_qaoa_runs_on_cpu_simulator_when_target_is_overridden(
         prices_range_travels=(1.0, 2.0),
         seed=17,
     )
-    rng = random.Random(config.seed)
-    instance = generate_random_instance(config, rng)
+    instance = generate_random_instance(config, config.seed)
     # Keep the simulator override local to this test so solver runtime still requires GPU.
     monkeypatch.setattr(
         qaoa_circuit_tqudo,

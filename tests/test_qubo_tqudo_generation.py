@@ -223,7 +223,6 @@ class TestTQUDOGeneration:
 
     def test_tqudo_cost_matches_real_cost_no_penalties(self) -> None:
         """With zero penalties, TQUDO cost should equal real cost for feasible routes."""
-        import random
         config = InstanceConfig(
             n_cities=5,
             n_precedences_range=(0, 0),
@@ -231,8 +230,7 @@ class TestTQUDOGeneration:
             prices_range_travels=(10.0, 50.0),
             seed=42,
         )
-        rng = random.Random(42)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, 42)
         restriction = _zero_penalty_restriction()
         tqudo = generate_TQUDO_from_problem(instance, restriction)
 
@@ -284,7 +282,6 @@ class TestCrossFormulationConsistency:
     def test_qubo_and_tqudo_agree_on_best_route(self) -> None:
         """Both formulations should identify the same optimal feasible route."""
         import itertools
-        import random
 
         config = InstanceConfig(
             n_cities=4,
@@ -293,8 +290,7 @@ class TestCrossFormulationConsistency:
             prices_range_travels=(10.0, 100.0),
             seed=123,
         )
-        rng = random.Random(123)
-        instance = generate_random_instance(config, rng)
+        instance = generate_random_instance(config, 123)
         restriction = _high_penalty_restriction()
 
         qubo = generate_QUBO_from_problem(instance, restriction)

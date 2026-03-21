@@ -1,6 +1,5 @@
 """Tests for solver scaffolds and expected contract behavior."""
 
-import random
 import warnings
 
 import pytest
@@ -42,8 +41,7 @@ def test_cudaq_solver_requires_nvidia_gpu(
     from solvers.cudaq_solver import cudaq_target
 
     instance_config = _cudaq_qubo_test_config() if formulation == "qubo" else _contract_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
+    instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         formulation=formulation,
         qaoa_depth=1,
@@ -73,8 +71,7 @@ def test_cudaq_solver_contract_qubo_on_nvidia_gpu() -> None:
         pytest.skip("CUDA-Q NVIDIA target unavailable in this environment")
 
     instance_config = _cudaq_qubo_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
+    instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         formulation="qubo",
         qaoa_depth=1,
@@ -103,8 +100,7 @@ def test_cudaq_solver_contract_tqudo_on_nvidia_gpu() -> None:
         pytest.skip("CUDA-Q NVIDIA target unavailable in this environment")
 
     instance_config = _contract_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
+    instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         formulation="tqudo",
         qaoa_depth=1,
@@ -131,8 +127,7 @@ def test_cirq_solver_contract(formulation: str) -> None:
     """CirqSolver is implemented and returns SolverResult."""
     pytest.importorskip("cirq")
     instance_config = _contract_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
+    instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         max_iterations=10,
         formulation=formulation,
@@ -161,8 +156,7 @@ def test_cirq_solver_contract(formulation: str) -> None:
 def test_simulated_annealing_solver_contract() -> None:
     """SimulatedAnnealingSolver is implemented and returns SolverResult."""
     instance_config = _contract_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
+    instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         max_iterations=100,
         timeout_seconds=5.0,
@@ -191,8 +185,7 @@ def test_simulated_annealing_works_with_both_formulations(
 ) -> None:
     """SA solver runs with both TQUDO and QUBO formulations."""
     instance_config = _contract_test_config()
-    rng = random.Random(instance_config.seed)
-    instance = generate_random_instance(instance_config, rng)
+    instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         max_iterations=50,
         formulation=formulation,
