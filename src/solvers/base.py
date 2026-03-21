@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
-from instance_gen_process import ProblemInstance
-from instance_gen_process.models import RestrictionConfig
+from instance_gen_process.models import ProblemInstance, RestrictionConfig
+
+if TYPE_CHECKING:
+    from solvers.noise import NoiseConfig
 
 
 OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
@@ -22,13 +24,20 @@ class SolverRunConfig:
     restriction_config: RestrictionConfig | None = None
     qaoa_depth: int = 1
     qaoa_max_iter: int = 100
-    # Shots per objective evaluation for sampling-based QAOA (for example TQUDO).
+    # Shots per objective evaluation for all sampling-based QAOA backends
+    # (both TQUDO and QUBO formulations).
     qaoa_shots: int = 500
     # Shots used to sample the final candidate solution for any QAOA backend.
     qaoa_sample_shots: int = 1000
     seed: int | None = None
     optimizer: OptimizerType = "COBYLA"
     delta_t: float = 0.55
+    # Noise simulation (optional, disabled by default)
+    noise_config: NoiseConfig = field(default_factory=lambda: __import__('solvers.noise', fromlist=['NoiseConfig']).NoiseConfig())
+    # Simulated annealing parameters
+    sa_t_initial: float = 1000.0    # Initial temperature
+    sa_t_final: float = 1e-6        # Final (minimum) temperature
+    sa_alpha: float = 0.995         # Geometric cooling factor (T *= alpha each step)
 
 
 @dataclass(frozen=True, slots=True)

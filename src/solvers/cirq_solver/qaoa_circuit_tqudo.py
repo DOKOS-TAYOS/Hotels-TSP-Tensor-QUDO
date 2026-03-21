@@ -44,6 +44,8 @@ from scipy.linalg import expm
 import cirq
 
 from instance_gen_process.models import ProblemTQUDO
+from solvers.cirq_solver.noise_model import get_simulator
+from solvers.noise import NoiseConfig
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
 
@@ -60,7 +62,8 @@ class QuditHadamardGate(cirq.Gate):
     """d-dimensional Hadamard: maps |0⟩ → (1/√d) Σ_k |k⟩.
 
     Unitary is the d×d Discrete Fourier Transform matrix
-    F_d[j,k] = ω^{jk}/√d  with ω = e^{2πi/d}.
+    F_d[j,k] = e^{−2πi jk/d} / √d  (np.fft.fft convention).
+    For d = 2 this is the standard Hadamard H (up to global phase).
     """
 
     def __init__(self, dimension: int) -> None:
@@ -408,6 +411,7 @@ def evaluate_cost(
     dimension: int,
     n_shots: int = 1000,
     seed: int | None = None,
+    noise_config: NoiseConfig | None = None,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging TQUDO cost.
 
@@ -416,7 +420,11 @@ def evaluate_cost(
     """
     resolver = _param_resolver(params, symbols, depth)
     circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
-    simulator = cirq.Simulator(seed=seed)
+    simulator, noise_model = get_simulator(
+        noise_config, qudit_dimension=dimension, seed=seed,
+    )
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
@@ -440,14 +448,20 @@ def sample_solution(
     qudits: list[cirq.Qid],
     n_shots: int = 1000,
     seed: int | None = None,
+    noise_config: NoiseConfig | None = None,
 ) -> dict[str, int]:
     """Sample qudit sequences from the QAOA state.
 
     Returns dict  { "0-3-1": count, … }  using dash-separated qudit-value keys.
     """
+    dimension = qudits[0].dimension if qudits else 2
     resolver = _param_resolver(params, symbols, depth)
     circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
-    simulator = cirq.Simulator(seed=seed)
+    simulator, noise_model = get_simulator(
+        noise_config, qudit_dimension=dimension, seed=seed,
+    )
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     counts: dict[str, int] = {}
@@ -480,10 +494,9 @@ def optimize_qaoa(
     seed: int | None = None,
     optimizer: str = "COBYLA",
     delta_t: float = 0.55,
+    noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the TQUDO cost."""
-    rng = np.random.default_rng(seed)
-
     circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
         depth, Etab, Ettprimeab
     )
@@ -502,6 +515,7 @@ def optimize_qaoa(
             x, circuit, Etab, Ettprimeab, symbols, depth,
             qudits, n_qudits, dimension,
             n_shots=n_shots, seed=seed,
+            noise_config=noise_config,
         )
         energy_history.append(val)
         return val
@@ -510,6 +524,7 @@ def optimize_qaoa(
         init_params, circuit, Etab, Ettprimeab, symbols, depth,
         qudits, n_qudits, dimension,
         n_shots=n_shots, seed=seed,
+        noise_config=noise_config,
     )
 
     opt_result = minimize(
@@ -525,6 +540,7 @@ def optimize_qaoa(
         samples = sample_solution(
             circuit, best_params, symbols, depth, qudits,
             n_shots=sample_shots, seed=seed,
+            noise_config=noise_config,
         )
     return best_energy, best_params, samples, initial_energy, energy_history
 
@@ -544,6 +560,7 @@ def run_qaoa(
     seed: int | None = None,
     optimizer: str = "COBYLA",
     delta_t: float = 0.55,
+    noise_config: NoiseConfig | None = None,
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution."""
     n_qudits = Etab.shape[0]
@@ -558,6 +575,7 @@ def run_qaoa(
         seed=seed,
         optimizer=optimizer,
         delta_t=delta_t,
+        noise_config=noise_config,
     )
 
     best_key = _most_probable(samples, n_qudits) if samples else "-".join(["0"] * n_qudits)

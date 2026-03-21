@@ -108,7 +108,9 @@ Creates the d-dimensional uniform superposition:
 $$|+_d\rangle = \frac{1}{\sqrt{d}} \sum_{k=0}^{d-1} |k\rangle$$
 
 The unitary is the $d \times d$ DFT matrix:
-$F_d[j,k] = \omega^{jk} / \sqrt{d}$, with $\omega = e^{2\pi i / d}$.
+$F_d[j,k] = \omega^{-jk} / \sqrt{d}$, with $\omega = e^{2\pi i / d}$
+(equivalently $F_d[j,k] = e^{-2\pi i\, jk/d} / \sqrt{d}$, matching the
+``np.fft.fft(…, norm="ortho")`` convention used in the code).
 For $d = 2$ this is the standard Hadamard $H$ (up to global phase).
 
 ### Cost layer — `QuditDiagonalCostGate`

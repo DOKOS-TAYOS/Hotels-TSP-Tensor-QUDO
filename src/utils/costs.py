@@ -14,6 +14,11 @@ def calculate_qubo_cost(problem: ProblemQUBO, solution: np.ndarray) -> float:
     both the real cost terms and the penalty terms for constraint violations.
     See docs/formulations.md for the cost equations.
 
+    .. note:: For feasible solutions the QUBO cost differs from the real
+       travel+hotel cost by a constant offset:
+       ``QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available``.
+       Use :func:`calculate_real_cost` for formulation-independent comparisons.
+
     Args:
         problem: The QUBO problem with qubo_matrix.
         solution: Binary solution vector of shape (n_vars,) or (n_vars, 1).
@@ -32,6 +37,9 @@ def calculate_tqudo_cost(
     """Calculate the TQUDO cost of a solution.
 
     This is the objective value in the Tensor-QUDO formulation.
+    For feasible solutions (valid permutations) this equals the real
+    travel+hotel cost directly, unlike the QUBO formulation which
+    includes a constant penalty offset (see :func:`calculate_qubo_cost`).
     See docs/formulations.md for the cost equations.
 
     Args:
@@ -41,12 +49,12 @@ def calculate_tqudo_cost(
     Returns:
         The TQUDO cost value for the given solution.
     """
-    x = np.asarray(solution).flatten()
+    x = np.asarray(solution, dtype=int).flatten()
     cost = 0
     for t, origin in enumerate(x[:-1]):
-        destination = x[t+1]
+        destination = x[t + 1]
         cost += problem.Etab[t, origin, destination]
-        for tp, dest_tp in enumerate(x[t+1:]):
+        for tp, dest_tp in enumerate(x[t + 1:]):
             t_prime = t + 1 + tp
             cost += problem.Ettprimeab[t, t_prime, origin, dest_tp]
 

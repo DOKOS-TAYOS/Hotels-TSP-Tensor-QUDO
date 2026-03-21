@@ -13,6 +13,8 @@ from scipy.optimize import minimize
 import cirq
 
 from math_utils.qubo_ising import qubo_to_ising
+from solvers.cirq_solver.noise_model import get_simulator
+from solvers.noise import NoiseConfig
 from utils.optimizer import minimize_options
 
 
@@ -139,15 +141,31 @@ def _param_resolver(params: np.ndarray, symbols: dict[str, sympy.Symbol], depth:
 def evaluate_cost(
     params: np.ndarray,
     circuit: cirq.Circuit,
-    hamiltonian: cirq.PauliSum,
+    qubo_matrix: np.ndarray,
     symbols: dict[str, sympy.Symbol],
     depth: int,
+    qubits: list[cirq.Qid],
+    n_shots: int = 500,
+    seed: int | None = None,
+    noise_config: NoiseConfig | None = None,
 ) -> float:
-    """Evaluate the QAOA cost (expectation of H_C) at given parameters."""
+    """Evaluate the QAOA cost by sampling and averaging QUBO cost.
+
+    Uses the same sampling-based approach as the TQUDO backend so that
+    both formulations are compared on equal footing.
+    """
     resolver = _param_resolver(params, symbols, depth)
-    simulator = cirq.Simulator()
-    values = simulator.simulate_expectation_values(circuit, hamiltonian, param_resolver=resolver)
-    return _coerce_real_expectation(values)
+    circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
+    simulator, noise_model = get_simulator(noise_config, seed=seed)
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
+    result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
+
+    total = 0.0
+    for row in result.measurements["m"]:
+        x = row.astype(np.float64)
+        total += float(x @ qubo_matrix @ x)
+    return total / n_shots
 
 
 def sample_solution(
@@ -158,11 +176,14 @@ def sample_solution(
     qubits: list[cirq.Qid],
     n_shots: int = 1000,
     seed: int | None = None,
+    noise_config: NoiseConfig | None = None,
 ) -> dict[str, int]:
     """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
     resolver = _param_resolver(params, symbols, depth)
     circuit_with_measure = circuit + cirq.measure(*qubits, key="m")
-    simulator = cirq.Simulator(seed=seed)
+    simulator, noise_model = get_simulator(noise_config, seed=seed)
+    if noise_model is not None:
+        circuit_with_measure = circuit_with_measure.with_noise(noise_model)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
     # result.measurements['m'] is (n_shots, n_qubits)
@@ -177,22 +198,22 @@ def optimize_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
+    n_shots: int = 500,
     sample_shots: int | None = None,
     seed: int | None = None,
     optimizer: str = "COBYLA",
-    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
+    delta_t: float = 0.55,
+    noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian.
 
-    QUBO expectations are evaluated exactly with the simulator, so only
-    ``sample_shots`` is used for the final state sampling step.
+    Cost is evaluated by sampling ``n_shots`` bitstrings and averaging
+    x^T Q x, consistent with the TQUDO backend.  ``sample_shots`` controls
+    the final solution-sampling step.
     """
-    rng = np.random.default_rng(seed)
-
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
     qubits = list(cirq.LineQubit.range(n))
-    hamiltonian = ising_to_pauli_sum(h, j_matrix, qubits)
     circuit, symbols = create_qaoa_circuit(depth, h, j_matrix, qubits)
 
     # TQA (Trotterized Quantum Annealing) initialization:
@@ -205,11 +226,19 @@ def optimize_qaoa(
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
-        val = evaluate_cost(x, circuit, hamiltonian, symbols, depth)
+        val = evaluate_cost(
+            x, circuit, qubo_matrix, symbols, depth,
+            qubits, n_shots=n_shots, seed=seed,
+            noise_config=noise_config,
+        )
         energy_history.append(val)
         return val
 
-    initial_energy = evaluate_cost(init_params, circuit, hamiltonian, symbols, depth)
+    initial_energy = evaluate_cost(
+        init_params, circuit, qubo_matrix, symbols, depth,
+        qubits, n_shots=n_shots, seed=seed,
+        noise_config=noise_config,
+    )
 
     opt_result = minimize(
         cost_fn,
@@ -218,13 +247,12 @@ def optimize_qaoa(
         options=minimize_options(optimizer, max_iter),
     )
     best_params = opt_result.x
-    best_energy = float(opt_result.fun) + offset
-    initial_energy = initial_energy + offset
-    energy_history = [energy + offset for energy in energy_history]
+    best_energy = float(opt_result.fun)
     samples: dict[str, int] | None = None
     if sample_shots is not None:
         samples = sample_solution(
-            circuit, best_params, symbols, depth, qubits, sample_shots, seed
+            circuit, best_params, symbols, depth, qubits, sample_shots, seed,
+            noise_config=noise_config,
         )
     return best_energy, best_params, samples, initial_energy, energy_history
 
@@ -245,24 +273,29 @@ def run_qaoa(
     qubo_matrix: np.ndarray,
     depth: int = 1,
     max_iter: int = 100,
+    n_shots: int = 500,
     sample_shots: int = 1000,
     seed: int | None = None,
     optimizer: str = "COBYLA",
-    delta_t: float = 0.55, # se usa valor por defecto recomendado para grafo aleatorios probabilisticos en la referencia
+    delta_t: float = 0.55,
+    noise_config: NoiseConfig | None = None,
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
 
-    QUBO cost evaluation is exact in this backend, so ``sample_shots`` only
-    affects the final solution sampling step.
+    Cost evaluation uses ``n_shots`` samples per optimizer step (sampling-based,
+    consistent with the TQUDO backend).  ``sample_shots`` controls the final
+    solution-sampling step.
     """
     best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
         qubo_matrix,
         depth=depth,
         max_iter=max_iter,
+        n_shots=n_shots,
         sample_shots=sample_shots,
         seed=seed,
         optimizer=optimizer,
         delta_t=delta_t,
+        noise_config=noise_config,
     )
     n = qubo_matrix.shape[0]
     best_bitstring = _most_probable(samples, n) if samples else "0" * n

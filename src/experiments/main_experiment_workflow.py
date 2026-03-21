@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
 from solvers import CudaqSolver, CirqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverResult
+from solvers.noise import NoiseConfig
+from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
 from utils.output_paths import build_output_layout
 
@@ -54,6 +57,8 @@ def _to_json_serializable(obj: Any) -> Any:
         return {str(k): _to_json_serializable(v) for k, v in obj.items()}
     if hasattr(obj, "tolist"):
         return obj.tolist()
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return _to_json_serializable(dataclasses.asdict(obj))
     return obj
 
 
@@ -85,6 +90,7 @@ def run_workflow(
     instance_config_path: Path | str | None = None,
     solver_config_path: Path | str | None = None,
     output_root: Path | str | None = None,
+    settings: "Settings | None" = None,
 ) -> None:
     """Run the full experiment workflow.
 
@@ -94,6 +100,9 @@ def run_workflow(
         instance_config_path: Path to instance config YAML. Default: config.yaml.
         solver_config_path: Path to solver config YAML. Default: solver_config.yaml.
         output_root: Root directory for output. Default: output/ relative to cwd.
+        settings: Optional runtime settings.  When provided and
+            ``enable_noise_simulation`` is False, noise is forcibly disabled
+            regardless of the YAML config (environment kill-switch).
     """
     instance_config = load_instance_config(instance_config_path)
     solver_config_dict = load_solver_config(solver_config_path)
@@ -107,6 +116,15 @@ def run_workflow(
     )
 
     run_config = solver_config_to_run_config(solver_config_dict)
+
+    # --- Environment kill-switch (option B): if HTSP_ENABLE_NOISE_SIMULATION
+    # is explicitly set to false in the environment / .env file, override the
+    # YAML noise.enabled flag to guarantee noise is off.
+    if settings is not None and not settings.enable_noise_simulation:
+        if run_config.noise_config.enabled:
+            silenced = dataclasses.replace(run_config.noise_config, enabled=False)
+            run_config = dataclasses.replace(run_config, noise_config=silenced)
+
     solver = _get_solver(solver_config_dict["solver"])
 
     output_root_path = Path(output_root) if output_root else Path("output")
@@ -134,7 +152,7 @@ def run_workflow(
             "instance": _serialize_instance(instance),
             "instance_config": _serialize_instance_config(instance_config),
             "instance_index": i,
-            "solver_config": solver_config_serializable,
+            "solver_config": _to_json_serializable(solver_config_serializable),
             "solver_output": _serialize_solver_result(result),
         }
 
@@ -171,10 +189,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    settings = load_settings()
     run_workflow(
         instance_config_path=args.instance_config,
         solver_config_path=args.solver_config,
         output_root=args.output,
+        settings=settings,
     )
 
 

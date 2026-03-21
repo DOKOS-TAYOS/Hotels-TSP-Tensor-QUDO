@@ -14,3 +14,15 @@ qaoa_sample_shots: 1000  # shots for final solution sampling in QAOA backends
 seed: 42
 max_iterations: 1000
 timeout_seconds: null
+# Simulated annealing parameters
+sa_t_initial: 1000.0
+sa_t_final: 1.0e-6
+sa_alpha: 0.995
+# Noise simulation (optional, disabled by default)
+noise:
+  enabled: false
+  noise_type: depolarizing  # depolarizing | amplitude_damping | phase_damping | bit_flip | phase_flip
+  probability: 0.01
+  # gate_noise:  # optional per-gate probability overrides
+  #   x: 0.02
+  #   h: 0.005

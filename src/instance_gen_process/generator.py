@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import random
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from utils.constraints import idx, would_create_cycle
 from instance_gen_process.models import InstanceConfig, ProblemInstance, ProblemQUBO, ProblemTQUDO, RestrictionConfig
@@ -57,6 +60,13 @@ def generate_random_instance(config: InstanceConfig, rng: random.Random) -> Prob
             precedences.append((origin, destination))
         attempts += 1
 
+    if len(precedences) < n_precedences:
+        logger.warning(
+            "Could only generate %d of %d requested precedences after %d attempts "
+            "(n_cities=%d). The acyclic constraint may limit the feasible set.",
+            len(precedences), n_precedences, max_attempts, n_cities,
+        )
+
     np_rng = np.random.default_rng(rng.randint(0, 2**32 - 1))
     prices_hotels = np_rng.uniform(
         config.prices_range_hotels[0],
@@ -90,6 +100,10 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
+    # Shape (n_available, d, d) where d = n_available.  The first dimension
+    # doubles as the qudit count (n_qudits = n_available) even though only
+    # indices 0..n_available-2 carry cost data — the last slice is all-zero
+    # padding so that downstream code can infer n_qudits from Etab.shape[0].
     Etab = np.zeros((n_available, n_available, n_available), dtype=float)
 
     for t in range(n_available-1):
@@ -103,7 +117,16 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
                     Etab[t, origin, destination] += problem.prices_travels[n_available, destination, n_available]  # Closed loop
                     Etab[t, origin, destination] += problem.prices_hotels[n_available - 1, destination]
                 
-    # This may be changed to Tab if in the solver we take into acount that t'>t
+    # Same first-dimension convention as Etab: shape (n_available, n_available, d, d)
+    # so that Ettprimeab.shape[:2] matches Etab.shape[0] for n_qudits.
+    #
+    # NOTE: λ₀ (one-city-per-timestep) does NOT appear in Ettprimeab because
+    # the qudit encoding inherently enforces exactly one city per timestep —
+    # each qudit can only take a single value in {0, …, d-1}.  Only λ₁
+    # (one-timestep-per-city, i.e. no duplicate cities) and λ₂ (precedence)
+    # require explicit penalty terms.  In contrast, the QUBO formulation
+    # uses binary one-hot encoding and needs λ₀ to penalize multiple active
+    # bits per timestep.
     Ettprimeab = np.zeros((n_available, n_available, n_available, n_available), dtype=float)
     for t in range(n_available-1):
         for t_prime in range(t+1, n_available):
@@ -122,6 +145,19 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
 
     Encodes costs and constraint penalties into a quadratic matrix for x^T Q x.
     See docs/formulations.md for the cost equations.
+
+    .. note:: Objective value offset vs. TQUDO
+
+       For any **feasible** solution (valid permutation), the QUBO objective
+       includes a constant offset from the one-hot penalty linear terms::
+
+           QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available
+
+       The TQUDO objective equals ``real_cost`` directly (no offset) for
+       feasible solutions.  Therefore raw objective values from the two
+       formulations are **not** directly comparable.  Use
+       ``utils.costs.calculate_real_cost`` for formulation-independent
+       comparisons.
 
     Args:
         problem: Canonical problem with precedences and price matrices.
@@ -159,11 +195,11 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
             for j in range(n_available):
                 if i != j:
                     idx_tj = idx(t, j, n_available)
-                    qubo_matrix[idx_ti, idx_tj] += restriction.lambda_0 / 2
+                    qubo_matrix[idx_ti, idx_tj] += restriction.lambda_0
             for t_prime in range(n_available):
                 if t != t_prime:
                     idx_tp_i = idx(t_prime, i, n_available)
-                    qubo_matrix[idx_ti, idx_tp_i] += restriction.lambda_1 / 2
+                    qubo_matrix[idx_ti, idx_tp_i] += restriction.lambda_1
 
         for t_prime in range(t+1, n_available):
             for precedence in problem.precedences:

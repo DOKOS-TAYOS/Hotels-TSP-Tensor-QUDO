@@ -79,6 +79,7 @@ def test_cudaq_solver_contract_qubo_on_nvidia_gpu() -> None:
         formulation="qubo",
         qaoa_depth=1,
         qaoa_max_iter=4,
+        qaoa_shots=32,
         qaoa_sample_shots=32,
         seed=42,
     )

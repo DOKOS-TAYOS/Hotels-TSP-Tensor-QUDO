@@ -8,7 +8,6 @@ from typing import Any
 import yaml
 
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
-from solvers.base import SolverRunConfig
 
 
 DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
@@ -49,17 +48,31 @@ def validate_solver_instance_compatibility(
     instance_config: InstanceConfig,
     solver_config: dict[str, Any],
 ) -> None:
-    """Validate constraints that depend on both instance and solver configuration."""
+    """Validate constraints that depend on both instance and solver configuration.
+
+    The native-qudit Cirq backend (``qaoa_circuit_tqudo.py``) supports
+    arbitrary qudit dimensions, so the power-of-two restriction only
+    applies to qubit-emulation backends (CUDA-Q, simulated annealing,
+    and the Cirq qubit-emulation variant).
+    """
     formulation = solver_config.get("formulation", "tqudo")
 
     if formulation != "tqudo":
         return
 
+    solver = solver_config.get("solver", "cudaq")
+
+    # The native-qudit Cirq backend supports arbitrary dimensions;
+    # only qubit-emulation backends need power-of-two.
+    if solver == "cirq":
+        return
+
     n_available = instance_config.n_cities - 1
     if not _is_power_of_two(n_available):
         raise ValueError(
-            "Tensor-QUDO with qubit-emulation backends requires n_cities - 1 to be a power of two. "
-            "The native-qudit Cirq backend supports arbitrary dimensions. "
+            f"Tensor-QUDO with solver '{solver}' (qubit-emulation) requires "
+            "n_cities - 1 to be a power of two. "
+            "Use solver='cirq' (native qudits) for arbitrary dimensions. "
             f"Got n_cities={instance_config.n_cities} (n_cities - 1 = {n_available})."
         )
 
@@ -73,9 +86,11 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     Returns:
         Dict with keys: n_instances, solver, formulation, optimizer, restriction,
         qaoa_depth, qaoa_max_iter, qaoa_shots, qaoa_sample_shots, seed,
-        max_iterations, timeout_seconds. restriction is a RestrictionConfig.
-        qaoa_shots controls objective-evaluation shots for sampling-based QAOA
-        backends, while qaoa_sample_shots controls final solution sampling.
+        max_iterations, timeout_seconds, sa_t_initial, sa_t_final, sa_alpha.
+        restriction is a RestrictionConfig.
+        qaoa_shots controls objective-evaluation shots for all sampling-based
+        QAOA backends (both QUBO and TQUDO formulations), while
+        qaoa_sample_shots controls final solution sampling.
 
     Raises:
         ValueError: If required fields are missing or invalid.
@@ -131,7 +146,42 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     if timeout_seconds is not None:
         timeout_seconds = float(timeout_seconds)
 
+    sa_t_initial = float(data.get("sa_t_initial", 1000.0))
+    if sa_t_initial <= 0:
+        raise ValueError("sa_t_initial must be positive")
+    sa_t_final = float(data.get("sa_t_final", 1e-6))
+    if sa_t_final <= 0:
+        raise ValueError("sa_t_final must be positive")
+    if sa_t_final >= sa_t_initial:
+        raise ValueError("sa_t_final must be less than sa_t_initial")
+    sa_alpha = float(data.get("sa_alpha", 0.995))
+    if not (0 < sa_alpha < 1):
+        raise ValueError("sa_alpha must be between 0 and 1 (exclusive)")
+
     _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
+
+    # --- Noise configuration (optional) ---
+    from solvers.noise import NoiseConfig, VALID_NOISE_TYPES
+
+    noise_data = data.get("noise") or {}
+    noise_enabled = bool(noise_data.get("enabled", False))
+    noise_type = noise_data.get("noise_type", "depolarizing")
+    if noise_type not in VALID_NOISE_TYPES:
+        raise ValueError(
+            f"noise.noise_type must be one of {sorted(VALID_NOISE_TYPES)}, "
+            f"got: {noise_type!r}"
+        )
+    noise_probability = float(noise_data.get("probability", 0.01))
+    if not 0.0 <= noise_probability <= 1.0:
+        raise ValueError(f"noise.probability must be in [0, 1], got {noise_probability}")
+    gate_noise_raw = noise_data.get("gate_noise") or {}
+    gate_noise = {str(k): float(v) for k, v in gate_noise_raw.items()}
+    noise_config = NoiseConfig(
+        enabled=noise_enabled,
+        noise_type=noise_type,  # type: ignore[arg-type]
+        probability=noise_probability,
+        gate_noise=gate_noise,
+    )
 
     return {
         "n_instances": n_instances,
@@ -146,11 +196,18 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         "seed": seed,
         "max_iterations": max_iterations,
         "timeout_seconds": timeout_seconds,
+        "sa_t_initial": sa_t_initial,
+        "sa_t_final": sa_t_final,
+        "sa_alpha": sa_alpha,
+        "noise_config": noise_config,
     }
 
 
-def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
+def solver_config_to_run_config(config: dict[str, Any]) -> "SolverRunConfig":
     """Build SolverRunConfig from a loaded solver config dict."""
+    from solvers.base import SolverRunConfig
+    from solvers.noise import NoiseConfig
+
     return SolverRunConfig(
         max_iterations=config["max_iterations"],
         timeout_seconds=config["timeout_seconds"],
@@ -162,4 +219,8 @@ def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
         qaoa_sample_shots=config["qaoa_sample_shots"],
         seed=config["seed"],
         optimizer=config["optimizer"],
+        noise_config=config.get("noise_config", NoiseConfig()),
+        sa_t_initial=config["sa_t_initial"],
+        sa_t_final=config["sa_t_final"],
+        sa_alpha=config["sa_alpha"],
     )

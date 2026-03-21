@@ -80,8 +80,11 @@ def load_instance_config(path: Path | str | None = None) -> InstanceConfig:
     if "n_cities" not in data:
         raise ValueError("Missing required field: n_cities")
     n_cities = int(data["n_cities"])
-    if n_cities < 2:
-        raise ValueError("n_cities must be at least 2")
+    if n_cities < 3:
+        raise ValueError(
+            "n_cities must be at least 3 (depot + 2 available cities). "
+            "With n_cities=2 the TQUDO formulation degenerates to zero cost."
+        )
 
     n_precedences_range = _parse_int_range(
         data.get("n_precedences_range"), field_name="n_precedences_range"

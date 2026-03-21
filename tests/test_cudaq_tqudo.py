@@ -73,7 +73,7 @@ def test_cudaq_tqudo_qaoa_runs_on_cpu_simulator_when_target_is_overridden(
     monkeypatch.setattr(
         qaoa_circuit_tqudo,
         "ensure_cudaq_target",
-        lambda: cudaq.set_target("qpp-cpu"),
+        lambda noise_config=None: cudaq.set_target("qpp-cpu"),
     )
 
     problem = generate_TQUDO_from_problem(

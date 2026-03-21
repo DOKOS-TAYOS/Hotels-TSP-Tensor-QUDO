@@ -8,6 +8,7 @@ from instance_gen_process import ProblemInstance, generate_QUBO_from_problem, ge
 from instance_gen_process.models import RestrictionConfig
 from solvers.base import SolverResult, SolverRunConfig
 from utils.constraints import qubo_binary_to_sequence, validate_solution_constraints_qubo, validate_solution_constraints_tqudo
+from utils.costs import calculate_real_cost
 
 
 def _default_restriction() -> RestrictionConfig:
@@ -40,6 +41,10 @@ class CirqSolver:
             metadata["initial_energy"] = result["initial_energy"]
         if "energy_history" in result:
             metadata["energy_history"] = result["energy_history"]
+        if result["feasible"] and result.get("best_sequence") is not None:
+            metadata["real_cost"] = float(
+                calculate_real_cost(instance, result["best_sequence"])
+            )
         return SolverResult(
             solver_name=self.solver_name,
             objective_value=result["energy"],
@@ -68,6 +73,7 @@ class CirqSolver:
             seed=run_config.seed,
             optimizer=run_config.optimizer,
             delta_t=run_config.delta_t,
+            noise_config=run_config.noise_config,
         )
         best_sequence_array = raw["best_sequence"]
         best_sequence = best_sequence_array.tolist() if best_sequence_array is not None else None
@@ -98,10 +104,12 @@ class CirqSolver:
             problem.qubo_matrix,
             depth=run_config.qaoa_depth,
             max_iter=run_config.qaoa_max_iter,
+            n_shots=run_config.qaoa_shots,
             sample_shots=run_config.qaoa_sample_shots,
             seed=run_config.seed,
             optimizer=run_config.optimizer,
             delta_t=run_config.delta_t,
+            noise_config=run_config.noise_config,
         )
         n_available = instance.n_cities - 1
         best_binary = raw["best_binary"]
