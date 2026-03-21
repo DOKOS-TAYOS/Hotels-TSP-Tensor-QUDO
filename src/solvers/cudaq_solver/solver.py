@@ -102,13 +102,14 @@ class CudaqSolver:
         )
         depth = run_config.qaoa_depth
         params = raw["params"]
+        s = problem.energy_scale
         return {
-            "energy": float(raw["energy"]),
+            "energy": float(raw["energy"]) * s,
             "feasible": feasible,
             "best_sequence": best_sequence,
             "best_bitstring": raw["best_bitstring"],
-            "initial_energy": raw["initial_energy"],
-            "energy_history": raw["energy_history"],
+            "initial_energy": raw["initial_energy"] * s,
+            "energy_history": [e * s for e in raw["energy_history"]],
             "initial_samples": raw.get("initial_samples"),
             "final_samples": raw.get("final_samples"),
             "optimal_angles": {
@@ -147,14 +148,15 @@ class CudaqSolver:
         )
         depth = run_config.qaoa_depth
         params = raw["params"]
+        s = problem.energy_scale
         return {
-            "energy": float(raw["energy"]),
+            "energy": float(raw["energy"]) * s,
             "feasible": feasible,
             "best_sequence": best_sequence.tolist() if best_sequence is not None else None,
             "best_bitstring": raw["best_bitstring"],
             "best_binary": best_binary.tolist(),
-            "initial_energy": raw["initial_energy"],
-            "energy_history": raw["energy_history"],
+            "initial_energy": raw["initial_energy"] * s,
+            "energy_history": [e * s for e in raw["energy_history"]],
             "initial_samples": raw.get("initial_samples"),
             "final_samples": raw.get("final_samples"),
             "optimal_angles": {

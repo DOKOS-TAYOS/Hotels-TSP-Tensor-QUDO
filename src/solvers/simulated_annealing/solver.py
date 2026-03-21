@@ -79,11 +79,7 @@ def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndar
     n = len(sequence)
     if n < 3:
         return _swap_neighbor(sequence, rng)
-    i, j = sorted(rng.integers(0, n, size=2))
-    while i == j:
-        j = int(rng.integers(0, n))
-        if j < i:
-            i, j = j, i
+    i, j = sorted(rng.choice(n, size=2, replace=False))
     neighbor = sequence.copy()
     neighbor[i : j + 1] = neighbor[i : j + 1][::-1]
     return neighbor
