@@ -495,8 +495,15 @@ def optimize_qaoa(
     optimizer: str = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
-) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
-    """Optimize QAOA parameters to minimize the TQUDO cost."""
+) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
+    """Optimize QAOA parameters to minimize the TQUDO cost.
+
+    Returns:
+        Tuple of (best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history).
+        initial_samples: Qudit-sequence counts at TQA init params when sample_shots is set.
+        final_samples: Qudit-sequence counts at best_params when sample_shots is set.
+    """
     circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
         depth, Etab, Ettprimeab
     )
@@ -527,6 +534,14 @@ def optimize_qaoa(
         noise_config=noise_config,
     )
 
+    initial_samples: dict[str, int] | None = None
+    if sample_shots is not None:
+        initial_samples = sample_solution(
+            circuit, init_params, symbols, depth, qudits,
+            n_shots=sample_shots, seed=seed,
+            noise_config=noise_config,
+        )
+
     opt_result = minimize(
         cost_fn,
         init_params,
@@ -535,14 +550,14 @@ def optimize_qaoa(
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    samples: dict[str, int] | None = None
+    final_samples: dict[str, int] | None = None
     if sample_shots is not None:
-        samples = sample_solution(
+        final_samples = sample_solution(
             circuit, best_params, symbols, depth, qudits,
             n_shots=sample_shots, seed=seed,
             noise_config=noise_config,
         )
-    return best_energy, best_params, samples, initial_energy, energy_history
+    return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
 # ---------------------------------------------------------------------------
@@ -565,26 +580,29 @@ def run_qaoa(
     """Run full QAOA: optimize, sample, and return best solution."""
     n_qudits = Etab.shape[0]
 
-    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
-        Etab,
-        Ettprimeab,
-        depth=depth,
-        max_iter=max_iter,
-        n_shots=n_shots,
-        sample_shots=sample_shots,
-        seed=seed,
-        optimizer=optimizer,
-        delta_t=delta_t,
-        noise_config=noise_config,
+    best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
+        optimize_qaoa(
+            Etab,
+            Ettprimeab,
+            depth=depth,
+            max_iter=max_iter,
+            n_shots=n_shots,
+            sample_shots=sample_shots,
+            seed=seed,
+            optimizer=optimizer,
+            delta_t=delta_t,
+            noise_config=noise_config,
+        )
     )
 
-    best_key = _most_probable(samples, n_qudits) if samples else "-".join(["0"] * n_qudits)
+    best_key = _most_probable(final_samples, n_qudits) if final_samples else "-".join(["0"] * n_qudits)
     best_sequence = key_to_qudit_sequence(best_key)
 
     return {
         "energy": best_energy,
         "params": best_params,
-        "samples": samples,
+        "initial_samples": initial_samples,
+        "final_samples": final_samples,
         "best_bitstring": best_key,
         "best_sequence": best_sequence,
         "initial_energy": initial_energy,

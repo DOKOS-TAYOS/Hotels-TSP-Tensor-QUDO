@@ -16,6 +16,13 @@ def _default_restriction() -> RestrictionConfig:
     return RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0)
 
 
+def _sort_samples(samples: dict[str, int] | None) -> dict[str, int] | None:
+    """Sort a bitstring-count dict by count descending, or return None."""
+    if samples is None:
+        return None
+    return dict(sorted(samples.items(), key=lambda kv: kv[1], reverse=True))
+
+
 class CirqSolver:
     """Cirq solver using QAOA for TQUDO or QUBO formulations."""
 
@@ -41,6 +48,12 @@ class CirqSolver:
             metadata["initial_energy"] = result["initial_energy"]
         if "energy_history" in result:
             metadata["energy_history"] = result["energy_history"]
+        if "optimal_angles" in result:
+            metadata["optimal_angles"] = result["optimal_angles"]
+        if "initial_samples" in result:
+            metadata["initial_samples"] = _sort_samples(result["initial_samples"])
+        if "final_samples" in result:
+            metadata["final_samples"] = _sort_samples(result["final_samples"])
         if result["feasible"] and result.get("best_sequence") is not None:
             metadata["real_cost"] = float(
                 calculate_real_cost(instance, result["best_sequence"])
@@ -81,6 +94,8 @@ class CirqSolver:
             best_sequence is not None
             and validate_solution_constraints_tqudo(instance, best_sequence)
         )
+        depth = run_config.qaoa_depth
+        params = raw["params"]
         return {
             "energy": float(raw["energy"]),
             "feasible": feasible,
@@ -88,6 +103,12 @@ class CirqSolver:
             "best_bitstring": raw["best_bitstring"],
             "initial_energy": raw["initial_energy"],
             "energy_history": raw["energy_history"],
+            "initial_samples": raw.get("initial_samples"),
+            "final_samples": raw.get("final_samples"),
+            "optimal_angles": {
+                "gamma": params[:depth].tolist(),
+                "beta": params[depth:].tolist(),
+            },
         }
 
     def _solve_qubo(
@@ -118,6 +139,8 @@ class CirqSolver:
             best_sequence is not None
             and validate_solution_constraints_qubo(instance, best_binary)
         )
+        depth = run_config.qaoa_depth
+        params = raw["params"]
         return {
             "energy": float(raw["energy"]),
             "feasible": feasible,
@@ -126,4 +149,10 @@ class CirqSolver:
             "best_binary": best_binary.tolist(),
             "initial_energy": raw["initial_energy"],
             "energy_history": raw["energy_history"],
+            "initial_samples": raw.get("initial_samples"),
+            "final_samples": raw.get("final_samples"),
+            "optimal_angles": {
+                "gamma": params[:depth].tolist(),
+                "beta": params[depth:].tolist(),
+            },
         }

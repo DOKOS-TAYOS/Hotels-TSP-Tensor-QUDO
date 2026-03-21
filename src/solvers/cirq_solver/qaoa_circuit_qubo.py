@@ -204,12 +204,18 @@ def optimize_qaoa(
     optimizer: str = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
-) -> tuple[float, np.ndarray, dict[str, int] | None, float, list[float]]:
+) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
     """Optimize QAOA parameters to minimize the cost Hamiltonian.
 
     Cost is evaluated by sampling ``n_shots`` bitstrings and averaging
     x^T Q x, consistent with the TQUDO backend.  ``sample_shots`` controls
     the final solution-sampling step.
+
+    Returns:
+        Tuple of (best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history).
+        initial_samples: Bitstring counts at TQA init params when sample_shots is set.
+        final_samples: Bitstring counts at best_params when sample_shots is set.
     """
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
@@ -240,6 +246,13 @@ def optimize_qaoa(
         noise_config=noise_config,
     )
 
+    initial_samples: dict[str, int] | None = None
+    if sample_shots is not None:
+        initial_samples = sample_solution(
+            circuit, init_params, symbols, depth, qubits, sample_shots, seed,
+            noise_config=noise_config,
+        )
+
     opt_result = minimize(
         cost_fn,
         init_params,
@@ -248,13 +261,13 @@ def optimize_qaoa(
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    samples: dict[str, int] | None = None
+    final_samples: dict[str, int] | None = None
     if sample_shots is not None:
-        samples = sample_solution(
+        final_samples = sample_solution(
             circuit, best_params, symbols, depth, qubits, sample_shots, seed,
             noise_config=noise_config,
         )
-    return best_energy, best_params, samples, initial_energy, energy_history
+    return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
 def bitstring_to_binary(bitstring: str) -> np.ndarray:
@@ -286,24 +299,27 @@ def run_qaoa(
     consistent with the TQUDO backend).  ``sample_shots`` controls the final
     solution-sampling step.
     """
-    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
-        qubo_matrix,
-        depth=depth,
-        max_iter=max_iter,
-        n_shots=n_shots,
-        sample_shots=sample_shots,
-        seed=seed,
-        optimizer=optimizer,
-        delta_t=delta_t,
-        noise_config=noise_config,
+    best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
+        optimize_qaoa(
+            qubo_matrix,
+            depth=depth,
+            max_iter=max_iter,
+            n_shots=n_shots,
+            sample_shots=sample_shots,
+            seed=seed,
+            optimizer=optimizer,
+            delta_t=delta_t,
+            noise_config=noise_config,
+        )
     )
     n = qubo_matrix.shape[0]
-    best_bitstring = _most_probable(samples, n) if samples else "0" * n
+    best_bitstring = _most_probable(final_samples, n) if final_samples else "0" * n
 
     return {
         "energy": best_energy,
         "params": best_params,
-        "samples": samples,
+        "initial_samples": initial_samples,
+        "final_samples": final_samples,
         "best_bitstring": best_bitstring,
         "best_binary": bitstring_to_binary(best_bitstring),
         "initial_energy": initial_energy,

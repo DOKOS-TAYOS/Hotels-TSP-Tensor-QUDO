@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from instance_gen_process import ProblemInstance, generate_QUBO_from_problem, generate_TQUDO_from_problem
 from instance_gen_process.models import RestrictionConfig
@@ -14,6 +15,18 @@ from utils.costs import calculate_real_cost
 def _default_restriction() -> RestrictionConfig:
     """Default penalty coefficients for constraint encoding."""
     return RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0)
+
+
+def _serialize_samples(samples: Any) -> dict[str, int] | None:
+    """Convert a cudaq.SampleResult to a JSON-serializable dict.
+
+    Returns a mapping of bitstring -> count, or None if samples is None.
+    Sorted by count descending for readability.
+    """
+    if samples is None:
+        return None
+    counts: dict[str, int] = {bs: int(cnt) for bs, cnt in samples.items()}
+    return dict(sorted(counts.items(), key=lambda kv: kv[1], reverse=True))
 
 
 class CudaqSolver:
@@ -41,6 +54,12 @@ class CudaqSolver:
             metadata["initial_energy"] = result["initial_energy"]
         if "energy_history" in result:
             metadata["energy_history"] = result["energy_history"]
+        if "optimal_angles" in result:
+            metadata["optimal_angles"] = result["optimal_angles"]
+        if "initial_samples" in result:
+            metadata["initial_samples"] = _serialize_samples(result["initial_samples"])
+        if "final_samples" in result:
+            metadata["final_samples"] = _serialize_samples(result["final_samples"])
         if result["feasible"] and result.get("best_sequence") is not None:
             metadata["real_cost"] = float(
                 calculate_real_cost(instance, result["best_sequence"])
@@ -81,6 +100,8 @@ class CudaqSolver:
             best_sequence is not None
             and validate_solution_constraints_tqudo(instance, best_sequence)
         )
+        depth = run_config.qaoa_depth
+        params = raw["params"]
         return {
             "energy": float(raw["energy"]),
             "feasible": feasible,
@@ -88,6 +109,12 @@ class CudaqSolver:
             "best_bitstring": raw["best_bitstring"],
             "initial_energy": raw["initial_energy"],
             "energy_history": raw["energy_history"],
+            "initial_samples": raw.get("initial_samples"),
+            "final_samples": raw.get("final_samples"),
+            "optimal_angles": {
+                "gamma": params[:depth].tolist(),
+                "beta": params[depth:].tolist(),
+            },
         }
 
     def _solve_qubo(
@@ -118,6 +145,8 @@ class CudaqSolver:
             best_sequence is not None
             and validate_solution_constraints_qubo(instance, best_binary)
         )
+        depth = run_config.qaoa_depth
+        params = raw["params"]
         return {
             "energy": float(raw["energy"]),
             "feasible": feasible,
@@ -126,4 +155,10 @@ class CudaqSolver:
             "best_binary": best_binary.tolist(),
             "initial_energy": raw["initial_energy"],
             "energy_history": raw["energy_history"],
+            "initial_samples": raw.get("initial_samples"),
+            "final_samples": raw.get("final_samples"),
+            "optimal_angles": {
+                "gamma": params[:depth].tolist(),
+                "beta": params[depth:].tolist(),
+            },
         }

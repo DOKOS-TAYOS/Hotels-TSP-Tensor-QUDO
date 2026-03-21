@@ -250,7 +250,14 @@ def optimize_qaoa(
     optimizer: str = "COBYLA",
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
-) -> tuple[float, np.ndarray, "cudaq.SampleResult | None", float, list[float]]:
+) -> tuple[
+    float,
+    np.ndarray,
+    "cudaq.SampleResult | None",
+    "cudaq.SampleResult | None",
+    float,
+    list[float],
+]:
     """Optimize QAOA parameters to minimize the TQUDO cost.
 
     Args:
@@ -265,9 +272,11 @@ def optimize_qaoa(
         delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
-        Tuple of (best_energy, best_params, samples, initial_energy, energy_history).
+        Tuple of (best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history).
         best_params: [gamma_1..gamma_p, beta_1..beta_p].
-        samples: SampleResult when sample_shots is set, else None.
+        initial_samples: SampleResult at TQA init params when sample_shots is set, else None.
+        final_samples: SampleResult at best_params when sample_shots is set, else None.
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
     """
@@ -299,6 +308,13 @@ def optimize_qaoa(
         noise_config=noise_config,
     )
 
+    initial_samples: "cudaq.SampleResult | None" = None
+    if sample_shots is not None:
+        initial_samples = sample_solution(
+            kernel, init_params, depth, n_shots=sample_shots,
+            noise_config=noise_config,
+        )
+
     opt_result = minimize(
         cost_fn,
         init_params,
@@ -307,13 +323,13 @@ def optimize_qaoa(
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    samples: "cudaq.SampleResult | None" = None
+    final_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
-        samples = sample_solution(
+        final_samples = sample_solution(
             kernel, best_params, depth, n_shots=sample_shots,
             noise_config=noise_config,
         )
-    return best_energy, best_params, samples, initial_energy, energy_history
+    return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 
 
 def bitstring_to_qudit_sequence(
@@ -366,30 +382,34 @@ def run_qaoa(
         delta_t: Time step for TQA initialization (default 0.55).
 
     Returns:
-        Dict with keys: energy, params, samples, best_bitstring, best_sequence,
-        initial_energy, energy_history.
-        best_bitstring: Most frequent bitstring from sampling.
+        Dict with keys: energy, params, initial_samples, final_samples, best_bitstring,
+        best_sequence, initial_energy, energy_history.
+        initial_samples: SampleResult at TQA init params (before optimization).
+        final_samples: SampleResult at best params (after optimization).
+        best_bitstring: Most frequent bitstring from final_samples.
         best_sequence: Qudit sequence (route) from best_bitstring.
     """
     n_qudits = Etab.shape[0]
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
     n_qubits_total = n_qudits * qubits_per_qudit
 
-    best_energy, best_params, samples, initial_energy, energy_history = optimize_qaoa(
-        Etab,
-        Ettprimeab,
-        depth=depth,
-        max_iter=max_iter,
-        n_shots=n_shots,
-        sample_shots=sample_shots,
-        seed=seed,
-        optimizer=optimizer,
-        delta_t=delta_t,
-        noise_config=noise_config,
+    best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
+        optimize_qaoa(
+            Etab,
+            Ettprimeab,
+            depth=depth,
+            max_iter=max_iter,
+            n_shots=n_shots,
+            sample_shots=sample_shots,
+            seed=seed,
+            optimizer=optimizer,
+            delta_t=delta_t,
+            noise_config=noise_config,
+        )
     )
 
     best_bitstring = (
-        samples.most_probable() if samples else "0" * n_qubits_total
+        final_samples.most_probable() if final_samples else "0" * n_qubits_total
     )
     best_sequence = bitstring_to_qudit_sequence(
         best_bitstring, n_qudits, qubits_per_qudit
@@ -398,7 +418,8 @@ def run_qaoa(
     return {
         "energy": best_energy,
         "params": best_params,
-        "samples": samples,
+        "initial_samples": initial_samples,
+        "final_samples": final_samples,
         "best_bitstring": best_bitstring,
         "best_sequence": best_sequence,
         "initial_energy": initial_energy,
