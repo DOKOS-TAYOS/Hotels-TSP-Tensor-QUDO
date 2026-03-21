@@ -104,8 +104,13 @@ def load_settings(env_file: Path | str | None = None, project_root: Path | None 
             f"HTSP_RANDOM_SEED must be an integer, got {raw_seed!r}"
         ) from None
 
+    valid_backends: dict[str, BackendName] = {
+        "simulated_annealing": "simulated_annealing",
+        "cirq": "cirq",
+        "cudaq": "cudaq",
+    }
     return Settings(
-        quantum_backend=backend,  # type: ignore[arg-type]
+        quantum_backend=valid_backends[backend],
         output_dir=output_dir,
         input_dir=input_dir,
         instance_config_path=instance_config_path,

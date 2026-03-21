@@ -162,10 +162,8 @@ def run_workflow(
             break
         reporter.instance_start(i)
 
-        try:
-            validate_instance_constraints(instance)
-        except ValueError:
-            logger.exception("Instance %d failed validation — skipping.", i)
+        if not validate_instance_constraints(instance):
+            logger.warning("Instance %d failed validation — skipping.", i)
             n_failed += 1
             continue
 

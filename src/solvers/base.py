@@ -25,7 +25,7 @@ class SolverRunConfig:
 
     max_iterations: int = 1_000
     timeout_seconds: float | None = None
-    formulation: Literal["tqudo", "qubo"] = "tqudo"
+    formulation: Literal["qubo", "tqudo", "tqudo_virtual"] = "tqudo"
     restriction_config: RestrictionConfig | None = None
     qaoa_depth: int = 1
     qaoa_max_iter: int = 100

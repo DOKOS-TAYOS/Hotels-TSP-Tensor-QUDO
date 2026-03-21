@@ -22,19 +22,14 @@ Design notes
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 import cirq
 
 from solvers.noise import NoiseConfig
 
-if TYPE_CHECKING:
-    pass
 
-
-# Mapping from NoiseConfig.noise_type to a factory that returns a cirq gate
-# (a single-qubit channel).  Each factory takes (probability: float) -> cirq.Gate.
-_CHANNEL_FACTORIES: dict[str, type] = {
+_CHANNEL_FACTORIES: dict[str, Callable[[float], cirq.Gate]] = {
     "depolarizing": lambda p: cirq.depolarize(p=p),
     "amplitude_damping": lambda p: cirq.amplitude_damp(gamma=p),
     "phase_damping": lambda p: cirq.phase_damp(gamma=p),

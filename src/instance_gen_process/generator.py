@@ -93,7 +93,7 @@ def generate_random_instance(config: InstanceConfig, seed: int) -> ProblemInstan
 
     return ProblemInstance(
         n_cities=n_cities,
-        precedences=precedences,
+        precedences=tuple(precedences),
         prices_hotels=prices_hotels,
         prices_travels=prices_travels,
         seed=seed,

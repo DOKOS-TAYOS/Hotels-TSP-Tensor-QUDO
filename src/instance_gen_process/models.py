@@ -30,7 +30,7 @@ class ProblemInstance:
     """
 
     n_cities: int
-    precedences: list[tuple[int, int]]
+    precedences: tuple[tuple[int, int], ...]
     prices_hotels: np.ndarray  # 2 dimensions
     prices_travels: np.ndarray  # 3 dimensions
     seed: int = 0
