@@ -125,29 +125,22 @@ def validate_solver_instance_compatibility(
         )
 
 
-def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
-    """Load and validate solver config from YAML.
+def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalise a solver configuration mapping.
+
+    Same rules as :func:`load_solver_config` but accepts an already-loaded dict
+    (e.g. after merging experiment YAML with a base file). ``qaoa_depth`` must
+    be a scalar integer in *data*.
 
     Args:
-        path: Path to YAML config file. If None, uses DEFAULT_SOLVER_CONFIG_PATH.
+        data: Raw mapping (typically from YAML).
 
     Returns:
-        Dict with keys: n_instances, solver, formulation, optimizer, restriction,
-        qaoa_depth, qaoa_max_iter, qaoa_delta_t, qaoa_optimizer_tol, qaoa_shots,
-        qaoa_sample_shots, seed, max_iterations, timeout_seconds, sa_t_initial,
-        sa_t_final, sa_alpha.
-        restriction is a RestrictionConfig.
-        qaoa_shots controls objective-evaluation shots for all sampling-based
-        QAOA backends (both QUBO and TQUDO formulations), while
-        qaoa_sample_shots controls final solution sampling.
+        Normalised dict suitable for :func:`solver_config_to_run_config`.
 
     Raises:
         ValueError: If required fields are missing or invalid.
     """
-    config_path = Path(path) if path is not None else DEFAULT_SOLVER_CONFIG_PATH
-    with open(config_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-
     if "n_instances" not in data:
         raise ValueError("Missing required field: n_instances")
     n_instances = int(data["n_instances"])
@@ -260,8 +253,33 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     }
 
 
+def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
+    """Load and validate solver config from YAML.
+
+    Args:
+        path: Path to YAML config file. If None, uses DEFAULT_SOLVER_CONFIG_PATH.
+
+    Returns:
+        Dict with keys: n_instances, solver, formulation, optimizer, restriction,
+        qaoa_depth, qaoa_max_iter, qaoa_delta_t, qaoa_optimizer_tol, qaoa_shots,
+        qaoa_sample_shots, seed, max_iterations, timeout_seconds, sa_t_initial,
+        sa_t_final, sa_alpha.
+        restriction is a RestrictionConfig.
+        qaoa_shots controls objective-evaluation shots for all sampling-based
+        QAOA backends (both QUBO and TQUDO formulations), while
+        qaoa_sample_shots controls final solution sampling.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
+    config_path = Path(path) if path is not None else DEFAULT_SOLVER_CONFIG_PATH
+    with open(config_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    return parse_solver_config_dict(data)
+
+
 def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
-    """Map a dict from :func:`load_solver_config` to :class:`~solvers.base.SolverRunConfig`.
+    """Map a dict from :func:`load_solver_config` / :func:`parse_solver_config_dict` to run config.
 
     Args:
         config: Validated solver configuration dictionary.

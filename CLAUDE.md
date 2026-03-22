@@ -25,8 +25,9 @@ make -f scripts/makefile clean
 .venv/bin/python -m pytest tests/test_costs.py -v
 .venv/bin/python -m pytest tests/test_costs.py::test_name -v
 
-# Run experiment workflow
+# Run experiment workflow (default: legacy in-memory batch → timestamped JSON in output/raw/)
 .venv/bin/python -m experiments.main_experiment_workflow
+# Modes: --mode generate | cudaq | sa | cirq5 | experiment (see docs/development.md)
 ```
 
 ## Architecture
@@ -40,7 +41,9 @@ Use `utils.costs.calculate_real_cost()` for formulation-independent cost compari
 
 ### Data flow
 
-`config.yaml` + `solver_config.yaml` → `ProblemInstance` → formulation generation → solver → `SolverResult` → JSON in `output/raw/`
+**Legacy (`--mode legacy`, default):** `config.yaml` + `solver_config.yaml` → generate instances in memory → solver → JSON in `output/raw/` (`exp_<timestamp>_...`).
+
+**Disk workflow:** `src/experiments/instance_generation_config.yaml` + `config.yaml` → JSON instances under `output/raw/instances/n_<n_cities>/instance_<k>.json`. Each `src/experiments/experiment_*.yaml` merges with `solver_config.yaml` and writes solutions to `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<qaoa_depth>/]instance_<k>.json` (no `qaoa_depth` folder for simulated annealing).
 
 ### Solver backends (all implement `SolverProtocol`)
 
