@@ -1,0 +1,6 @@
+# Solver and experiment configuration
+n_cities: 9
+n_instances: 100
+solver: cudaq  # cudaq | cirq | simulated_annealing
+formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
+qaoa_depth: [1,2,3]
