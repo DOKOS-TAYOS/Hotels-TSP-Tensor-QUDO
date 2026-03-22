@@ -84,6 +84,7 @@ Default **legacy** mode matches the old behaviour: load `config.yaml` and `solve
 | `sa` | Preset simulated-annealing experiment YAMLs |
 | `cirq5` | Preset Cirq TQUDO n=5 experiment |
 | `experiment` | One or more YAMLs via `--experiment-yaml f1.yaml f2.yaml` (merged each with `solver_config.yaml`) |
+| `check_feasibility` | Scan `raw/solutions/<solver>/**/*.json` for one backend; print paths that are not feasible (requires `--check-solver cudaq|cirq|simulated_annealing`). Exit 0 if all OK, 1 if any bad, 2 if the solver folder is missing |
 
 Experiment modes read instances from `raw/instances/...` and write to `raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`. Run `generate` before experiment modes that need on-disk instances.
 
@@ -92,6 +93,7 @@ Experiment modes read instances from `raw/instances/...` and write to `raw/solut
 .venv/bin/python -m experiments.main_experiment_workflow --mode generate
 .venv/bin/python -m experiments.main_experiment_workflow --mode sa --output path/to/output
 .venv/bin/python -m experiments.main_experiment_workflow --mode experiment --experiment-yaml path/to/exp.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --mode check_feasibility --check-solver cudaq
 .venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --output path/to/output

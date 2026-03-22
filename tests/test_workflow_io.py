@@ -19,6 +19,7 @@ from experiments.workflow_io import (
     normalise_n_cities,
     serialize_problem_instance,
     solutions_raw_dir,
+    solutions_solver_root,
 )
 from instance_gen_process.models import ProblemInstance
 from instance_gen_process.solver_config_loader import parse_solver_config_dict
@@ -67,6 +68,7 @@ def test_instance_and_solution_paths() -> None:
     root = Path("/tmp/out")
     assert instances_raw_dir(root, 5) == Path("/tmp/out/raw/instances/n_5")
     assert instance_json_path(root, 5, 3) == Path("/tmp/out/raw/instances/n_5/instance_3.json")
+    assert solutions_solver_root(root, "cudaq") == Path("/tmp/out/raw/solutions/cudaq")
     assert solutions_raw_dir(root, "cudaq", "qubo", 5, 2) == Path(
         "/tmp/out/raw/solutions/cudaq/qubo/n_5/2"
     )
@@ -134,3 +136,37 @@ def test_parse_after_merge_experiment_style_dict() -> None:
         parsed = parse_solver_config_dict(cfg)
         assert parsed["n_instances"] == 2
         assert parsed["qaoa_depth"] == run_d
+
+
+def test_run_check_solution_feasibility_all_ok(tmp_path: Path) -> None:
+    from experiments.main_experiment_workflow import run_check_solution_feasibility
+
+    leaf = tmp_path / "raw" / "solutions" / "cirq" / "tqudo" / "n_4" / "1"
+    leaf.mkdir(parents=True)
+    (leaf / "instance_1.json").write_text(
+        json.dumps({"solver_output": {"feasible": True, "solver_name": "cirq"}}), encoding="utf-8"
+    )
+    assert run_check_solution_feasibility(tmp_path, "cirq") == 0
+
+
+def test_run_check_solution_feasibility_detects_bad(tmp_path: Path) -> None:
+    from experiments.main_experiment_workflow import run_check_solution_feasibility
+
+    base = tmp_path / "raw" / "solutions" / "cudaq" / "qubo" / "n_3"
+    base.mkdir(parents=True)
+    (base / "instance_1.json").write_text(
+        json.dumps({"solver_output": {"feasible": True}}), encoding="utf-8"
+    )
+    (base / "instance_2.json").write_text(
+        json.dumps({"solver_output": {"feasible": False}}), encoding="utf-8"
+    )
+    (base / "instance_3.json").write_text(
+        json.dumps({"solver_output": {"error": "boom"}}), encoding="utf-8"
+    )
+    assert run_check_solution_feasibility(tmp_path, "cudaq") == 1
+
+
+def test_run_check_solution_feasibility_missing_dir(tmp_path: Path) -> None:
+    from experiments.main_experiment_workflow import run_check_solution_feasibility
+
+    assert run_check_solution_feasibility(tmp_path, "simulated_annealing") == 2
