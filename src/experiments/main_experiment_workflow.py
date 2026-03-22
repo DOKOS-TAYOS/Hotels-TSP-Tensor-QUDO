@@ -28,6 +28,11 @@ from solvers.base import SolverResult
 from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
 from utils.constraints import validate_instance_constraints
+from utils.cooperative_stop import (
+    SolverStopRequested,
+    clear_solver_stop_request,
+    request_solver_stop,
+)
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
 
@@ -146,12 +151,14 @@ def run_workflow(
 
     reporter.configure(n_instances=n_instances)
 
+    clear_solver_stop_request()
     _interrupted = False
 
     def _handle_sigint(sig: int, frame: object) -> None:
         nonlocal _interrupted
         _interrupted = True
-        print("\n[interrupted] finishing current instance then stopping...", flush=True)
+        request_solver_stop()
+        print("\n[interrupted] stopping...", flush=True)
 
     signal.signal(signal.SIGINT, _handle_sigint)
 
@@ -185,6 +192,8 @@ def run_workflow(
                 "solver_config": _to_json_serializable(solver_config_serializable),
                 "solver_output": _serialize_solver_result(result),
             }
+        except SolverStopRequested:
+            break
         except Exception:
             logger.exception("Instance %d solver failed — saving error record.", i)
             n_failed += 1

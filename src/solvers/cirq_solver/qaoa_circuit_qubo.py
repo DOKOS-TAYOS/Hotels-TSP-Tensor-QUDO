@@ -15,6 +15,7 @@ import cirq
 from math_utils.qubo_ising import qubo_to_ising
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
+from utils.cooperative_stop import raise_if_solver_stop_requested
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -222,6 +223,7 @@ def optimize_qaoa(
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
+        raise_if_solver_stop_requested()
         val = evaluate_cost(
             x, circuit_with_measure, qubo_matrix, symbols, depth,
             n_shots, simulator,
@@ -230,6 +232,7 @@ def optimize_qaoa(
         reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
+    raise_if_solver_stop_requested()
     initial_energy = evaluate_cost(
         init_params, circuit_with_measure, qubo_matrix, symbols, depth,
         n_shots, simulator,
@@ -237,11 +240,13 @@ def optimize_qaoa(
 
     initial_samples: dict[str, int] | None = None
     if sample_shots is not None:
+        raise_if_solver_stop_requested()
         initial_samples = sample_solution(
             circuit_with_measure, init_params, symbols, depth,
             sample_shots, simulator,
         )
 
+    raise_if_solver_stop_requested()
     opt_result = minimize(
         cost_fn,
         init_params,
@@ -252,6 +257,7 @@ def optimize_qaoa(
     best_energy = float(opt_result.fun)
     final_samples: dict[str, int] | None = None
     if sample_shots is not None:
+        raise_if_solver_stop_requested()
         final_samples = sample_solution(
             circuit_with_measure, best_params, symbols, depth,
             sample_shots, simulator,
