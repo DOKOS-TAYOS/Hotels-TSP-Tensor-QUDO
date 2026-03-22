@@ -210,6 +210,7 @@ def optimize_qaoa(
     seed: int | None = None,
     optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
+    optimizer_tol: float = 1e-6,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[
     float,
@@ -234,6 +235,7 @@ def optimize_qaoa(
         seed: Random seed for initial parameters (None = no seed).
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
+        optimizer_tol: SciPy ``minimize`` stopping tolerance.
 
     Returns:
         Tuple of (best_energy, best_params, initial_samples, final_samples,
@@ -281,7 +283,7 @@ def optimize_qaoa(
         cost_fn,
         init_params,
         method=optimizer,
-        options=minimize_options(optimizer, max_iter),
+        options=minimize_options(optimizer, max_iter, optimizer_tol),
     )
     if not opt_result.success:
         logger.warning(
@@ -308,6 +310,7 @@ def run_qaoa(
     seed: int | None = None,
     optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
+    optimizer_tol: float = 1e-6,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
     """Run full QAOA: optimize, sample, and return best solution.
@@ -325,6 +328,7 @@ def run_qaoa(
         seed: Random seed.
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
+        optimizer_tol: SciPy ``minimize`` stopping tolerance.
 
     Returns:
         Dict with keys: energy, params, initial_samples, final_samples, best_bitstring,
@@ -344,6 +348,7 @@ def run_qaoa(
             seed=seed,
             optimizer=optimizer,
             delta_t=delta_t,
+            optimizer_tol=optimizer_tol,
             noise_config=noise_config,
         )
     )

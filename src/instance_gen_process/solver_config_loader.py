@@ -133,8 +133,9 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
 
     Returns:
         Dict with keys: n_instances, solver, formulation, optimizer, restriction,
-        qaoa_depth, qaoa_max_iter, qaoa_shots, qaoa_sample_shots, seed,
-        max_iterations, timeout_seconds, sa_t_initial, sa_t_final, sa_alpha.
+        qaoa_depth, qaoa_max_iter, qaoa_delta_t, qaoa_optimizer_tol, qaoa_shots,
+        qaoa_sample_shots, seed, max_iterations, timeout_seconds, sa_t_initial,
+        sa_t_final, sa_alpha.
         restriction is a RestrictionConfig.
         qaoa_shots controls objective-evaluation shots for all sampling-based
         QAOA backends (both QUBO and TQUDO formulations), while
@@ -180,6 +181,12 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
     qaoa_max_iter = _parse_int_setting(
         data.get("qaoa_max_iter", 100), "qaoa_max_iter", minimum=1
     )
+    qaoa_delta_t = float(data.get("qaoa_delta_t", 0.55))
+    if qaoa_delta_t <= 0:
+        raise ValueError("qaoa_delta_t must be positive")
+    qaoa_optimizer_tol = float(data.get("qaoa_optimizer_tol", 1e-6))
+    if qaoa_optimizer_tol <= 0:
+        raise ValueError("qaoa_optimizer_tol must be positive")
     qaoa_shots = _parse_int_setting(data.get("qaoa_shots", 500), "qaoa_shots", minimum=1)
     qaoa_sample_shots = _parse_int_setting(
         data.get("qaoa_sample_shots", 1000), "qaoa_sample_shots", minimum=1
@@ -239,6 +246,8 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
         "restriction": restriction,
         "qaoa_depth": qaoa_depth,
         "qaoa_max_iter": qaoa_max_iter,
+        "qaoa_delta_t": qaoa_delta_t,
+        "qaoa_optimizer_tol": qaoa_optimizer_tol,
         "qaoa_shots": qaoa_shots,
         "qaoa_sample_shots": qaoa_sample_shots,
         "seed": seed,
@@ -270,6 +279,8 @@ def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
         restriction_config=config["restriction"],
         qaoa_depth=config["qaoa_depth"],
         qaoa_max_iter=config["qaoa_max_iter"],
+        delta_t=config["qaoa_delta_t"],
+        optimizer_tol=config["qaoa_optimizer_tol"],
         qaoa_shots=config["qaoa_shots"],
         qaoa_sample_shots=config["qaoa_sample_shots"],
         seed=config["seed"],

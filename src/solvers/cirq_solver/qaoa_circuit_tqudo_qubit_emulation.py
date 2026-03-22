@@ -303,6 +303,7 @@ def optimize_qaoa(
     seed: int | None = None,
     optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
+    optimizer_tol: float = 1e-6,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
     """Optimize qubit-emulated TQUDO QAOA to minimize sampled cost.
@@ -317,6 +318,7 @@ def optimize_qaoa(
         seed: Optional simulator seed.
         optimizer: SciPy method name.
         delta_t: TQA initialization scale.
+        optimizer_tol: SciPy ``minimize`` stopping tolerance.
         noise_config: Optional noise.
 
     Returns:
@@ -366,7 +368,7 @@ def optimize_qaoa(
         cost_fn,
         init_params,
         method=optimizer,
-        options=minimize_options(optimizer, max_iter),
+        options=minimize_options(optimizer, max_iter, optimizer_tol),
     )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
@@ -390,6 +392,7 @@ def run_qaoa(
     seed: int | None = None,
     optimizer: OptimizerType = "COBYLA",
     delta_t: float = 0.55,
+    optimizer_tol: float = 1e-6,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
     """Run emulated TQUDO QAOA and return best route and diagnostics.
@@ -404,6 +407,7 @@ def run_qaoa(
         seed: Optional RNG seed.
         optimizer: SciPy method.
         delta_t: TQA scale.
+        optimizer_tol: SciPy ``minimize`` stopping tolerance.
         noise_config: Optional noise.
 
     Returns:
@@ -425,6 +429,7 @@ def run_qaoa(
             seed=seed,
             optimizer=optimizer,
             delta_t=delta_t,
+            optimizer_tol=optimizer_tol,
             noise_config=noise_config,
         )
     )

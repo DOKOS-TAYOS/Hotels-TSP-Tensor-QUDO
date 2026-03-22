@@ -9,6 +9,7 @@ import pytest
 from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
 from instance_gen_process import (
     load_solver_config,
+    solver_config_to_run_config,
     validate_solver_instance_compatibility,
 )
 from instance_gen_process.models import InstanceConfig
@@ -32,6 +33,8 @@ def _write_solver_config(path: Path, extra_lines: list[str]) -> None:
         (["qaoa_max_iter: 0"], "qaoa_max_iter"),
         (["qaoa_shots: 0"], "qaoa_shots"),
         (["qaoa_sample_shots: 0"], "qaoa_sample_shots"),
+        (["qaoa_delta_t: 0"], "qaoa_delta_t"),
+        (["qaoa_optimizer_tol: 0"], "qaoa_optimizer_tol"),
         (["max_iterations: -1"], "max_iterations"),
     ],
 )
@@ -64,6 +67,21 @@ def test_load_solver_config_rejects_cobyla_budget_below_parameter_count() -> Non
 
         with pytest.raises(ValueError, match="at least 6"):
             load_solver_config(config_path)
+    finally:
+        cleanup_workspace_tmp_dir(tmp_path)
+
+
+def test_load_solver_config_qaoa_delta_t_and_optimizer_tol_defaults() -> None:
+    tmp_path = workspace_tmp_dir("solver_config_qaoa_float_defaults")
+    config_path = tmp_path / "solver_config.yaml"
+    try:
+        _write_solver_config(config_path, [])
+        config = load_solver_config(config_path)
+        assert config["qaoa_delta_t"] == pytest.approx(0.55)
+        assert config["qaoa_optimizer_tol"] == pytest.approx(1e-6)
+        run_cfg = solver_config_to_run_config(config)
+        assert run_cfg.delta_t == pytest.approx(0.55)
+        assert run_cfg.optimizer_tol == pytest.approx(1e-6)
     finally:
         cleanup_workspace_tmp_dir(tmp_path)
 

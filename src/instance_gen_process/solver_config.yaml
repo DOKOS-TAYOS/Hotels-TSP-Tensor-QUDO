@@ -1,18 +1,20 @@
 # Solver and experiment configuration
 n_instances: 1
-solver: cudaq  # cudaq | cirq | simulated_annealing
-formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
-optimizer: COBYLA  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
+solver: cirq  # cudaq | cirq | simulated_annealing
+formulation: tqudo  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
+optimizer: Powell  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
 restriction:
   lambda_0: 1000.0
   lambda_1: 1000.0
   lambda_2: 1000.0
 qaoa_depth: 1
-qaoa_max_iter: 100
+qaoa_max_iter: 1000 # TODO
+qaoa_delta_t: 0.55 # TQA initial gamma/beta scale (see utils.qaoa_helpers.tqa_init_params)
+qaoa_optimizer_tol: 1.0e-6 # SciPy minimize stopping tolerance for QAOA angles
 qaoa_shots: 100000  # shots per objective evaluation for sampling-based QAOA
 qaoa_sample_shots: 100000  # shots for final solution sampling in QAOA backends
 seed: 42
-max_iterations: 1000
+max_iterations: 1000 # TODO
 timeout_seconds: null
 # Simulated annealing parameters
 sa_t_initial: 1000.0

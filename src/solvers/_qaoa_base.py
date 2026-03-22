@@ -188,6 +188,7 @@ class BaseQAOASolver(ABC):
             seed=run_config.seed,
             optimizer=run_config.optimizer,
             delta_t=run_config.delta_t,
+            optimizer_tol=run_config.optimizer_tol,
             noise_config=run_config.noise_config,
         )
         best_sequence_array = raw["best_sequence"]
@@ -264,6 +265,7 @@ class BaseQAOASolver(ABC):
             seed=run_config.seed,
             optimizer=run_config.optimizer,
             delta_t=run_config.delta_t,
+            optimizer_tol=run_config.optimizer_tol,
             noise_config=run_config.noise_config,
         )
         n_available = instance.n_cities - 1

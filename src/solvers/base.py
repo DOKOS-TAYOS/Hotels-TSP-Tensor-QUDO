@@ -36,6 +36,7 @@ class SolverRunConfig:
         seed: Optional RNG seed.
         optimizer: SciPy ``minimize`` method name for QAOA.
         delta_t: TQA-style initial parameter scale.
+        optimizer_tol: SciPy classical-optimizer stopping tolerance for QAOA.
         noise_config: Optional noise simulation parameters.
         sa_t_initial: Simulated annealing start temperature.
         sa_t_final: Simulated annealing end temperature.
@@ -56,6 +57,7 @@ class SolverRunConfig:
     seed: int | None = None
     optimizer: OptimizerType = "COBYLA"
     delta_t: float = 0.55
+    optimizer_tol: float = 1e-6
     # Noise simulation (optional, disabled by default)
     noise_config: NoiseConfig = field(default_factory=_default_noise_config)
     # Simulated annealing parameters
