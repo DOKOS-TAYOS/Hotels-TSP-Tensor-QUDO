@@ -79,6 +79,11 @@ def instances_raw_dir(output_root: Path, n_cities: int) -> Path:
     return output_root / "raw" / "instances" / f"n_{n_cities}"
 
 
+def solutions_solver_root(output_root: Path, solver: str) -> Path:
+    """Root for all solution trees of one backend: ``{output}/raw/solutions/{solver}``."""
+    return output_root / "raw" / "solutions" / solver
+
+
 def solutions_raw_dir(
     output_root: Path,
     solver: str,
@@ -90,7 +95,7 @@ def solutions_raw_dir(
 
     If *qaoa_depth* is not None (Cirq/CUDA-Q), append ``/<depth>``.
     """
-    base = output_root / "raw" / "solutions" / solver / formulation / f"n_{n_cities}"
+    base = solutions_solver_root(output_root, solver) / formulation / f"n_{n_cities}"
     if qaoa_depth is not None:
         return base / str(qaoa_depth)
     return base

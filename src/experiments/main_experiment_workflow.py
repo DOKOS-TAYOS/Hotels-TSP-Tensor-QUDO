@@ -52,11 +52,14 @@ from experiments.workflow_io import (
     normalise_n_cities,
     serialize_problem_instance,
     solutions_raw_dir,
+    solutions_solver_root,
 )
 
 logger = logging.getLogger(__name__)
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent
+
+FEASIBILITY_CHECK_SOLVERS: tuple[str, ...] = ("cudaq", "cirq", "simulated_annealing")
 
 PRESET_EXPERIMENT_YAMLS: dict[str, list[str]] = {
     "cudaq": [
@@ -441,6 +444,60 @@ def run_experiment_from_yaml(
         restore_sigint()
 
 
+def run_check_solution_feasibility(output_root: Path, solver: str) -> int:
+    """Scan ``raw/solutions/<solver>/**/*.json`` and print entries that are not feasible.
+
+    Returns:
+        0 if every file reports ``feasible: true`` and has no solver error.
+        1 if at least one file is infeasible, missing ``feasible``, or has ``error`` in
+        ``solver_output``.
+        2 if the solver solutions root does not exist.
+    """
+    root = solutions_solver_root(output_root, solver)
+    if not root.is_dir():
+        print(f"No solutions directory: {root}", flush=True)
+        return 2
+
+    infeasible_lines: list[str] = []
+    n_ok = 0
+    paths = sorted(root.rglob("*.json"))
+    for path in paths:
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as exc:
+            infeasible_lines.append(f"{path}: unreadable ({exc})")
+            continue
+        if not isinstance(data, dict):
+            infeasible_lines.append(f"{path}: top-level JSON is not an object")
+            continue
+        so = data.get("solver_output")
+        if not isinstance(so, dict):
+            infeasible_lines.append(f"{path}: missing or invalid solver_output")
+            continue
+        if "error" in so:
+            infeasible_lines.append(f"{path}: solver error (no feasible result)")
+            continue
+        if "feasible" not in so:
+            infeasible_lines.append(f"{path}: missing 'feasible' in solver_output")
+            continue
+        if so["feasible"] is True:
+            n_ok += 1
+        else:
+            infeasible_lines.append(f"{path}: feasible={so['feasible']!r}")
+
+    for line in infeasible_lines:
+        print(line, flush=True)
+    n_files = len(paths)
+    n_bad = len(infeasible_lines)
+    print(
+        f"Summary: checked {n_files} solution file(s) under {root}: "
+        f"{n_ok} feasible, {n_bad} not feasible or invalid.",
+        flush=True,
+    )
+    return 1 if n_bad else 0
+
+
 def run_experiment_batch(
     experiment_yaml_paths: list[Path],
     instance_config_path: Path | str | None = None,
@@ -463,13 +520,30 @@ def run_experiment_batch(
 def main() -> None:
     """Parse CLI arguments and dispatch workflow mode."""
     parser = argparse.ArgumentParser(
-        description="Hotel TSP experiment workflow: legacy, instance generation, or batched experiments."
+        description=(
+            "Hotel TSP experiment workflow: legacy, instance generation, batched experiments, "
+            "or feasibility audit of on-disk solutions."
+        )
     )
     parser.add_argument(
         "--mode",
-        choices=("legacy", "generate", "cudaq", "sa", "cirq5", "experiment"),
+        choices=(
+            "legacy",
+            "generate",
+            "cudaq",
+            "sa",
+            "cirq5",
+            "experiment",
+            "check_feasibility",
+        ),
         default="legacy",
         help="Workflow mode (default: legacy — same as before this refactor).",
+    )
+    parser.add_argument(
+        "--check-solver",
+        choices=FEASIBILITY_CHECK_SOLVERS,
+        default=None,
+        help="Backend to audit with --mode check_feasibility (cudaq | cirq | simulated_annealing).",
     )
     parser.add_argument(
         "--instance-config",
@@ -525,6 +599,12 @@ def main() -> None:
             output_root=output_root,
         )
         return
+
+    if args.mode == "check_feasibility":
+        if args.check_solver is None:
+            parser.error("--mode check_feasibility requires --check-solver")
+        rc = run_check_solution_feasibility(output_root, args.check_solver)
+        sys.exit(rc)
 
     if args.mode == "experiment":
         if not args.experiment_yaml:

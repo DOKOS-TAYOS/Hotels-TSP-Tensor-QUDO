@@ -27,7 +27,7 @@ make -f scripts/makefile clean
 
 # Run experiment workflow (default: legacy in-memory batch → timestamped JSON in output/raw/)
 .venv/bin/python -m experiments.main_experiment_workflow
-# Modes: --mode generate | cudaq | sa | cirq5 | experiment (see docs/development.md)
+# Modes: --mode generate | cudaq | sa | cirq5 | experiment | check_feasibility (see docs/development.md)
 ```
 
 ## Architecture
