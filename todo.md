@@ -1,2 +1,0 @@
-- [ ] Configurar lambdas
-- [ ] Sistema de guardado, por instancia
