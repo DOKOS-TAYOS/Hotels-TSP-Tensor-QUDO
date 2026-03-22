@@ -30,6 +30,10 @@ make -f scripts/makefile clean
 .venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --output path/to/output
+
+# Calibration CLIs (output to output/T0sampling/ and output/lambdasSampling/)
+.venv/bin/python -m experiments.estimate_t0 --n-instances 5 --chi0 0.8
+.venv/bin/python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500,1000
 ```
 
 ## Architecture
@@ -67,6 +71,7 @@ Each solver dispatches to formulation-specific QAOA circuit modules (e.g., `qaoa
 - **`utils/costs.py`**: `calculate_qubo_cost()`, `calculate_tqudo_cost()`, `calculate_real_cost()`.
 - **`utils/constraints.py`**: Validation helpers, binary/sequence conversion, cycle detection.
 - **`config/settings.py`**: `Settings` loaded from `.env` (prefix: `HTSP_*`). Noise kill-switch via `HTSP_ENABLE_NOISE_SIMULATION`.
+- **`experiments/`**: CLI tools — `main_experiment_workflow.py` (full solve pipeline), `estimate_t0.py` (SA initial temperature via Ben-Ameur), `estimate_lambdas.py` (grid search over lambda penalties).
 
 ### Cirq native qudit gates (TQUDO)
 

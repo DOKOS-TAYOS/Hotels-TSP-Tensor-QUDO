@@ -17,7 +17,7 @@ seed: 42
 max_iterations: 1000
 timeout_seconds: null
 # Simulated annealing parameters
-sa_t_initial: 1000.0 # Starting temperature
+sa_t_initial: 1000.0 # Starting temperature, by BEN-AMEUR, Computing the Initial Temperature of Simulated Annealing
 sa_t_final: 1.0e-6 # Stopping temperature threshold
 sa_alpha: 0.95 # Geometric cooling factor, recommended to be in intervals between 0.5 and 0.99; and 0.9 and 0.98 (A theoretical study on the behavior of simulated annealing leading to a new cooling schedule) (Best Practices for Simulated Annealing in Multiprocessor Task Distribution Problems )
 # Noise simulation (optional, disabled by default)
