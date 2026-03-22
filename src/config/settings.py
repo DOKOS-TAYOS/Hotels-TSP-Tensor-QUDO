@@ -13,7 +13,16 @@ _VALID_BACKENDS: set[str] = {"simulated_annealing", "cirq", "cudaq"}
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Project runtime settings loaded from environment variables."""
+    """Project runtime settings loaded from environment variables.
+
+    Attributes:
+        quantum_backend: Selected solver backend name.
+        output_dir: Root for experiment artifacts.
+        input_dir: Project input data root.
+        instance_config_path: Default YAML path for instance generation.
+        enable_noise_simulation: When False, workflows may force noise off.
+        random_seed: Default RNG seed for scripts that consume settings.
+    """
 
     quantum_backend: BackendName
     output_dir: Path
@@ -24,12 +33,19 @@ class Settings:
 
 
 def _project_root() -> Path:
-    """Return the project root directory (parent of src)."""
+    """Return the repository root (directory containing ``src/``)."""
     return Path(__file__).resolve().parents[2]
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
-    """Read key=value pairs from an env file, ignoring comments and empty lines."""
+    """Parse ``KEY=value`` lines from a ``.env``-style file.
+
+    Args:
+        path: File to read; missing files yield an empty dict.
+
+    Returns:
+        Mapping of variable names to unquoted string values.
+    """
     if not path.exists():
         return {}
 
@@ -44,18 +60,18 @@ def _read_env_file(path: Path) -> dict[str, str]:
 
 
 def _get_setting(key: str, default: str, values: dict[str, str]) -> str:
-    """Get setting from environment, falling back to env file values, then default."""
+    """Resolve a setting: process environment overrides *values*, then *default*."""
     return os.getenv(key, values.get(key, default))
 
 
 def _as_bool(value: str) -> bool:
-    """Parse a string as boolean (true/yes/on/1)."""
+    """Return True for common truthy string tokens (case-insensitive)."""
     normalized = value.strip().lower()
     return normalized in {"1", "true", "yes", "on"}
 
 
 def _resolve_path(raw_path: str, project_root: Path) -> Path:
-    """Resolve path: expand user, use as-is if absolute else relative to project_root."""
+    """Expand ``~`` and resolve relative paths against *project_root*."""
     path = Path(raw_path).expanduser()
     return path if path.is_absolute() else (project_root / path)
 

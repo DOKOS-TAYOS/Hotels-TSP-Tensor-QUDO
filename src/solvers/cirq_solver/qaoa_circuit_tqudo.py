@@ -44,6 +44,7 @@ import cirq
 from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
+from utils.cooperative_stop import raise_if_solver_stop_requested
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
@@ -59,9 +60,12 @@ from utils.qaoa_helpers import most_probable_key, tqa_init_params
 class QuditHadamardGate(cirq.Gate):
     """d-dimensional Hadamard: maps |0⟩ → (1/√d) Σ_k |k⟩.
 
-    Unitary is the d×d Discrete Fourier Transform matrix
-    F_d[j,k] = e^{−2πi jk/d} / √d  (np.fft.fft convention).
+    Unitary is the d×d discrete Fourier transform matrix
+    F_d[j,k] = exp(−2πi j k / d) / √d (``np.fft.fft`` convention).
     For d = 2 this is the standard Hadamard H (up to global phase).
+
+    Args:
+        dimension: Qudit dimension d.
     """
 
     def __init__(self, dimension: int) -> None:
@@ -69,19 +73,23 @@ class QuditHadamardGate(cirq.Gate):
         self._dimension = dimension
 
     def _qid_shape_(self) -> tuple[int, ...]:
+        """Return qudit shape ``(d,)`` for Cirq."""
         return (self._dimension,)
 
     def _unitary_(self) -> np.ndarray:
+        """Return the d×d DFT unitary."""
         d = self._dimension
         return np.fft.fft(np.eye(d), norm="ortho")
 
     def _circuit_diagram_info_(self, _args: cirq.CircuitDiagramInfoArgs) -> str:
+        """Return diagram label for this gate."""
         return f"H_d({self._dimension})"
 
     def __repr__(self) -> str:
         return f"QuditHadamardGate(dimension={self._dimension})"
 
     def __eq__(self, other: object) -> bool:
+        """Return whether *other* is the same gate on the same dimension."""
         return isinstance(other, QuditHadamardGate) and self._dimension == other._dimension
 
     def __hash__(self) -> int:
@@ -91,19 +99,16 @@ class QuditHadamardGate(cirq.Gate):
 class QuditDiagonalCostGate(cirq.Gate):
     """Diagonal two-qudit cost gate for a pair of d-dimensional qudits.
 
-    Unitary: diag(exp(−i·γ·cost_matrix.flatten()))  of size d²×d².
+    Unitary: diag(exp(−i·γ·cost_matrix.flatten())) of size d²×d².
 
     The basis ordering follows Cirq's convention for multi-qudit systems:
-    |x₀⟩⊗|x₁⟩  →  index = x₀·d + x₁.
+    |x₀⟩⊗|x₁⟩ → index = x₀·d + x₁.
 
-    Parameters
-    ----------
-    dimension : int
-        Qudit dimension d.
-    gamma : float | sympy.Expr
-        QAOA variational parameter γ.
-    cost_matrix : np.ndarray
-        d×d real matrix of cost coefficients (e.g. Etab[t] or Ettprimeab[t,t']).
+    Args:
+        dimension: Qudit dimension d.
+        gamma: QAOA variational parameter γ (may be symbolic for Cirq).
+        cost_matrix: d×d real matrix of cost coefficients (e.g. Etab[t] or
+            Ettprimeab[t, t']).
     """
 
     def __init__(
@@ -118,13 +123,16 @@ class QuditDiagonalCostGate(cirq.Gate):
         self._cost_matrix = np.asarray(cost_matrix, dtype=float)
 
     def _qid_shape_(self) -> tuple[int, ...]:
+        """Return shape ``(d, d)`` for the two qudits."""
         return (self._dimension, self._dimension)
 
     # -- Sympy parameterization support --
     def _is_parameterized_(self) -> bool:
+        """Return True if ``gamma`` is symbolic."""
         return cirq.is_parameterized(self._gamma)
 
     def _parameter_names_(self) -> frozenset[str]:
+        """Return symbolic parameter names in ``gamma``."""
         return cirq.parameter_names(self._gamma)
 
     def _resolve_parameters_(
@@ -132,10 +140,12 @@ class QuditDiagonalCostGate(cirq.Gate):
         resolver: cirq.ParamResolver,
         recursive: bool,
     ) -> QuditDiagonalCostGate:
+        """Return a copy with ``gamma`` resolved via *resolver*."""
         new_gamma = cirq.resolve_parameters(self._gamma, resolver, recursive)
         return QuditDiagonalCostGate(self._dimension, new_gamma, self._cost_matrix)
 
     def _unitary_(self) -> np.ndarray | None:
+        """Return diagonal exp(−i γ cost) unitary, or None if still parameterized."""
         if self._is_parameterized_():
             return None  # Cirq will resolve before calling _unitary_
         gamma_val = float(self._gamma)
@@ -143,6 +153,7 @@ class QuditDiagonalCostGate(cirq.Gate):
         return np.diag(np.exp(1j * phases))
 
     def _circuit_diagram_info_(self, _args: cirq.CircuitDiagramInfoArgs) -> list[str]:
+        """Return diagram labels for both qudits."""
         return [f"Cost_d({self._dimension})", f"Cost_d({self._dimension})"]
 
     def __repr__(self) -> str:
@@ -152,6 +163,7 @@ class QuditDiagonalCostGate(cirq.Gate):
         )
 
     def __eq__(self, other: object) -> bool:
+        """Return whether *other* matches dimension, gamma, and cost matrix."""
         if not isinstance(other, QuditDiagonalCostGate):
             return NotImplemented
         return (
@@ -175,17 +187,14 @@ class QuditRingMixerGate(cirq.Gate):
     For d = 2, M_d = X (Pauli-X) and this gate reduces to
     exp(−i·angle·X) = Rx(2·angle).
 
-    Note: X_d itself is **not** Hermitian for d > 2 (its adjoint is the
-    backward shift).  Using the Hermitised form (X_d + X_d†)/2 guarantees
-    the resulting matrix exponential is always unitary.
+    Note:
+        X_d itself is not Hermitian for d > 2 (its adjoint is the backward
+        shift). Using the Hermitised form (X_d + X_d†)/2 guarantees a unitary
+        matrix exponential.
 
-    Parameters
-    ----------
-    dimension : int
-        Qudit dimension d.
-    angle : float | sympy.Expr
-        Rotation angle β (the QAOA variational parameter).
-        The unitary is exp(−i·β·M_d).
+    Args:
+        dimension: Qudit dimension d.
+        angle: QAOA mixer angle β; unitary is exp(−i·β·M_d) (may be symbolic).
     """
 
     def __init__(self, dimension: int, angle: float | sympy.Expr) -> None:
@@ -194,12 +203,15 @@ class QuditRingMixerGate(cirq.Gate):
         self._angle = angle
 
     def _qid_shape_(self) -> tuple[int, ...]:
+        """Return qudit shape ``(d,)`` for Cirq."""
         return (self._dimension,)
 
     def _is_parameterized_(self) -> bool:
+        """Return True if ``angle`` is symbolic."""
         return cirq.is_parameterized(self._angle)
 
     def _parameter_names_(self) -> frozenset[str]:
+        """Return symbolic parameter names in ``angle``."""
         return cirq.parameter_names(self._angle)
 
     def _resolve_parameters_(
@@ -207,10 +219,12 @@ class QuditRingMixerGate(cirq.Gate):
         resolver: cirq.ParamResolver,
         recursive: bool,
     ) -> QuditRingMixerGate:
+        """Return a copy with ``angle`` resolved via *resolver*."""
         new_angle = cirq.resolve_parameters(self._angle, resolver, recursive)
         return QuditRingMixerGate(self._dimension, new_angle)
 
     def _unitary_(self) -> np.ndarray | None:
+        """Return exp(−i·angle·M_d), or None if still parameterized."""
         if self._is_parameterized_():
             return None
         d = self._dimension
@@ -224,12 +238,14 @@ class QuditRingMixerGate(cirq.Gate):
         return expm(-1j * angle_val * m_d)
 
     def _circuit_diagram_info_(self, _args: cirq.CircuitDiagramInfoArgs) -> str:
+        """Return diagram label for this gate."""
         return f"Rx_d({self._dimension})"
 
     def __repr__(self) -> str:
         return f"QuditRingMixerGate(dimension={self._dimension}, angle={self._angle!r})"
 
     def __eq__(self, other: object) -> bool:
+        """Return whether *other* matches dimension and angle."""
         if not isinstance(other, QuditRingMixerGate):
             return NotImplemented
         return self._dimension == other._dimension and self._angle == other._angle
@@ -250,26 +266,26 @@ def create_qaoa_circuit(
 ) -> tuple[cirq.Circuit, dict[str, sympy.Symbol], list[cirq.Qid], int, int]:
     """Create the parametrized QAOA circuit for Tensor QUDO on native qudits.
 
-    Each qudit is a single ``cirq.LineQid(i, dimension=d)`` — **not** a group
-    of qubits.
+    Each qudit is a single ``cirq.LineQid(i, dimension=d)``, not a register of
+    qubits.
 
-    Cost layer
-    ----------
-    For every adjacent pair (t, t+1), a single diagonal d²×d² unitary encodes
-    all Etab[t, x₀, x₁] phases.  Likewise for all long-range pairs (t, t')
-    with Ettprimeab[t, t', x_t, x_t'].
+    Cost layer: for every adjacent pair (t, t+1), a diagonal d²×d² unitary
+    encodes Etab[t, x₀, x₁]; for long-range pairs (t, t') with t' > t,
+    Ettprimeab[t, t', x_t, x_t'].
 
-    Mixer layer
-    -----------
-    Ring mixer exp(−i·2β·X_d) on each qudit, where X_d is the cyclic-shift.
+    Mixer layer: ring mixer exp(−i·β·M_d) on each qudit with
+    M_d = (X_d + X_d†)/2 (for d=2 this matches Rx(2β) QAOA).
 
-    Returns
-    -------
-    circuit : cirq.Circuit
-    symbols : dict mapping "gamma_k"/"beta_k" to sympy.Symbol
-    qudits  : list of ``cirq.LineQid`` (length n_qudits)
-    n_qudits : int
-    dimension : int (the qudit dimension d — replaces the old ``qubits_per_qudit``)
+    Args:
+        depth: Number of QAOA layers p.
+        Etab: Shape (n_qudits, d, d) cost tensor slices for adjacent steps.
+        Ettprimeab: Shape (n_qudits, n_qudits, d, d) long-range penalty/cost
+            tensor; only t' > t pairs are used.
+
+    Returns:
+        Tuple ``(circuit, symbols, qudits, n_qudits, dimension)`` where
+        ``symbols`` maps ``gamma_k`` / ``beta_k`` to ``sympy.Symbol``,
+        ``qudits`` is the list of ``cirq.LineQid``, and ``dimension`` is d.
     """
     n_qudits = Etab.shape[0]
     dimension = Etab.shape[1]  # d
@@ -330,7 +346,16 @@ def _param_resolver(
     symbols: dict[str, sympy.Symbol],
     depth: int,
 ) -> cirq.ParamResolver:
-    """Build ParamResolver from params array [gamma_0..gamma_{p-1}, beta_0..beta_{p-1}]."""
+    """Build a Cirq parameter resolver from a flat QAOA parameter vector.
+
+    Args:
+        params: Concatenated ``[gamma_0, …, gamma_{p-1}, beta_0, …, beta_{p-1}]``.
+        symbols: Mapping from ``gamma_k`` / ``beta_k`` strings to symbols.
+        depth: QAOA depth p.
+
+    Returns:
+        ``cirq.ParamResolver`` binding each symbol to a float.
+    """
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
         resolver_dict[symbols[f"gamma_{k}"]] = float(params[k])
@@ -347,24 +372,39 @@ def measurement_to_qudit_sequence(
     row: np.ndarray,
     n_qudits: int,
 ) -> np.ndarray:
-    """Convert a native qudit measurement row to a qudit sequence (route).
+    """Convert a native qudit measurement row to a route (qudit sequence).
 
-    With native qudits, each element of *row* is already an integer in
-    {0, …, d−1}, so this is a trivial reshape.
+    Args:
+        row: One measurement row; each entry is an integer in ``{0, …, d−1}``.
+        n_qudits: Number of qudits to keep from *row*.
+
+    Returns:
+        Integer array of shape ``(n_qudits,)``.
     """
     return np.asarray(row[:n_qudits], dtype=np.int64)
 
 
 def qudit_sequence_to_key(seq: np.ndarray) -> str:
-    """Encode a qudit-value sequence as a dash-separated string for counting.
+    """Encode a qudit sequence as a dash-separated histogram key.
 
-    Example: [0, 3, 1] → "0-3-1".
+    Args:
+        seq: Qudit values, e.g. ``[0, 3, 1]``.
+
+    Returns:
+        String key such as ``"0-3-1"``.
     """
     return "-".join(str(int(v)) for v in seq)
 
 
 def key_to_qudit_sequence(key: str) -> np.ndarray:
-    """Inverse of ``qudit_sequence_to_key``."""
+    """Decode a dash-separated key back to a qudit sequence.
+
+    Args:
+        key: String produced by :func:`qudit_sequence_to_key`.
+
+    Returns:
+        Integer array of qudit values.
+    """
     return np.array([int(v) for v in key.split("-")], dtype=np.int64)
 
 
@@ -374,11 +414,16 @@ def bitstring_to_qudit_sequence(
     n_qudits: int,
     qubits_per_qudit: int,
 ) -> np.ndarray:
-    """Decode a measurement key back to qudit values.
+    """Decode a measurement key or legacy bitstring to qudit values.
 
-    Accepts **both** the new dash-separated format ("0-3-1") and the legacy
-    binary-encoded bitstring ("0110") so that callers migrating gradually
-    continue to work.
+    Args:
+        bitstring: Dash-separated qudit key (e.g. ``"0-3-1"``) or legacy
+            binary encoding with ``qubits_per_qudit`` bits per qudit.
+        n_qudits: Number of qudits in the route.
+        qubits_per_qudit: Bits per qudit when using legacy binary format.
+
+    Returns:
+        Integer array of length ``n_qudits``.
     """
     if "-" in bitstring:
         return key_to_qudit_sequence(bitstring)
@@ -407,10 +452,20 @@ def evaluate_cost(
     n_shots: int,
     simulator: cirq.SimulatesSamples,
 ) -> float:
-    """Evaluate the QAOA cost by sampling and averaging TQUDO cost.
+    """Evaluate QAOA objective by sampling and averaging TQUDO cost.
 
-    The circuit (with measurement gates already appended and noise applied)
-    and the simulator are created once and reused across all optimizer steps.
+    Args:
+        params: Flat QAOA parameters ``[gamma…, beta…]``.
+        circuit_with_measure: Parametrised circuit including measurements.
+        problem: TQUDO problem for :func:`~utils.costs.calculate_tqudo_cost`.
+        symbols: Symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+        n_qudits: Number of route qudits.
+        n_shots: Sample count per evaluation.
+        simulator: Cirq sampler (noise may already be on the circuit).
+
+    Returns:
+        Mean TQUDO cost over samples (same units as stored tensors).
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -436,9 +491,19 @@ def sample_solution(
     n_shots: int,
     simulator: cirq.SimulatesSamples,
 ) -> dict[str, int]:
-    """Sample qudit sequences from the QAOA state.
+    """Sample qudit routes from the QAOA state at fixed parameters.
 
-    Returns dict  { "0-3-1": count, ... }  using dash-separated qudit-value keys.
+    Args:
+        circuit_with_measure: Parametrised circuit including measurements.
+        params: Flat QAOA parameters ``[gamma…, beta…]``.
+        symbols: Symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+        n_qudits: Number of route qudits.
+        n_shots: Number of samples to draw.
+        simulator: Cirq sampler.
+
+    Returns:
+        Mapping from dash-separated qudit keys to occurrence counts.
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -468,13 +533,25 @@ def optimize_qaoa(
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
-    """Optimize QAOA parameters to minimize the TQUDO cost.
+    """Optimize QAOA parameters to minimize mean sampled TQUDO cost.
+
+    Args:
+        Etab: TQUDO adjacent-step cost tensor.
+        Ettprimeab: TQUDO long-range tensor.
+        depth: QAOA layers p.
+        max_iter: Classical optimiser iteration budget.
+        n_shots: Shots per objective evaluation.
+        sample_shots: If set, sample histograms at init and best parameters;
+            if None, skip sampling.
+        seed: Optional RNG seed for simulator/noise.
+        optimizer: SciPy ``minimize`` method name.
+        delta_t: TQA initialisation scale (see :func:`~utils.qaoa_helpers.tqa_init_params`).
+        noise_config: Optional noise; disabled when None or ``enabled=False``.
 
     Returns:
-        Tuple of (best_energy, best_params, initial_samples, final_samples,
-        initial_energy, energy_history).
-        initial_samples: Qudit-sequence counts at TQA init params when sample_shots is set.
-        final_samples: Qudit-sequence counts at best_params when sample_shots is set.
+        ``(best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history)``. Sample dicts are None when
+        ``sample_shots`` is None.
     """
     circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
         depth, Etab, Ettprimeab
@@ -493,6 +570,7 @@ def optimize_qaoa(
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
+        raise_if_solver_stop_requested()
         val = evaluate_cost(
             x, circuit_with_measure, problem, symbols, depth,
             n_qudits, n_shots, simulator,
@@ -501,6 +579,7 @@ def optimize_qaoa(
         reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
+    raise_if_solver_stop_requested()
     initial_energy = evaluate_cost(
         init_params, circuit_with_measure, problem, symbols, depth,
         n_qudits, n_shots, simulator,
@@ -508,11 +587,13 @@ def optimize_qaoa(
 
     initial_samples: dict[str, int] | None = None
     if sample_shots is not None:
+        raise_if_solver_stop_requested()
         initial_samples = sample_solution(
             circuit_with_measure, init_params, symbols, depth,
             n_qudits, sample_shots, simulator,
         )
 
+    raise_if_solver_stop_requested()
     opt_result = minimize(
         cost_fn,
         init_params,
@@ -523,6 +604,7 @@ def optimize_qaoa(
     best_energy = float(opt_result.fun)
     final_samples: dict[str, int] | None = None
     if sample_shots is not None:
+        raise_if_solver_stop_requested()
         final_samples = sample_solution(
             circuit_with_measure, best_params, symbols, depth,
             n_qudits, sample_shots, simulator,
@@ -547,7 +629,25 @@ def run_qaoa(
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
-    """Run full QAOA: optimize, sample, and return best solution."""
+    """Run full native-qudit QAOA: optimize, sample, and return the best route.
+
+    Args:
+        Etab: TQUDO adjacent-step cost tensor.
+        Ettprimeab: TQUDO long-range tensor.
+        depth: QAOA layers p.
+        max_iter: Classical optimiser iteration budget.
+        n_shots: Shots per objective evaluation.
+        sample_shots: Shots for final (and initial) histograms.
+        seed: Optional RNG seed.
+        optimizer: SciPy ``minimize`` method name.
+        delta_t: TQA initialisation scale.
+        noise_config: Optional noise configuration.
+
+    Returns:
+        Dict with keys ``energy``, ``params``, ``initial_samples``,
+        ``final_samples``, ``best_bitstring`` (dash-separated key),
+        ``best_sequence`` (numpy route), ``initial_energy``, ``energy_history``.
+    """
     n_qudits = Etab.shape[0]
 
     best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (

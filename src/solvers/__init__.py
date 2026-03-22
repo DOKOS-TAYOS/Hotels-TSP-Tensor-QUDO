@@ -36,6 +36,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
 
 
 def __getattr__(name: str) -> object:
+    """Lazily import ``CirqSolver``, ``CudaqSolver``, or ``SimulatedAnnealingSolver``.
+
+    Args:
+        name: Attribute requested on ``solvers``.
+
+    Returns:
+        The solver class object.
+
+    Raises:
+        AttributeError: If *name* is not a known lazy export.
+    """
     if name in _LAZY_IMPORTS:
         module_path, attr = _LAZY_IMPORTS[name]
         module = importlib.import_module(module_path)

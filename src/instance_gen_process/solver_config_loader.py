@@ -25,7 +25,19 @@ VALID_OPTIMIZERS = frozenset({"COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-M
 
 
 def _parse_int_setting(raw_value: Any, field_name: str, minimum: int) -> int:
-    """Parse an integer setting and enforce a minimum value."""
+    """Parse an integer YAML field and enforce *minimum*.
+
+    Args:
+        raw_value: Raw scalar from YAML.
+        field_name: Key name for error messages.
+        minimum: Inclusive lower bound (or strictness per field semantics).
+
+    Returns:
+        Parsed integer ``>= minimum`` when minimum is non-negative.
+
+    Raises:
+        ValueError: If the value is below *minimum*.
+    """
     value = int(raw_value)
     if value < minimum:
         comparator = "at least" if minimum > 0 else "greater than or equal to"
@@ -34,7 +46,16 @@ def _parse_int_setting(raw_value: Any, field_name: str, minimum: int) -> int:
 
 
 def _validate_cobyla_budget(qaoa_depth: int, qaoa_max_iter: int, optimizer: str) -> None:
-    """Ensure COBYLA receives enough evaluations for the QAOA parameter count."""
+    """Ensure COBYLA's iteration budget covers the number of QAOA angles.
+
+    Args:
+        qaoa_depth: QAOA layers p (2p variational parameters).
+        qaoa_max_iter: Requested optimizer iterations.
+        optimizer: Optimizer name; no-op unless ``COBYLA``.
+
+    Raises:
+        ValueError: If COBYLA is selected and ``qaoa_max_iter`` is too small.
+    """
     if optimizer != "COBYLA":
         return
 
@@ -53,13 +74,19 @@ def validate_solver_instance_compatibility(
     instance_config: InstanceConfig,
     solver_config: dict[str, Any],
 ) -> None:
-    """Validate constraints that depend on both instance and solver configuration.
+    """Raise if the instance size and solver formulation are incompatible.
 
-    Backend capability matrix:
+    Enforces backend capabilities: Cirq supports ``qubo``, ``tqudo``, and
+    ``tqudo_virtual``; CUDA-Q supports ``qubo`` and ``tqudo_virtual``;
+    simulated annealing supports ``qubo`` and ``tqudo``. Also enforces qubit
+    count heuristics and power-of-two rules for virtual TQUDO.
 
-    - Cirq:  qubo, tqudo (native qudits), tqudo_virtual (qubit emulation)
-    - CUDA-Q: qubo, tqudo_virtual
-    - SA:    qubo, tqudo
+    Args:
+        instance_config: Instance generation parameters (e.g. ``n_cities``).
+        solver_config: Loaded solver dict with ``solver`` and ``formulation``.
+
+    Raises:
+        ValueError: If the combination is unsupported or impractical.
     """
     formulation = solver_config.get("formulation", "tqudo")
     solver = solver_config.get("solver", "cudaq")
@@ -225,7 +252,14 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
 
 
 def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
-    """Build SolverRunConfig from a loaded solver config dict."""
+    """Map a dict from :func:`load_solver_config` to :class:`~solvers.base.SolverRunConfig`.
+
+    Args:
+        config: Validated solver configuration dictionary.
+
+    Returns:
+        Frozen run configuration for :meth:`~solvers.base.SolverProtocol.solve`.
+    """
     from solvers.base import SolverRunConfig
     from solvers.noise import NoiseConfig
 

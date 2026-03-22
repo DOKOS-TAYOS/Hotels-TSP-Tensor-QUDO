@@ -22,6 +22,7 @@ from utils.costs import calculate_real_cost
 
 
 def _default_restriction() -> RestrictionConfig:
+    """Return default QUBO/TQUDO penalty weights when none are supplied."""
     return RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0)
 
 
@@ -45,25 +46,42 @@ class BaseQAOASolver(ABC):
 
     @abstractmethod
     def _get_tqudo_runner(self) -> Callable[..., dict] | None:
-        """Return ``run_qaoa`` for native TQUDO, or None if unsupported."""
+        """Return the native TQUDO ``run_qaoa`` callable, or None if unsupported."""
 
     @abstractmethod
     def _get_tqudo_virtual_runner(self) -> Callable[..., dict] | None:
-        """Return ``run_qaoa`` for TQUDO virtual (qubit emulation), or None."""
+        """Return the TQUDO virtual (qubit emulation) ``run_qaoa``, or None."""
 
     @abstractmethod
     def _get_qubo_runner(self) -> Callable[..., dict] | None:
-        """Return ``run_qaoa`` for QUBO, or None if unsupported."""
+        """Return the QUBO ``run_qaoa`` callable, or None if unsupported."""
 
     @abstractmethod
     def _serialize_samples(self, samples: Any) -> dict[str, int] | None:
-        """Convert backend-specific samples to a sorted ``{bitstring: count}`` dict."""
+        """Convert backend-specific shot results to a JSON-friendly histogram.
+
+        Args:
+            samples: Backend sample object or None.
+
+        Returns:
+            Mapping bitstring → count sorted by descending count, or None.
+        """
 
     @abstractmethod
     def _noise_qubit_count(
         self, instance: ProblemInstance, formulation: str,
     ) -> tuple[int, dict[str, Any]]:
-        """Return ``(n_qubits, extra_kwargs)`` for ``warn_if_large_system``."""
+        """Return quantum system count and kwargs for :meth:`NoiseConfig.warn_if_large_system`.
+
+        Args:
+            instance: Problem being solved.
+            formulation: Active formulation name (e.g. ``qubo``, ``tqudo_virtual``).
+
+        Returns:
+            ``(n_systems, extra_kwargs)`` where ``n_systems`` counts qubits or
+            qudits and ``extra_kwargs`` may include ``qudit_dimension`` or
+            ``gpu_trajectory``.
+        """
 
     # ------------------------------------------------------------------
     # Public API
@@ -72,7 +90,18 @@ class BaseQAOASolver(ABC):
     def solve(
         self, instance: ProblemInstance, run_config: SolverRunConfig,
     ) -> SolverResult:
-        """Run QAOA and return a standardized result."""
+        """Run QAOA for the configured formulation and return a standard result.
+
+        Args:
+            instance: Problem instance to solve.
+            run_config: Depth, shots, optimizer, noise, etc.
+
+        Returns:
+            :class:`~solvers.base.SolverResult` with scaled energy and metadata.
+
+        Raises:
+            ValueError: If the formulation is not supported by this backend.
+        """
         restriction = run_config.restriction_config or _default_restriction()
         formulation = run_config.formulation
 
@@ -103,6 +132,15 @@ class BaseQAOASolver(ABC):
     def _build_metadata(
         self, result: dict, instance: ProblemInstance,
     ) -> dict[str, Any]:
+        """Assemble ``SolverResult.metadata`` from a raw QAOA result dict.
+
+        Args:
+            result: Internal dict with energy, sequences, samples, histories.
+            instance: Problem used to compute ``real_cost`` when feasible.
+
+        Returns:
+            Metadata dict for JSON export and analysis.
+        """
         metadata: dict[str, Any] = {
             "best_sequence": result.get("best_sequence"),
             "best_bitstring": result.get("best_bitstring"),
@@ -127,6 +165,18 @@ class BaseQAOASolver(ABC):
         restriction: RestrictionConfig,
         run_config: SolverRunConfig,
     ) -> dict:
+        """Build TQUDO tensors, run QAOA, and rescale outputs to original units.
+
+        Args:
+            run_qaoa_fn: Backend-specific ``run_qaoa(Etab, Ettprimeab, ...)``.
+            instance: Raw problem instance.
+            restriction: Penalty coefficients for tensor construction.
+            run_config: QAOA hyperparameters and noise.
+
+        Returns:
+            Dict with scaled ``energy``, ``feasible``, ``best_sequence``, angles,
+            sample histograms, etc.
+        """
         problem = generate_TQUDO_from_problem(instance, restriction)
         raw = run_qaoa_fn(
             problem.Etab,
@@ -170,6 +220,11 @@ class BaseQAOASolver(ABC):
         restriction: RestrictionConfig,
         run_config: SolverRunConfig,
     ) -> dict:
+        """Dispatch TQUDO or TQUDO-virtual QAOA based on ``run_config.formulation``.
+
+        Raises:
+            ValueError: If the backend does not support the formulation.
+        """
         formulation = run_config.formulation
         if formulation == "tqudo_virtual":
             runner = self._get_tqudo_virtual_runner()
@@ -188,6 +243,11 @@ class BaseQAOASolver(ABC):
         restriction: RestrictionConfig,
         run_config: SolverRunConfig,
     ) -> dict:
+        """Build the QUBO matrix, run QAOA, decode binary to a route.
+
+        Raises:
+            ValueError: If this backend does not support QUBO.
+        """
         runner = self._get_qubo_runner()
         if runner is None:
             raise ValueError(

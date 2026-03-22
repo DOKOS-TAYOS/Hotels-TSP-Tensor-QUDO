@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from types import ModuleType
+
 from config import load_settings
 from instance_gen_process import load_instance_config
 
 
-def _load_streamlit():
-    """Import Streamlit lazily so the package remains importable without the UI extra."""
+def _load_streamlit() -> ModuleType:
+    """Import Streamlit lazily so importing the package works without the UI extra.
+
+    Returns:
+        The ``streamlit`` module.
+
+    Raises:
+        ModuleNotFoundError: If Streamlit is not installed (hint to use ``[ui]``).
+    """
     try:
         import streamlit as st
     except ModuleNotFoundError as exc:
@@ -19,7 +28,7 @@ def _load_streamlit():
 
 
 def main() -> None:
-    """Render the initial project dashboard."""
+    """Configure the Streamlit page and show runtime plus instance YAML summaries."""
     st = _load_streamlit()
 
     st.set_page_config(page_title="Hotel TSP Tensor-QUDO", layout="wide")

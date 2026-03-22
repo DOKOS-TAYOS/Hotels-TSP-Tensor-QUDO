@@ -4,17 +4,19 @@ from __future__ import annotations
 
 
 def minimize_options(method: str, max_iter: int) -> dict:
-    """Build scipy minimize options dict for the given method.
+    """Build a SciPy ``minimize`` ``options`` dict for *method*.
 
-    Handles optimizer-specific option names so that every backend
-    (Cirq, CUDA-Q, Simulated Annealing) gets a consistent configuration.
+    Maps a unified iteration budget onto method-specific keys (``maxiter``,
+    ``maxfev``, ``maxfun``) so Cirq, CUDA-Q, and simulated annealing callers
+    stay consistent.
 
     Args:
-        method: scipy optimizer name (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
-        max_iter: Maximum number of iterations / function evaluations.
+        method: SciPy method name (``COBYLA``, ``Powell``, ``L-BFGS-B``,
+            ``SLSQP``, ``Nelder-Mead``).
+        max_iter: Cap on iterations or function evaluations.
 
     Returns:
-        Dictionary suitable for ``scipy.optimize.minimize(options=...)``.
+        Dict passed as ``options=`` to :func:`scipy.optimize.minimize`.
     """
     opts: dict = {"maxiter": max_iter, "disp": False}
     if method in ("Nelder-Mead", "Powell"):

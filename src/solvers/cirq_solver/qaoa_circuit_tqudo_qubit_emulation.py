@@ -18,6 +18,7 @@ import cirq
 from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
+from utils.cooperative_stop import raise_if_solver_stop_requested
 from utils.costs import calculate_tqudo_cost
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
@@ -33,10 +34,19 @@ def _multi_controlled_phase(
     target: cirq.Qid,
     phase: float | sympy.Expr,
 ) -> cirq.Operation:
-    """Apply phase e^(i*phase) to target when all controls are |1⟩.
+    """Apply exp(i·phase) on *target* when all *controls* are ``|1⟩``.
 
-    Uses X gates to encode the desired basis state, then multi-controlled Z.
-    ZPowGate(exponent) gives exp(i*π*exponent) on |1⟩, so exponent = phase/π.
+    Flips qubits so the control pattern matches all-ones, applies a controlled
+    ``Z**`` rotation, then uncomputes. ``ZPowGate(exponent)`` implements
+    exp(i·π·exponent) on ``|1⟩``, hence ``exponent = phase / π``.
+
+    Args:
+        controls: Control qubits (possibly empty).
+        target: Qubit receiving the conditional phase.
+        phase: Real phase angle (may be symbolic).
+
+    Returns:
+        A Cirq operation implementing the multi-controlled phase.
     """
     exponent = phase / np.pi
     if not controls:
@@ -50,13 +60,21 @@ def create_qaoa_circuit(
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
 ) -> tuple[cirq.Circuit, dict[str, sympy.Symbol], list[cirq.Qid], int, int]:
-    """Create the parametrized QAOA circuit for Tensor QUDO.
+    """Create a qubit-emulated QAOA circuit for Tensor QUDO.
 
-    Cost layer: multi-controlled phase for Etab[t,x_0,x_1] and Ettprimeab[t,t',x_t,x_t'].
-    Mixer: rx(2*beta) on all qubits.
+    Cost terms use multi-controlled phases for ``Etab`` and ``Ettprimeab``;
+    mixer is ``rx(2β)`` on every qubit register bit.
+
+    Args:
+        depth: QAOA layers p.
+        Etab: Shape ``(n_qudits, d, d)``; ``d`` must be a power of two.
+        Ettprimeab: Long-range tensor, shape ``(n_qudits, n_qudits, d, d)``.
 
     Returns:
-        Tuple (circuit, symbols, qubits, n_qudits, qubits_per_qudit).
+        ``(circuit, symbols, flat_qubits, n_qudits, qubits_per_qudit)``.
+
+    Raises:
+        ValueError: If ``d`` is not a power of two.
     """
     n_qudits = Etab.shape[0]
     dimension_qudits = Etab.shape[1]
@@ -165,7 +183,16 @@ def _param_resolver(
     symbols: dict[str, sympy.Symbol],
     depth: int,
 ) -> cirq.ParamResolver:
-    """Build ParamResolver from params array."""
+    """Map flat ``[gamma…, beta…]`` to SymPy symbols for Cirq.
+
+    Args:
+        params: Length ``2 * depth`` vector.
+        symbols: ``gamma_k`` / ``beta_k`` map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+
+    Returns:
+        ``cirq.ParamResolver`` for the parametrized circuit.
+    """
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
         resolver_dict[symbols[f"gamma_{k}"]] = float(params[k])
@@ -178,7 +205,16 @@ def bitstring_to_qudit_sequence(
     n_qudits: int,
     qubits_per_qudit: int,
 ) -> np.ndarray:
-    """Convert a measurement bitstring to qudit sequence (route)."""
+    """Decode a contiguous bitstring into ``n_qudits`` integer qudit values.
+
+    Args:
+        bitstring: Concatenated measurement bits in qudit-major order.
+        n_qudits: Number of logical qudits.
+        qubits_per_qudit: Bits encoding each qudit (little-endian within block).
+
+    Returns:
+        Integer array of length ``n_qudits``.
+    """
     seq = np.zeros(n_qudits, dtype=np.int64)
     for i in range(n_qudits):
         start = i * qubits_per_qudit
@@ -199,7 +235,22 @@ def evaluate_cost(
     n_shots: int,
     simulator: cirq.SimulatesSamples,
 ) -> float:
-    """Evaluate the QAOA cost by sampling and averaging TQUDO cost."""
+    """Sample the circuit and return mean TQUDO cost for decoded routes.
+
+    Args:
+        params: Flat QAOA parameters.
+        circuit_with_measure: Parametrised circuit with measurements.
+        problem: TQUDO tensors for :func:`~utils.costs.calculate_tqudo_cost`.
+        symbols: Symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+        n_qudits: Logical qudit count.
+        qubits_per_qudit: Bits per emulated qudit.
+        n_shots: Samples per evaluation.
+        simulator: Cirq sampler.
+
+    Returns:
+        Mean TQUDO objective over shots.
+    """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
@@ -219,7 +270,19 @@ def sample_solution(
     n_shots: int,
     simulator: cirq.SimulatesSamples,
 ) -> dict[str, int]:
-    """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
+    """Sample full-register bitstrings from the QAOA state.
+
+    Args:
+        circuit_with_measure: Parametrised circuit with measurements.
+        params: Flat QAOA parameters.
+        symbols: Symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+        n_shots: Number of samples.
+        simulator: Cirq sampler.
+
+    Returns:
+        Histogram of bitstrings to counts.
+    """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
@@ -242,11 +305,23 @@ def optimize_qaoa(
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
-    """Optimize QAOA parameters to minimize the TQUDO cost.
+    """Optimize qubit-emulated TQUDO QAOA to minimize sampled cost.
+
+    Args:
+        Etab: Adjacent-step cost tensor.
+        Ettprimeab: Long-range tensor.
+        depth: QAOA depth p.
+        max_iter: Classical optimizer budget.
+        n_shots: Shots per objective evaluation.
+        sample_shots: Optional extra sampling at init and best parameters.
+        seed: Optional simulator seed.
+        optimizer: SciPy method name.
+        delta_t: TQA initialization scale.
+        noise_config: Optional noise.
 
     Returns:
-        Tuple of (best_energy, best_params, initial_samples, final_samples,
-        initial_energy, energy_history).
+        ``(best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history)``.
     """
     circuit, symbols, qubits, n_qudits, qubits_per_qudit = create_qaoa_circuit(
         depth, Etab, Ettprimeab
@@ -263,6 +338,7 @@ def optimize_qaoa(
     energy_history: list[float] = []
 
     def cost_fn(x: np.ndarray) -> float:
+        raise_if_solver_stop_requested()
         val = evaluate_cost(
             x, circuit_with_measure, problem, symbols, depth,
             n_qudits, qubits_per_qudit, n_shots, simulator,
@@ -271,6 +347,7 @@ def optimize_qaoa(
         reporter.opt_step(len(energy_history), max_iter, val)
         return val
 
+    raise_if_solver_stop_requested()
     initial_energy = evaluate_cost(
         init_params, circuit_with_measure, problem, symbols, depth,
         n_qudits, qubits_per_qudit, n_shots, simulator,
@@ -278,11 +355,13 @@ def optimize_qaoa(
 
     initial_samples: dict[str, int] | None = None
     if sample_shots is not None:
+        raise_if_solver_stop_requested()
         initial_samples = sample_solution(
             circuit_with_measure, init_params, symbols, depth,
             sample_shots, simulator,
         )
 
+    raise_if_solver_stop_requested()
     opt_result = minimize(
         cost_fn,
         init_params,
@@ -293,6 +372,7 @@ def optimize_qaoa(
     best_energy = float(opt_result.fun)
     final_samples: dict[str, int] | None = None
     if sample_shots is not None:
+        raise_if_solver_stop_requested()
         final_samples = sample_solution(
             circuit_with_measure, best_params, symbols, depth,
             sample_shots, simulator,
@@ -312,7 +392,24 @@ def run_qaoa(
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
-    """Run full QAOA: optimize, sample, and return best solution."""
+    """Run emulated TQUDO QAOA and return best route and diagnostics.
+
+    Args:
+        Etab: Adjacent-step tensor.
+        Ettprimeab: Long-range tensor.
+        depth: QAOA depth p.
+        max_iter: Optimizer iterations.
+        n_shots: Objective-evaluation shots.
+        sample_shots: Final and initial histogram shots.
+        seed: Optional RNG seed.
+        optimizer: SciPy method.
+        delta_t: TQA scale.
+        noise_config: Optional noise.
+
+    Returns:
+        Dict with energies, ``params``, sample dicts, ``best_bitstring``,
+        ``best_sequence`` (numpy), and ``energy_history``.
+    """
     n_qudits = Etab.shape[0]
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
     n_qubits_total = n_qudits * qubits_per_qudit

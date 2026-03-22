@@ -91,6 +91,11 @@ class NoiseConfig:
     gate_noise: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        """Validate ``noise_type``, ``probability``, and per-gate probabilities.
+
+        Raises:
+            ValueError: If any field is out of range or ``noise_type`` is unknown.
+        """
         if self.noise_type not in VALID_NOISE_TYPES:
             raise ValueError(
                 f"noise_type must be one of {sorted(VALID_NOISE_TYPES)}, "

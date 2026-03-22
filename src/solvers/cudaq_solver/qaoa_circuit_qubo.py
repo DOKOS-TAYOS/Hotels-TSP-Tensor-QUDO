@@ -64,21 +64,25 @@ def create_qaoa_ansatz(
 ) -> "cudaq.Kernel":
     """Create the QAOA ansatz kernel for given (h, J).
 
-    The kernel prepares |psi(gamma, beta)> = prod_k exp(-i beta_k H_M) exp(-i gamma_k H_C) |+>^n.
-    Parameters: gamma, beta each of length depth. All Ising coefficients are
-    pre-computed as plain Python lists before kernel definition to avoid
-    capturing NumPy arrays in the CUDA-Q JIT closure.
+    The kernel prepares
+    |ψ(γ, β)⟩ = ∏_k exp(−i β_k H_M) exp(−i γ_k H_C) |+⟩^n.
 
-    Cost layer: exp(-i gamma h_i Z_i) = rz(2*gamma*h_i); exp(-i gamma J_ij Z_i Z_j)
-    uses CNOT-Rz-CNOT. Mixer: exp(-i beta H_M) = rx(2*beta) on each qubit.
+    Cost layer: exp(−i γ h_i Z_i) = rz(2 γ h_i); exp(−i γ J_ij Z_i Z_j) uses
+    CNOT–Rz–CNOT. Mixer: exp(−i β H_M) = rx(2 β) on each qubit.
+
+    Note:
+        ``gamma`` and ``beta`` each have length ``depth``. Ising coefficients
+        are pre-computed as plain Python lists before kernel definition so the
+        CUDA-Q JIT closure does not capture NumPy arrays.
 
     Args:
         depth: Number of QAOA layers (p).
         h_arr: Linear Ising coefficients, shape (n,). n_qubits = len(h_arr).
-        j_matrix: Coupling matrix, shape (n, n). Only i<j used.
+        j_matrix: Coupling matrix, shape (n, n). Only i < j entries are used.
 
     Returns:
-        Kernel with signature (gamma, beta). Use observe(kernel, hamiltonian, gamma, beta).
+        Kernel with signature (gamma, beta). Use ``observe(kernel,
+        hamiltonian, gamma, beta)``.
     """
     n_qubits = len(h_arr)
 

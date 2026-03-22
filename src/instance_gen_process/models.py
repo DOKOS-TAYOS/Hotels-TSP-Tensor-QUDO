@@ -7,7 +7,15 @@ import numpy as np
 
 @dataclass(frozen=True, slots=True)
 class InstanceConfig:
-    """Configuration that controls random instance generation."""
+    """Configuration that controls random instance generation.
+
+    Attributes:
+        n_cities: Total cities including the depot.
+        n_precedences_range: Inclusive min/max count of random precedence edges.
+        prices_range_hotels: Uniform sampling range for hotel prices.
+        prices_range_travels: Uniform sampling range for travel prices.
+        seed: Master seed for the workflow when generating instance batches.
+    """
 
     n_cities: int
     n_precedences_range: tuple[int, int]

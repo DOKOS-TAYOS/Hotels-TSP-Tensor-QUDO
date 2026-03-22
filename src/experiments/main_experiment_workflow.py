@@ -24,10 +24,15 @@ from instance_gen_process import (
 from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
 from solvers import CudaqSolver, CirqSolver, SimulatedAnnealingSolver
-from solvers.base import SolverResult
+from solvers.base import SolverProtocol, SolverResult
 from config.settings import Settings, load_settings
 from instance_gen_process.models import ProblemInstance, InstanceConfig
 from utils.constraints import validate_instance_constraints
+from utils.cooperative_stop import (
+    SolverStopRequested,
+    clear_solver_stop_request,
+    request_solver_stop,
+)
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
 
@@ -35,7 +40,14 @@ logger = logging.getLogger(__name__)
 
 
 def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
-    """Convert ProblemInstance to JSON-serializable dict."""
+    """Convert a :class:`~instance_gen_process.models.ProblemInstance` to plain dicts/lists.
+
+    Args:
+        instance: In-memory problem with NumPy price arrays.
+
+    Returns:
+        JSON-friendly mapping including ``precedences`` and listified arrays.
+    """
     return {
         "n_cities": instance.n_cities,
         "precedences": instance.precedences,
@@ -45,7 +57,14 @@ def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
 
 
 def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
-    """Convert InstanceConfig to JSON-serializable dict."""
+    """Convert :class:`~instance_gen_process.models.InstanceConfig` to JSON-friendly dict.
+
+    Args:
+        config: Random generation bounds and master seed.
+
+    Returns:
+        Dict with scalar and list fields suitable for ``json.dump``.
+    """
     return {
         "n_cities": config.n_cities,
         "n_precedences_range": list(config.n_precedences_range),
@@ -56,7 +75,14 @@ def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
 
 
 def _to_json_serializable(obj: Any) -> Any:
-    """Recursively convert object to JSON-serializable form."""
+    """Recursively normalise *obj* for JSON encoding.
+
+    Args:
+        obj: Arbitrary nested structure (dicts, lists, numpy, dataclasses).
+
+    Returns:
+        Structure using only JSON-native scalars, lists, and dicts.
+    """
     if isinstance(obj, (int, float, str, bool, type(None))):
         return obj
     if isinstance(obj, list):
@@ -71,7 +97,14 @@ def _to_json_serializable(obj: Any) -> Any:
 
 
 def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
-    """Convert SolverResult to JSON-serializable dict."""
+    """Convert :class:`~solvers.base.SolverResult` to a JSON-friendly dict.
+
+    Args:
+        result: Solver output including metadata.
+
+    Returns:
+        Dict with ``solver_name``, objective, feasibility, runtime, metadata.
+    """
     return {
         "solver_name": result.solver_name,
         "objective_value": result.objective_value,
@@ -81,8 +114,18 @@ def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
     }
 
 
-def _get_solver(solver_name: str):
-    """Return solver instance by name."""
+def _get_solver(solver_name: str) -> SolverProtocol:
+    """Instantiate the solver class registered for *solver_name*.
+
+    Args:
+        solver_name: One of ``cudaq``, ``cirq``, ``simulated_annealing``.
+
+    Returns:
+        Fresh :class:`~solvers.base.SolverProtocol` implementation.
+
+    Raises:
+        ValueError: If *solver_name* is not recognised.
+    """
     solvers = {
         "cudaq": CudaqSolver,
         "cirq": CirqSolver,
@@ -146,12 +189,15 @@ def run_workflow(
 
     reporter.configure(n_instances=n_instances)
 
+    clear_solver_stop_request()
     _interrupted = False
 
     def _handle_sigint(sig: int, frame: object) -> None:
+        """Set interrupt flag and request cooperative solver stop on SIGINT."""
         nonlocal _interrupted
         _interrupted = True
-        print("\n[interrupted] finishing current instance then stopping...", flush=True)
+        request_solver_stop()
+        print("\n[interrupted] stopping...", flush=True)
 
     signal.signal(signal.SIGINT, _handle_sigint)
 
@@ -185,6 +231,8 @@ def run_workflow(
                 "solver_config": _to_json_serializable(solver_config_serializable),
                 "solver_output": _serialize_solver_result(result),
             }
+        except SolverStopRequested:
+            break
         except Exception:
             logger.exception("Instance %d solver failed — saving error record.", i)
             n_failed += 1
@@ -220,7 +268,7 @@ def run_workflow(
 
 
 def main() -> None:
-    """CLI entry point for the experiment workflow."""
+    """Parse CLI arguments and run :func:`run_workflow` with loaded settings."""
     parser = argparse.ArgumentParser(
         description="Run Hotel TSP experiment workflow: generate instances, solve, save results."
     )

@@ -65,13 +65,23 @@ class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
 
     For multi-qubit gates the single-qubit noise channel is applied
     **independently** to each qubit involved in the operation.
+
+    Args:
+        config: Global noise type, default probability, and per-gate overrides.
     """
 
     def __init__(self, config: NoiseConfig) -> None:
         self._config = config
 
     def _get_probability(self, gate: cirq.Gate | None) -> float:
-        """Look up the error probability for *gate*, checking overrides."""
+        """Return the error probability for *gate*, using overrides when set.
+
+        Args:
+            gate: Gate about to run, or None.
+
+        Returns:
+            Probability in ``[0, 1]`` from ``gate_noise`` or ``config.probability``.
+        """
         if gate is not None:
             key = _CIRQ_GATE_NAME_TO_KEY.get(type(gate).__name__)
             if key is not None and key in self._config.gate_noise:
@@ -79,7 +89,17 @@ class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
         return self._config.probability
 
     def noisy_operation(self, op: cirq.Operation) -> cirq.OP_TREE:
-        """Append noise after every non-measurement gate operation."""
+        """Return *op* followed by single-qubit noise on each operand qubit.
+
+        Args:
+            op: Circuit operation (skipped for measurements).
+
+        Returns:
+            Operation tree: gate plus noise channels.
+
+        Raises:
+            ValueError: If ``noise_type`` is not supported for qubits.
+        """
         if isinstance(op.gate, cirq.MeasurementGate) or op.gate is None:
             return op
 
