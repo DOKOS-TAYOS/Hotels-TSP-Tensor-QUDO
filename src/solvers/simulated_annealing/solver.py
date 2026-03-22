@@ -27,7 +27,7 @@ def _default_restriction() -> RestrictionConfig:
     return RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0)
 
 
-def _evaluate_cost(
+def evaluate_cost(
     formulation: str,
     problem: ProblemQUBO | ProblemTQUDO,
     sequence: np.ndarray,
@@ -119,7 +119,7 @@ def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndar
     return neighbor
 
 
-def _random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+def random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     """Apply swap, insert, or reverse with uniform probability.
 
     Args:
@@ -129,8 +129,8 @@ def _random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarr
     Returns:
         Neighbour state from one of the three local moves.
     """
-    operators = (_swap_neighbor, _insert_neighbor, _reverse_neighbor)
-    op = operators[int(rng.integers(0, len(operators)))]
+    _operators = (_swap_neighbor, _insert_neighbor, _reverse_neighbor)
+    op = _operators[int(rng.integers(0, len(_operators)))]
     return op(sequence, rng)
 
 
@@ -172,7 +172,7 @@ class SimulatedAnnealingSolver:
 
         # Initial random permutation
         current = rng.permutation(n_available).astype(np.int64)
-        current_cost = _evaluate_cost(formulation, problem, current, n_available)
+        current_cost = evaluate_cost(formulation, problem, current, n_available)
         initial_energy = current_cost
         best = current.copy()
         best_cost = current_cost
@@ -194,8 +194,8 @@ class SimulatedAnnealingSolver:
             if T <= T_final:
                 break
 
-            neighbor = _random_neighbor(current, rng)
-            neighbor_cost = _evaluate_cost(formulation, problem, neighbor, n_available)
+            neighbor = random_neighbor(current, rng)
+            neighbor_cost = evaluate_cost(formulation, problem, neighbor, n_available)
 
             delta = neighbor_cost - current_cost
             if delta <= 0 or rng.random() < np.exp(-delta / T):

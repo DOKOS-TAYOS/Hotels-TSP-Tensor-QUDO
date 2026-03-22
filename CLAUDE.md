@@ -27,6 +27,9 @@ make -f scripts/makefile clean
 
 # Run experiment workflow
 .venv/bin/python -m experiments.main_experiment_workflow
+.venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --output path/to/output
 ```
 
 ## Architecture
@@ -36,7 +39,7 @@ make -f scripts/makefile clean
 1. **Tensor-QUDO** (`ProblemTQUDO`): Uses qudits (d-dimensional). Cost encoded in `Etab[t,a,b]` (3D) and `Ettprimeab[t,t',a,b]` (4D) tensors. No `lambda_0` penalty needed — qudit encoding inherently enforces one-city-per-timestep.
 2. **QUBO** (`ProblemQUBO`): Uses binary one-hot variables. Cost encoded in symmetric `qubo_matrix` (2D). Needs all three lambda penalties. Objective has a constant offset vs real cost: `QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available`.
 
-Use `utils.costs.calculate_real_cost()` for formulation-independent cost comparisons.
+Both formulations normalise their tensors/matrix by `energy_scale = max(|values|, 1.0)` so entries lie in `[-1, 1]`. Sampled costs must be multiplied back by `energy_scale` to recover original units. Use `utils.costs.calculate_real_cost()` for formulation-independent cost comparisons.
 
 ### Data flow
 
@@ -46,17 +49,20 @@ Use `utils.costs.calculate_real_cost()` for formulation-independent cost compari
 
 | Backend | Module | Formulations | Requirement |
 |---------|--------|-------------|-------------|
-| **Cirq** | `solvers/cirq_solver/` | QUBO + TQUDO (native qudits & qubit emulation) | `cirq` extra |
-| **CUDA-Q** | `solvers/cudaq_solver/` | QUBO + TQUDO | `cudaq` extra + NVIDIA GPU |
-| **Simulated Annealing** | `solvers/simulated_annealing/` | QUBO + TQUDO | no extra deps |
+| **Cirq** | `solvers/cirq_solver/` | `qubo`, `tqudo` (native qudits), `tqudo_virtual` (qubit emulation) | `cirq` extra |
+| **CUDA-Q** | `solvers/cudaq_solver/` | `qubo`, `tqudo_virtual` | `cudaq` extra + NVIDIA GPU |
+| **Simulated Annealing** | `solvers/simulated_annealing/` | `qubo`, `tqudo` | no extra deps |
 
-Each solver dispatches to formulation-specific QAOA circuit modules (e.g., `qaoa_circuit_qubo.py`, `qaoa_circuit_tqudo.py`).
+Three formulation values exist in `solver_config.yaml`: `qubo`, `tqudo` (native qudits — Cirq and SA only), `tqudo_virtual` (qubit emulation — Cirq and CUDA-Q). Incompatible combos are rejected by `validate_solver_instance_compatibility()`.
+
+Each solver dispatches to formulation-specific QAOA circuit modules (e.g., `qaoa_circuit_qubo.py`, `qaoa_circuit_tqudo.py`). Shared QAOA logic (parameter init, optimization loop) lives in `solvers/_qaoa_base.py`.
 
 ### Key modules
 
 - **`instance_gen_process/generator.py`**: `generate_TQUDO_from_problem()`, `generate_QUBO_from_problem()`, `generate_random_set_instances()`.
 - **`instance_gen_process/models.py`**: Core dataclasses: `ProblemInstance`, `ProblemTQUDO`, `ProblemQUBO`, `RestrictionConfig`, `InstanceConfig`.
 - **`solvers/base.py`**: `SolverProtocol`, `SolverRunConfig`, `SolverResult`.
+- **`solvers/_qaoa_base.py`**: Shared QAOA solver logic (parameter init via TQA, SciPy optimization loop) used by both Cirq and CUDA-Q backends.
 - **`solvers/noise.py`**: `NoiseConfig` — backend-agnostic noise config consumed by both Cirq and CUDA-Q.
 - **`utils/costs.py`**: `calculate_qubo_cost()`, `calculate_tqudo_cost()`, `calculate_real_cost()`.
 - **`utils/constraints.py`**: Validation helpers, binary/sequence conversion, cycle detection.
@@ -81,5 +87,7 @@ The Cirq TQUDO backend uses three custom gates on `cirq.LineQid(dimension=d)`:
 - `pythonpath = ["src"]` in pytest config — imports use bare module names (e.g., `from solvers.base import ...`).
 - Linter: `ruff` with `line-length = 100`, `target-version = "py312"`.
 - All dataclasses use `frozen=True, slots=True`.
+- Type hints required in all function signatures. Uses Python 3.12+ syntax (`X | Y` unions, `tuple[...]` generics).
 - CUDA-Q tests auto-skip when no GPU is available.
+- Pytest runs with `-p no:cacheprovider` to avoid `.pytest_cache` pollution.
 - Math reference for cost equations: `docs/formulations.md`.

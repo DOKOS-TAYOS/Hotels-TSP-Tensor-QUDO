@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-03-22T16:33:25",
+  "recommended_t0": 2096.602404258452,
+  "aggregation_method": "median",
+  "statistics": {
+    "mean": 2092.404296397177,
+    "median": 2096.602404258452,
+    "min": 1685.6000450945205,
+    "max": 2677.6606646616397,
+    "std": 329.65091423236436
+  },
+  "parameters": {
+    "formulation": "tqudo",
+    "chi_0": 0.8,
+    "n_samples": 200,
+    "epsilon": 0.001,
+    "seed": 42,
+    "restriction": {
+      "lambda_0": 1000.0,
+      "lambda_1": 1000.0,
+      "lambda_2": 1000.0
+    }
+  },
+  "instance_config": {
+    "n_cities": 9,
+    "n_precedences_range": [
+      2,
+      5
+    ],
+    "prices_range_hotels": [
+      30.0,
+      150.0
+    ],
+    "prices_range_travels": [
+      30.0,
+      150.0
+    ],
+    "seed": 42
+  },
+  "per_instance_results": [
+    {
+      "instance_index": 0,
+      "instance_seed": 2746317213,
+      "t0": 1904.550083773397,
+      "chi_achieved": 0.8005666472895315,
+      "iterations": 2,
+      "n_samples": 200,
+      "converged": true
+    },
+    {
+      "instance_index": 1,
+      "instance_seed": 1181241943,
+      "t0": 2097.6082841978746,
+      "chi_achieved": 0.8000175720048811,
+      "iterations": 2,
+      "n_samples": 200,
+      "converged": true
+    },
+    {
+      "instance_index": 2,
+      "instance_seed": 958682846,
+      "t0": 2096.602404258452,
+      "chi_achieved": 0.8003504753494678,
+      "iterations": 2,
+      "n_samples": 200,
+      "converged": true
+    },
+    {
+      "instance_index": 3,
+      "instance_seed": 3163119785,
+      "t0": 2677.6606646616397,
+      "chi_achieved": 0.8005227024813876,
+      "iterations": 2,
+      "n_samples": 200,
+      "converged": true
+    },
+    {
+      "instance_index": 4,
+      "instance_seed": 1812140441,
+      "t0": 1685.6000450945205,
+      "chi_achieved": 0.8003337805162601,
+      "iterations": 2,
+      "n_samples": 200,
+      "converged": true
+    }
+  ]
+}
