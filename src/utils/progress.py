@@ -25,27 +25,42 @@ import sys
 
 
 class ProgressReporter:
-    """Tracks and displays experiment progress on a single rewritable line."""
+    """Track and print experiment progress on one overwriteable terminal line."""
 
     def __init__(self) -> None:
+        """Create a reporter with TTY detection and zero instance count."""
         self._is_tty: bool = sys.stdout.isatty() if hasattr(sys.stdout, "isatty") else False
         self._n_instances: int = 0
         self._current_instance: int = 0
 
     def configure(self, n_instances: int) -> None:
-        """Set total instance count."""
+        """Set the total number of instances for ``[inst i/n]`` labels.
+
+        Args:
+            n_instances: Upper bound shown in progress text.
+        """
         self._n_instances = n_instances
 
     def instance_start(self, i: int) -> None:
-        """Report that instance *i* (0-based) is about to be solved."""
+        """Print that instance *i* (0-based) is starting.
+
+        Args:
+            i: Instance index in the batch.
+        """
         self._current_instance = i
         msg = self._fmt_instance(i, "running...")
         self._emit(msg, newline=True)
 
     def opt_step(self, step: int, max_steps: int, energy: float) -> None:
-        """Report one optimizer evaluation or SA iteration.
+        """Report one optimizer evaluation or simulated-annealing step.
 
-        Always rewrites the same line (\r). Never commits with \n.
+        On a TTY, rewrites one line with ``\\r``; otherwise prints sparse
+        checkpoints (roughly deciles and the last step).
+
+        Args:
+            step: Current step index (1-based display uses internal formatting).
+            max_steps: Budget for the bar denominator.
+            energy: Current objective value to display.
         """
         is_checkpoint = (step % max(1, max_steps // 10) == 0) or (step >= max_steps)
 
@@ -65,25 +80,33 @@ class ProgressReporter:
             self._emit(msg, newline=False)
 
     def instance_done(self, i: int, path: str) -> None:
-        """Report that instance *i* has been saved."""
+        """Print that instance *i* finished and where results were saved.
+
+        Args:
+            i: Instance index.
+            path: Filesystem path written for this instance.
+        """
         msg = self._fmt_instance(i, f"saved -> {path}")
         self._emit(msg, newline=True)
 
     # --- private helpers ---
 
     def _fmt_instance(self, i: int, suffix: str = "") -> str:
+        """Format ``[inst i/n]`` with optional *suffix*."""
         n = self._n_instances if self._n_instances else "?"
         base = f"[inst {i + 1}/{n}]"
         return f"{base}  {suffix}" if suffix else base
 
     @staticmethod
     def _bar(current: int, total: int, width: int = 20) -> str:
+        """Return an ASCII progress bar of fixed *width*."""
         if total == 0:
             return ""
         filled = int(width * current / total)
         return f"[{'#' * filled}{'.' * (width - filled)}]"
 
     def _emit(self, msg: str, newline: bool = False) -> None:
+        """Print *msg*, clearing the line first; optionally end with a newline."""
         if newline:
             print(f"\r\033[K{msg}", end="\n", flush=True)
         else:

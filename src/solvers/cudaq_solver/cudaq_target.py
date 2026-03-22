@@ -31,14 +31,14 @@ _current_target: str | None = None       # last target set by us
 
 
 def _gpu_supports_noise() -> bool:
-    """Probe whether the ``nvidia`` target accepts a ``noise_model`` kwarg.
+    """Probe whether the ``nvidia`` target accepts ``noise_model`` in ``sample``.
 
-    Runs a trivial 1-qubit circuit with a minimal noise model.  If the
-    target raises, trajectory noise is not supported and we must fall back
-    to ``density-matrix-cpu``.
+    Runs a trivial one-qubit circuit with depolarizing noise. On failure,
+    callers should use ``density-matrix-cpu``. Result is cached per process.
+    Temporarily switches the global CUDA-Q target during the probe.
 
-    The probe temporarily switches the global target; the caller is
-    responsible for setting the real target afterwards.
+    Returns:
+        True if GPU trajectory noise works; False if probe fails or no GPU.
     """
     global _gpu_noise_support
     if _gpu_noise_support is not None:

@@ -23,7 +23,18 @@ from utils.qaoa_helpers import bitstring_to_binary, most_probable_key, tqa_init_
 
 
 def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
-    """Convert expectation values to a real scalar with an explicit imag-part tolerance."""
+    """Sum *values* and return the real part if the imaginary part is negligible.
+
+    Args:
+        values: Complex expectation contributions.
+        imag_tol: Maximum allowed magnitude of the imaginary sum.
+
+    Returns:
+        Real part of the total.
+
+    Raises:
+        ValueError: If the imaginary part exceeds *imag_tol*.
+    """
     total = complex(np.sum(np.asarray(values, dtype=np.complex128)))
     if abs(total.imag) > imag_tol:
         raise ValueError(
@@ -134,7 +145,16 @@ def create_qaoa_circuit(
 
 
 def _param_resolver(params: np.ndarray, symbols: dict[str, sympy.Symbol], depth: int) -> cirq.ParamResolver:
-    """Build ParamResolver from params array."""
+    """Map flat ``[gamma…, beta…]`` to SymPy symbols for Cirq.
+
+    Args:
+        params: Length ``2 * depth`` parameter vector.
+        symbols: ``gamma_k`` / ``beta_k`` symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+
+    Returns:
+        ``cirq.ParamResolver`` for the circuit.
+    """
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
         resolver_dict[symbols[f"gamma_{k}"]] = float(params[k])
@@ -151,10 +171,19 @@ def evaluate_cost(
     n_shots: int,
     simulator: cirq.SimulatesSamples,
 ) -> float:
-    """Evaluate the QAOA cost by sampling and averaging QUBO cost.
+    """Estimate mean ``xᵀ Q x`` by sampling the QAOA circuit.
 
-    The circuit (with measurement gates already appended and noise applied)
-    and the simulator are created once and reused across all optimizer steps.
+    Args:
+        params: Flat QAOA angles.
+        circuit_with_measure: Parametrised circuit with terminal measurements.
+        qubo_matrix: Symmetric QUBO matrix (same units as stored problem).
+        symbols: Symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+        n_shots: Samples per evaluation.
+        simulator: Cirq sampler (noise may be on the circuit).
+
+    Returns:
+        Sample-averaged QUBO objective.
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -174,7 +203,19 @@ def sample_solution(
     n_shots: int,
     simulator: cirq.SimulatesSamples,
 ) -> dict[str, int]:
-    """Sample bitstrings from the QAOA state. Returns dict of bitstring -> count."""
+    """Draw bitstring samples from the QAOA state at *params*.
+
+    Args:
+        circuit_with_measure: Parametrised circuit with measurements.
+        params: Flat QAOA angles.
+        symbols: Symbol map from :func:`create_qaoa_circuit`.
+        depth: QAOA depth p.
+        n_shots: Number of samples.
+        simulator: Cirq sampler.
+
+    Returns:
+        Histogram mapping bitstrings to counts.
+    """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
@@ -196,17 +237,27 @@ def optimize_qaoa(
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> tuple[float, np.ndarray, dict[str, int] | None, dict[str, int] | None, float, list[float]]:
-    """Optimize QAOA parameters to minimize the cost Hamiltonian.
+    """Optimize QAOA parameters to minimize sampled QUBO cost.
 
-    Cost is evaluated by sampling ``n_shots`` bitstrings and averaging
-    x^T Q x, consistent with the TQUDO backend.  ``sample_shots`` controls
-    the final solution-sampling step.
+    Cost is evaluated by drawing ``n_shots`` bitstrings and averaging
+    ``xᵀ Q x``, consistent with the TQUDO sampling backend.
+
+    Args:
+        qubo_matrix: Symmetric QUBO matrix.
+        depth: QAOA layers p.
+        max_iter: Classical optimizer budget.
+        n_shots: Shots per objective evaluation.
+        sample_shots: If set, record bitstring histograms at init and best
+            parameters; if None, skip extra sampling.
+        seed: Optional simulator seed.
+        optimizer: SciPy ``minimize`` method.
+        delta_t: TQA initial parameter scale.
+        noise_config: Optional noise; None or disabled uses state vector.
 
     Returns:
-        Tuple of (best_energy, best_params, initial_samples, final_samples,
-        initial_energy, energy_history).
-        initial_samples: Bitstring counts at TQA init params when sample_shots is set.
-        final_samples: Bitstring counts at best_params when sample_shots is set.
+        ``(best_energy, best_params, initial_samples, final_samples,
+        initial_energy, energy_history)``; sample dicts are None when
+        ``sample_shots`` is None.
     """
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
@@ -276,11 +327,22 @@ def run_qaoa(
     delta_t: float = 0.55,
     noise_config: NoiseConfig | None = None,
 ) -> dict:
-    """Run full QAOA: optimize, sample, and return best solution.
+    """Run QUBO QAOA end-to-end and return energies, angles, and best bitstring.
 
-    Cost evaluation uses ``n_shots`` samples per optimizer step (sampling-based,
-    consistent with the TQUDO backend).  ``sample_shots`` controls the final
-    solution-sampling step.
+    Args:
+        qubo_matrix: Symmetric QUBO ``Q``.
+        depth: QAOA layers p.
+        max_iter: Classical optimizer budget.
+        n_shots: Shots per objective evaluation.
+        sample_shots: Shots for final (and initial) histograms.
+        seed: Optional RNG seed.
+        optimizer: SciPy method name.
+        delta_t: TQA initialization scale.
+        noise_config: Optional noise configuration.
+
+    Returns:
+        Dict with ``energy``, ``params``, ``initial_samples``, ``final_samples``,
+        ``best_bitstring``, ``best_binary``, ``initial_energy``, ``energy_history``.
     """
     best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
         optimize_qaoa(

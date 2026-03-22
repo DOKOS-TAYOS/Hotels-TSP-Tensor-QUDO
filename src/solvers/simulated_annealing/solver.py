@@ -23,7 +23,7 @@ from utils.progress import reporter
 
 
 def _default_restriction() -> RestrictionConfig:
-    """Default penalty coefficients for constraint encoding."""
+    """Return default QUBO/TQUDO penalty weights when none are supplied."""
     return RestrictionConfig(lambda_0=100.0, lambda_1=100.0, lambda_2=100.0)
 
 
@@ -33,7 +33,17 @@ def _evaluate_cost(
     sequence: np.ndarray,
     n_available: int,
 ) -> float:
-    """Evaluate cost for a sequence given the formulation."""
+    """Return objective value for a permutation under the active formulation.
+
+    Args:
+        formulation: ``tqudo`` or ``qubo``.
+        problem: Built QUBO or TQUDO problem.
+        sequence: City indices per timestep.
+        n_available: Number of cities excluding the depot.
+
+    Returns:
+        Cost in stored (normalized) units, rescaled consistently with solvers.
+    """
     if formulation == "tqudo":
         return float(calculate_tqudo_cost(problem, sequence))
     # QUBO: convert sequence to binary first
@@ -42,7 +52,15 @@ def _evaluate_cost(
 
 
 def _swap_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Return a copy of *sequence* with two random positions swapped."""
+    """Return a neighbour by swapping two uniformly random positions.
+
+    Args:
+        sequence: Current permutation.
+        rng: NumPy random generator.
+
+    Returns:
+        New permutation (copy); unchanged if length < 2.
+    """
     n = len(sequence)
     if n < 2:
         return sequence.copy()
@@ -58,7 +76,15 @@ def _swap_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray
 
 
 def _insert_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Remove a random element and re-insert it at a different position."""
+    """Return a neighbour by moving one city to a different index.
+
+    Args:
+        sequence: Current permutation.
+        rng: NumPy random generator.
+
+    Returns:
+        New permutation; copy only if length < 2.
+    """
     n = len(sequence)
     if n < 2:
         return sequence.copy()
@@ -75,7 +101,15 @@ def _insert_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarr
 
 
 def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Reverse a random sub-segment (2-opt style move)."""
+    """Return a neighbour by reversing a random contiguous segment (2-opt style).
+
+    Args:
+        sequence: Current permutation.
+        rng: NumPy random generator.
+
+    Returns:
+        New permutation; falls back to :func:`_swap_neighbor` if length < 3.
+    """
     n = len(sequence)
     if n < 3:
         return _swap_neighbor(sequence, rng)
@@ -86,7 +120,15 @@ def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndar
 
 
 def _random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Pick a neighborhood operator at random (swap, insert, or reverse)."""
+    """Apply swap, insert, or reverse with uniform probability.
+
+    Args:
+        sequence: Current permutation.
+        rng: NumPy random generator.
+
+    Returns:
+        Neighbour state from one of the three local moves.
+    """
     operators = (_swap_neighbor, _insert_neighbor, _reverse_neighbor)
     op = operators[int(rng.integers(0, len(operators)))]
     return op(sequence, rng)
@@ -98,7 +140,18 @@ class SimulatedAnnealingSolver:
     solver_name = "simulated_annealing"
 
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult:
-        """Run simulated annealing and return standardized result."""
+        """Minimize QUBO or TQUDO cost by simulated annealing over permutations.
+
+        Args:
+            instance: Problem instance.
+            run_config: Temperature schedule, iteration cap, formulation, seed.
+
+        Returns:
+            :class:`~solvers.base.SolverResult` with best cost and metadata.
+
+        Raises:
+            ValueError: If ``formulation`` is ``tqudo_virtual``.
+        """
         restriction = run_config.restriction_config or _default_restriction()
         formulation = run_config.formulation
         if formulation == "tqudo_virtual":

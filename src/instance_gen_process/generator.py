@@ -164,18 +164,13 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
     Encodes costs and constraint penalties into a quadratic matrix for x^T Q x.
     See docs/formulations.md for the cost equations.
 
-    .. note:: Objective value offset vs. TQUDO
-
-       For any **feasible** solution (valid permutation), the QUBO objective
-       includes a constant offset from the one-hot penalty linear terms::
-
-           QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available
-
-       The TQUDO objective equals ``real_cost`` directly (no offset) for
-       feasible solutions.  Therefore raw objective values from the two
-       formulations are **not** directly comparable.  Use
-       ``utils.costs.calculate_real_cost`` for formulation-independent
-       comparisons.
+    Note:
+        For any feasible permutation, the QUBO objective includes a constant
+        offset from one-hot penalty linear terms:
+        ``QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available``.
+        The TQUDO objective matches ``real_cost`` for feasible solutions, so raw
+        objectives are not directly comparable across formulations. Use
+        ``utils.costs.calculate_real_cost`` for fair comparison.
 
     Args:
         problem: Canonical problem with precedences and price matrices.

@@ -286,10 +286,18 @@ def _make_single_qudit_channel(
     dimension: int,
     probability: float,
 ) -> cirq.Gate:
-    """Create a single-qudit noise channel gate.
+    """Instantiate a single-qudit Kraus channel gate of the requested type.
+
+    Args:
+        noise_type: Key in ``_QUDIT_CHANNEL_FACTORIES``.
+        dimension: Qudit dimension d.
+        probability: Channel strength.
+
+    Returns:
+        A ``cirq.Gate`` implementing ``_kraus_``.
 
     Raises:
-        ValueError: If *noise_type* is not recognised.
+        ValueError: If *noise_type* is unknown.
     """
     factory = _QUDIT_CHANNEL_FACTORIES.get(noise_type)
     if factory is None:
@@ -302,12 +310,18 @@ def _make_two_qudit_channel(
     dimension: int,
     probability: float,
 ) -> cirq.Gate:
-    """Create a correlated two-qudit noise channel.
+    """Return correlated two-qudit depolarizing noise.
 
-    Regardless of *noise_type*, a **two-qudit depolarizing** channel is used.
-    Generalising amplitude-damping or phase-damping to the correlated
-    two-qudit setting is non-trivial; depolarizing is the standard choice for
-    multi-qudit correlated noise.
+    *noise_type* is ignored; amplitude- and phase-damping lack a standard
+    correlated two-qudit analogue in this module.
+
+    Args:
+        noise_type: Unused; kept for symmetry with :func:`_make_single_qudit_channel`.
+        dimension: Per-qudit dimension d (joint space dimension d²).
+        probability: Depolarizing strength on the joint space.
+
+    Returns:
+        :class:`TwoQuditDepolarizingChannel` instance.
     """
     return TwoQuditDepolarizingChannel(dimension, probability)
 
@@ -334,6 +348,10 @@ class ConstantQuditNoiseModel(cirq.NoiseModel):
     - ``"qudit_hadamard"`` → ``QuditHadamardGate``
     - ``"qudit_mixer"``    → ``QuditRingMixerGate``
     - ``"qudit_cost"``     → ``QuditDiagonalCostGate``
+
+    Args:
+        config: Noise type, default probability, and optional gate overrides.
+        dimension: Native qudit dimension d for all channels in this model.
     """
 
     def __init__(self, config: NoiseConfig, dimension: int) -> None:
@@ -343,7 +361,7 @@ class ConstantQuditNoiseModel(cirq.NoiseModel):
     # ------------------------------------------------------------------
 
     def _get_probability(self, gate: cirq.Gate | None) -> float:
-        """Look up the error probability for *gate*, checking overrides."""
+        """Return the noise probability for *gate*, honouring ``gate_noise`` overrides."""
         if gate is not None:
             key = _GATE_NAME_TO_KEY.get(type(gate).__name__)
             if key is not None and key in self._config.gate_noise:
@@ -353,7 +371,14 @@ class ConstantQuditNoiseModel(cirq.NoiseModel):
     # ------------------------------------------------------------------
 
     def noisy_operation(self, op: cirq.Operation) -> cirq.OP_TREE:
-        """Append noise after every non-measurement gate operation."""
+        """Return *op* followed by qudit noise (single-, two-, or multi-qudit).
+
+        Args:
+            op: A native qudit operation.
+
+        Returns:
+            List starting with *op* then appropriate channel applications.
+        """
         if isinstance(op.gate, cirq.MeasurementGate) or op.gate is None:
             return op
 
@@ -392,10 +417,16 @@ def build_qudit_noise_model(
     config: NoiseConfig,
     dimension: int,
 ) -> ConstantQuditNoiseModel:
-    """Build a :class:`ConstantQuditNoiseModel` from a :class:`NoiseConfig`.
+    """Construct :class:`ConstantQuditNoiseModel` for native qudit circuits.
 
-    This is the entry-point called by
-    :func:`solvers.cirq_solver.noise_model.build_noise_model` when the qudit
-    dimension is > 2.
+    Called from :func:`solvers.cirq_solver.noise_model.build_noise_model` when
+    ``qudit_dimension > 2``.
+
+    Args:
+        config: Backend-agnostic noise parameters.
+        dimension: Qudit dimension d.
+
+    Returns:
+        Noise model instance for ``circuit.with_noise(...)``.
     """
     return ConstantQuditNoiseModel(config, dimension)

@@ -57,12 +57,19 @@ _TWO_QUBIT_GATE_NOISE_ALIASES: dict[str, tuple[str, int]] = {
 
 
 def _make_channel(noise_type: str, probability: float) -> cudaq.KrausChannel:
-    """Create a single CUDA-Q noise channel from a type name and probability.
+    """Create a single CUDA-Q Kraus channel from a type name and probability.
 
-    Channel constructors are resolved lazily so one missing symbol (e.g. across
-    CUDA-Q versions) does not break unrelated noise types.  Phase dephasing is
-    ``cudaq.PhaseDamping`` in current releases; older builds used
-    ``PhaseDampingChannel`` when present.
+    Channel constructors are resolved lazily so one missing symbol across CUDA-Q
+    versions does not break unrelated noise types. Phase dephasing uses
+    ``cudaq.PhaseDamping`` when ``PhaseDampingChannel`` is absent.
+
+    Args:
+        noise_type: One of ``depolarizing``, ``amplitude_damping``,
+            ``phase_damping``, ``bit_flip``, ``phase_flip``.
+        probability: Channel strength in ``[0, 1]`` (interpretation is channel-specific).
+
+    Returns:
+        A ``cudaq.KrausChannel`` instance.
 
     Raises:
         ValueError: If ``noise_type`` is not recognized.
@@ -84,7 +91,14 @@ def _make_channel(noise_type: str, probability: float) -> cudaq.KrausChannel:
 
 
 def _two_qubit_depolarizing_channel(probability: float) -> cudaq.KrausChannel | None:
-    """2-qubit depolarizing Kraus ops for controlled gates (dim 4).  Returns ``None`` if unsupported."""
+    """Build a two-qubit depolarizing channel when the CUDA-Q API exposes it.
+
+    Args:
+        probability: Depolarizing strength.
+
+    Returns:
+        Channel object, or None if ``Depolarization2`` is missing.
+    """
     factory = getattr(cudaq, "Depolarization2", None)
     if factory is None:
         return None
@@ -157,13 +171,16 @@ def build_noise_model(config: NoiseConfig) -> cudaq.NoiseModel:
 def get_noise_model(
     config: NoiseConfig | None,
 ) -> cudaq.NoiseModel | None:
-    """Return a ``cudaq.NoiseModel`` when noise is enabled, else ``None``.
+    """Return a CUDA-Q noise model when enabled, else None.
 
-    This is the main entry point for CUDA-Q circuit modules.  When the
-    returned value is not ``None``, callers must pass
-    ``noise_model=…`` to every ``cudaq.sample`` call.  Target selection
-    (GPU trajectory vs. ``density-matrix-cpu``) is handled by
-    :func:`ensure_cudaq_target`.
+    When non-None, pass ``noise_model=…`` to every ``cudaq.sample`` call.
+    Target selection is handled by :func:`~solvers.cudaq_solver.cudaq_target.ensure_cudaq_target`.
+
+    Args:
+        config: Noise parameters, or None to disable.
+
+    Returns:
+        Built ``cudaq.NoiseModel``, or None.
     """
     if config is None or not config.enabled:
         return None

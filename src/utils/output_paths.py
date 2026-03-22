@@ -8,7 +8,14 @@ from pathlib import Path
 
 @dataclass(frozen=True, slots=True)
 class OutputLayout:
-    """Standard output folders used by the project."""
+    """Standard output directory layout for experiment artifacts.
+
+    Attributes:
+        root: Base output directory.
+        raw: Subfolder for raw JSON or solver dumps.
+        processed: Subfolder for post-processed tables or aggregates.
+        images: Subfolder for figures.
+    """
 
     root: Path
     raw: Path

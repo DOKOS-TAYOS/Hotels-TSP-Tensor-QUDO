@@ -15,13 +15,32 @@ OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
 
 
 def _default_noise_config() -> NoiseConfig:
+    """Return a default :class:`~solvers.noise.NoiseConfig` (noise disabled)."""
     from solvers.noise import NoiseConfig
     return NoiseConfig()
 
 
 @dataclass(frozen=True, slots=True)
 class SolverRunConfig:
-    """Generic run controls shared across solver backends."""
+    """Generic run controls shared across solver backends.
+
+    Attributes:
+        max_iterations: Upper bound on solver iterations (where applicable).
+        timeout_seconds: Optional wall-clock limit in seconds.
+        formulation: ``qubo``, ``tqudo`` (native qudits), or ``tqudo_virtual``.
+        restriction_config: QUBO/TQUDO penalty weights; defaults if None.
+        qaoa_depth: QAOA circuit depth p.
+        qaoa_max_iter: Classical optimizer iterations for QAOA angles.
+        qaoa_shots: Shots per objective evaluation for sampling QAOA.
+        qaoa_sample_shots: Shots when drawing final (and initial) samples.
+        seed: Optional RNG seed.
+        optimizer: SciPy ``minimize`` method name for QAOA.
+        delta_t: TQA-style initial parameter scale.
+        noise_config: Optional noise simulation parameters.
+        sa_t_initial: Simulated annealing start temperature.
+        sa_t_final: Simulated annealing end temperature.
+        sa_alpha: Multiplicative cooling factor per SA step.
+    """
 
     max_iterations: int = 1_000
     timeout_seconds: float | None = None
@@ -47,10 +66,16 @@ class SolverRunConfig:
 
 @dataclass(frozen=True, slots=True)
 class SolverResult:
-    """Standardized solver output.
+    """Standardized solver output from any backend.
 
-    metadata may include: initial_energy (float), energy_history (list[float]),
-    best_sequence, best_bitstring, best_binary, real_cost, etc.
+    Attributes:
+        solver_name: Backend identifier (e.g. ``cirq``, ``cudaq``).
+        objective_value: Best objective found (units depend on formulation).
+        feasible: Whether the best decoded solution satisfies constraints.
+        runtime_seconds: Wall time for the solve call.
+        metadata: Extra fields such as ``initial_energy``, ``energy_history``,
+            ``best_sequence``, ``best_bitstring``, ``best_binary``,
+            ``real_cost``, sample histograms, etc.
     """
 
     solver_name: str
@@ -61,17 +86,18 @@ class SolverResult:
 
 
 class SolverProtocol(Protocol):
-    """Contract expected from every backend implementation."""
+    """Contract implemented by every solver backend."""
 
     solver_name: str
 
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult:
-        """Execute optimization and return a standardized result.
+        """Run the solver on *instance* using *run_config*.
 
         Args:
-            instance: Problem to solve (precedences, prices).
-            run_config: Solver controls (max_iterations, timeout).
+            instance: Problem instance (precedences, hotel and travel prices).
+            run_config: Backend-specific limits, formulation, QAOA/SA options.
 
         Returns:
-            SolverResult with objective_value, feasible, runtime_seconds.
+            :class:`SolverResult` with best objective, feasibility flag, runtime,
+            and optional ``metadata``.
         """

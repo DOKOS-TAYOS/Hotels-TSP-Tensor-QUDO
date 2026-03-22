@@ -10,12 +10,28 @@ from instance_gen_process.models import ProblemInstance
 
 
 def idx(t: int, i: int, n_available: int) -> int:
-    """Linear index for (timestep, city) in flattened QUBO representation."""
+    """Return the flat QUBO index for timestep *t* and city *i*.
+
+    Args:
+        t: Timestep in ``{0, …, n_available - 1}``.
+        i: City index in ``{0, …, n_available - 1}``.
+        n_available: Number of non-depot cities.
+
+    Returns:
+        Linear index ``t * n_available + i`` into the one-hot vectorisation.
+    """
     return t * n_available + i
 
 
 def validate_instance_constraints(instance: ProblemInstance) -> bool:
-    """Return `True` when basic instance constraints are consistent."""
+    """Check shapes, index ranges, and acyclicity of precedence constraints.
+
+    Args:
+        instance: Problem instance to validate.
+
+    Returns:
+        True if dimensions and precedences are self-consistent.
+    """
 
     n_available = instance.n_cities - 1
     if n_available < 1:
@@ -42,7 +58,15 @@ def _has_cycle(
     precedences: list[tuple[int, int]] | tuple[tuple[int, int], ...],
     n_nodes: int,
 ) -> bool:
-    """True if the precedence graph contains a cycle."""
+    """Return whether the directed precedence graph has a cycle.
+
+    Args:
+        precedences: Directed edges (origin, destination) meaning origin before destination.
+        n_nodes: Number of nodes (cities) in ``{0, …, n_nodes - 1}``.
+
+    Returns:
+        True if a directed cycle exists.
+    """
     adj: dict[int, list[int]] = {}
     for a, b in precedences:
         adj.setdefault(a, []).append(b)
@@ -73,10 +97,18 @@ def would_create_cycle(
     origin: int,
     destination: int,
 ) -> bool:
-    """True if adding (origin, destination) would create a cycle in the precedence graph.
+    """Return whether edge (origin, destination) would close a directed cycle.
 
-    A cycle occurs when destination can already reach origin (directly or via other rules).
-    Uses BFS from destination with deque.popleft for O(1) queue operations.
+    A cycle occurs when *destination* can already reach *origin* in the graph
+    formed by *precedences*. Uses BFS from *destination*.
+
+    Args:
+        precedences: Current precedence edges.
+        origin: Proposed edge tail (must visit earlier).
+        destination: Proposed edge head (must visit later).
+
+    Returns:
+        True if adding the edge would introduce a cycle.
     """
     adj: dict[int, list[int]] = {}
     for a, b in precedences:
@@ -98,7 +130,15 @@ def _check_precedences(
     seq: np.ndarray,
     precedences: list[tuple[int, int]] | tuple[tuple[int, int], ...],
 ) -> bool:
-    """Return True when every precedence (a before b) is satisfied in *seq*."""
+    """Return whether every precedence pair appears in order in *seq*.
+
+    Args:
+        seq: Route as city indices per timestep.
+        precedences: Pairs ``(a, b)`` requiring *a* before *b*.
+
+    Returns:
+        True if all precedences are satisfied.
+    """
     pos: dict[int, int] = {int(seq[t]): t for t in range(len(seq))}
     return all(
         a in pos and b in pos and pos[a] < pos[b]
@@ -138,9 +178,15 @@ def validate_solution_constraints_tqudo(
 
 
 def qubo_binary_to_sequence(solution: np.ndarray, n_available: int) -> np.ndarray | None:
-    """Decode QUBO binary vector to a sequence of cities per timestep.
+    """Decode a QUBO binary vector to a city-per-timestep sequence.
 
-    Returns None if the binary encoding is invalid (not exactly one 1 per row/col).
+    Args:
+        solution: Flat binary vector of length ``n_available ** 2``.
+        n_available: Number of cities (excluding depot).
+
+    Returns:
+        Integer array of shape ``(n_available,)`` with the route, or None if
+        the one-hot constraints are violated.
     """
     x = np.asarray(solution).flatten()
     expected_len = n_available * n_available

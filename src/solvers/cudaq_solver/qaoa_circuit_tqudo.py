@@ -24,7 +24,18 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[int, int]:
-    """Validate Tensor-QUDO tensor shapes and return basic dimensions."""
+    """Check TQUDO tensor ranks, consistency, and power-of-two qudit dimension.
+
+    Args:
+        Etab: Rank-3 adjacent cost tensor.
+        Ettprimeab: Rank-4 long-range tensor.
+
+    Returns:
+        ``(n_qudits, dimension_qudits)``.
+
+    Raises:
+        ValueError: On rank mismatch, shape mismatch, or non-power-of-two *d*.
+    """
     if Etab.ndim != 3:
         raise ValueError(f"Etab must be a rank-3 tensor, got shape {Etab.shape}.")
     if Ettprimeab.ndim != 4:
@@ -56,10 +67,13 @@ def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[in
 
 
 def _nonzero_etab_terms(Etab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
-    """Return sparse adjacent-qudit terms as (left, right, x_left, x_right, coeff).
+    """List non-zero adjacent timestep cost entries for JIT-friendly kernels.
 
-    Only adjacent timesteps (t, t+1) are included, so the first axis is
-    sliced to ``Etab[:n_qudits-1]`` before extracting non-zeros.
+    Args:
+        Etab: Full ``Etab`` tensor; only slices ``Etab[:n_qudits-1, :, :]``.
+
+    Returns:
+        Tuples ``(t, t+1, x_left, x_right, coefficient)`` above threshold.
     """
     n_qudits = Etab.shape[0]
     adjacent = Etab[:n_qudits - 1]
@@ -71,9 +85,13 @@ def _nonzero_etab_terms(Etab: np.ndarray) -> list[tuple[int, int, int, int, floa
 
 
 def _nonzero_ett_terms(Ettprimeab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
-    """Return sparse long-range terms as (left, right, x_left, x_right, coeff).
+    """List non-zero long-range terms for ``t < t'`` only.
 
-    Only upper-triangular timestep pairs (t < t') are included.
+    Args:
+        Ettprimeab: Full 4D penalty tensor.
+
+    Returns:
+        Tuples ``(t, t_prime, x_t, x_tp, coefficient)``.
     """
     n_qudits = Ettprimeab.shape[0]
     mask = np.abs(Ettprimeab) > 1e-14
@@ -96,7 +114,18 @@ def _apply_state_conditioned_phase(
     right_state: int,
     angle: "float | cudaq.QuakeValue",
 ) -> None:
-    """Apply a multi-controlled phase conditioned on two encoded qudit states."""
+    """Apply a multi-controlled phase when two qudit registers match given values.
+
+    Args:
+        kernel: CUDA-Q kernel under construction.
+        q_full: Flat qubit register for all emulated qudits.
+        qubits_per_qudit: Bits per qudit block.
+        left_qudit: Index of the left timestep qudit.
+        right_qudit: Index of the right timestep qudit.
+        left_state: Integer encoding of the left qudit basis state.
+        right_state: Integer encoding of the right qudit basis state.
+        angle: Phase angle (may be a kernel parameter expression).
+    """
     left_base = left_qudit * qubits_per_qudit
     right_base = right_qudit * qubits_per_qudit
     target_bit = qubits_per_qudit - 1
@@ -135,7 +164,19 @@ def create_qaoa_ansatz(
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
 ) -> "cudaq.Kernel":
-    """Create a generic CUDA-Q builder kernel for Tensor-QUDO QAOA."""
+    """Build a CUDA-Q QAOA kernel for qubit-emulated Tensor QUDO.
+
+    Args:
+        depth: QAOA layers p.
+        Etab: Adjacent-step cost tensor (``d`` a power of two).
+        Ettprimeab: Long-range tensor matching ``Etab`` spatial shape.
+
+    Returns:
+        Kernel taking ``(gamma, beta)`` list arguments.
+
+    Raises:
+        ValueError: Propagated from :func:`_validate_tqudo_shapes`.
+    """
     n_qudits, dimension_qudits = _validate_tqudo_shapes(Etab, Ettprimeab)
     qubits_per_qudit = max(1, int(math.ceil(math.log2(dimension_qudits))))
     n_qubits_total = n_qudits * qubits_per_qudit
@@ -198,7 +239,7 @@ def evaluate_cost(
         noise_model: Pre-built cudaq.NoiseModel, or None for noiseless.
 
     Returns:
-        Average TQUDO cost over samples.
+        Average TQUDO cost over samples, or 0.0 if no samples were returned.
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()

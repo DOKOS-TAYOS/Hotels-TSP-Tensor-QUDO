@@ -11,27 +11,31 @@ _stop_requested: bool = False
 
 
 class SolverStopRequested(Exception):
-    """User requested stop (e.g. SIGINT) during a solver run."""
+    """Raised when the user requests a cooperative stop during solving."""
 
 
 def request_solver_stop() -> None:
-    """Set the cooperative stop flag (typically from a SIGINT handler)."""
+    """Set the global cooperative stop flag (e.g. from a SIGINT handler)."""
     global _stop_requested
     _stop_requested = True
 
 
 def clear_solver_stop_request() -> None:
-    """Clear the flag at the start of a workflow or batch run."""
+    """Reset the stop flag before a new workflow or batch."""
     global _stop_requested
     _stop_requested = False
 
 
 def is_solver_stop_requested() -> bool:
-    """Return True if :func:`request_solver_stop` was called."""
+    """Return whether :func:`request_solver_stop` has been called since last clear."""
     return _stop_requested
 
 
 def raise_if_solver_stop_requested() -> None:
-    """Raise :class:`SolverStopRequested` if a stop was requested."""
+    """Raise :exc:`SolverStopRequested` if cooperative stop was requested.
+
+    Raises:
+        SolverStopRequested: If :func:`request_solver_stop` was called.
+    """
     if _stop_requested:
         raise SolverStopRequested

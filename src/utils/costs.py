@@ -14,10 +14,11 @@ def calculate_qubo_cost(problem: ProblemQUBO, solution: np.ndarray) -> float:
     both the real cost terms and the penalty terms for constraint violations.
     See docs/formulations.md for the cost equations.
 
-    .. note:: For feasible solutions the QUBO cost differs from the real
-       travel+hotel cost by a constant offset:
-       ``QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available``.
-       Use :func:`calculate_real_cost` for formulation-independent comparisons.
+    Note:
+        For feasible solutions the QUBO cost differs from the real travel and
+        hotel cost by a constant offset:
+        ``QUBO_cost = real_cost - (lambda_0 + lambda_1) * n_available``.
+        Use :func:`calculate_real_cost` for formulation-independent comparisons.
 
     The stored ``qubo_matrix`` may be normalised; this function always returns
     the cost rescaled to original problem units via ``problem.energy_scale``.
