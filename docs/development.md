@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- **Python 3.12+** (required).
+- **Python 3.11, 3.12, or 3.13** (required).
 - **Linux** (required). CUDA-Q and the install/task scripts require a Linux
   environment. WSL2 on Windows works for development.
 - **NVIDIA GPU** (optional). Required only for the CUDA-Q backend. Tests
@@ -23,7 +23,7 @@
 
 This runs `bin/setup.sh` which:
 
-1. Verifies `python3` is available and >= 3.12.
+1. Verifies `python3` is available and is 3.11, 3.12, or 3.13.
 2. Creates a `.venv` virtual environment if missing.
 3. Upgrades pip.
 4. Installs the package in editable mode with the specified extras.
@@ -88,6 +88,17 @@ Default **legacy** mode matches the old behaviour: load `config.yaml` and `solve
 
 Experiment modes read instances from `raw/instances/...` and write to `raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`. Run `generate` before experiment modes that need on-disk instances.
 
+#### CUDA-Q: parallel instances (experiment on-disk mode only)
+
+When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one CUDA-Q context per process. QAOA inside each instance stays sequential; only **different instances** overlap. Other solvers and `cudaq` with this key unset or set to `1` keep the previous sequential behaviour (with the usual single-line progress).
+
+- **YAML**: optional `cudaq_max_parallel_instances` (default `1`), merged like other top-level solver keys.
+- **Environment**: `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
+- **UI**: child processes do not print QAOA step bars; the parent prints one **compact** line (rewritten in place) with active instance indices and write progress, **only when that state changes** (e.g. `[cudaq parallel] active_inst=[1,2,3] writes=7/100`) so narrow terminals do not wrap and spam the log.
+- **VRAM**: each worker uses its own GPU memory footprint; reduce the parallel count if you hit OOM.
+- **Interrupt**: Ctrl+C cancels work not yet started; workers already running may continue until they finish.
+- **Reproducibility**: solution JSON includes `cudaq_max_parallel_instances_effective` under `solver_config` for CUDA-Q runs.
+
 ```bash
 .venv/bin/python -m experiments.main_experiment_workflow
 .venv/bin/python -m experiments.main_experiment_workflow --mode generate
@@ -108,7 +119,7 @@ Experiment modes read instances from `raw/instances/...` and write to `raw/solut
 ```
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 extend-exclude = ["pytest-cache-files-*", ".tmp"]
 ```
 
@@ -123,7 +134,7 @@ Run: `make -f scripts/makefile lint` or `.venv/bin/python -m ruff check .`
 - **Pytest pythonpath**: `["src"]` so tests import the same way.
 - **All dataclasses** use `frozen=True, slots=True`.
 - **Type hints** required in all function signatures.
-- **Python target**: 3.12+ (uses `X | Y` union syntax, `tuple[...]` generics).
+- **Python target**: 3.11–3.13 (uses `X | Y` union syntax, `tuple[...]` generics).
 - **No secrets in code**: `.env` is gitignored; `.env.example` is committed
   with safe defaults.
 

@@ -13,7 +13,7 @@ python_ok() {
   if ! command_exists python3; then
     return 1
   fi
-  python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)'
+  python3 -c 'import sys; vi=sys.version_info; raise SystemExit(0 if (3, 11) <= vi < (3, 14) else 1)'
 }
 
 detect_package_manager() {
@@ -106,7 +106,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 EXTRAS="${1:-dev,ui,cudaq}"
 PACKAGE_MANAGER="$(detect_package_manager || true)"
 
-log "Step 1/3: Checking prerequisites (Python 3.12+ and Git)"
+log "Step 1/3: Checking prerequisites (Python 3.11–3.13 and Git)"
 
 missing=()
 if ! command_exists git; then
@@ -126,7 +126,7 @@ if ! command_exists git; then
 fi
 
 if ! python_ok; then
-  log "ERROR: Python 3.12+ is still missing."
+  log "ERROR: Python 3.11, 3.12, or 3.13 is still missing."
   exit 1
 fi
 
