@@ -74,8 +74,26 @@ make -f scripts/makefile clean   # Remove caches, __pycache__, .pyc, temp dirs
 
 ### Running the experiment workflow
 
+Default **legacy** mode matches the old behaviour: load `config.yaml` and `solver_config.yaml`, generate instances in memory, write timestamped JSON files under `output/raw/`. Output root defaults to `HTSP_OUTPUT_DIR` (usually `output/`) when `--output` is omitted.
+
+| `--mode` | What runs |
+|----------|-----------|
+| `legacy` (default) | In-memory generation + solve; filenames `exp_<timestamp>_inst_<i>_...json` |
+| `generate` | From `src/experiments/instance_generation_config.yaml` and ranges/seed in `config.yaml`; writes `raw/instances/n_<n_cities>/instance_<k>.json` |
+| `cudaq` | Preset CUDA-Q experiment YAMLs under `src/experiments/` |
+| `sa` | Preset simulated-annealing experiment YAMLs |
+| `cirq5` | Preset Cirq TQUDO n=5 experiment |
+| `experiment` | One or more YAMLs via `--experiment-yaml f1.yaml f2.yaml` (merged each with `solver_config.yaml`) |
+| `check_feasibility` | Scan `raw/solutions/<solver>/**/*.json` for one backend; print paths that are not feasible (requires `--check-solver cudaq|cirq|simulated_annealing`). Exit 0 if all OK, 1 if any bad, 2 if the solver folder is missing |
+
+Experiment modes read instances from `raw/instances/...` and write to `raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`. Run `generate` before experiment modes that need on-disk instances.
+
 ```bash
 .venv/bin/python -m experiments.main_experiment_workflow
+.venv/bin/python -m experiments.main_experiment_workflow --mode generate
+.venv/bin/python -m experiments.main_experiment_workflow --mode sa --output path/to/output
+.venv/bin/python -m experiments.main_experiment_workflow --mode experiment --experiment-yaml path/to/exp.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --mode check_feasibility --check-solver cudaq
 .venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --output path/to/output

@@ -1,7 +1,7 @@
 # Solver and experiment configuration
 n_instances: 1
-solver: cirq  # cudaq | cirq | simulated_annealing
-formulation: tqudo  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
+solver: cudaq  # cudaq | cirq | simulated_annealing
+formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
 optimizer: Powell  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
 restriction: # python -m experiments.estimate_lambdas --formulation qubo --solver simulated_annealing --lambda-values 10,20,30,40,50,60,70,80,90,100,200,300,400,500,600,700,800,900,1000
   lambda_0: 10

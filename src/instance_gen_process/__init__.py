@@ -20,6 +20,7 @@ from instance_gen_process.models import (
 from instance_gen_process.solver_config_loader import (
     DEFAULT_SOLVER_CONFIG_PATH,
     load_solver_config,
+    parse_solver_config_dict,
     solver_config_to_run_config,
     validate_solver_instance_compatibility,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "generate_TQUDO_from_problem",
     "load_instance_config",
     "load_solver_config",
+    "parse_solver_config_dict",
     "solver_config_to_run_config",
     "validate_solver_instance_compatibility",
 ]

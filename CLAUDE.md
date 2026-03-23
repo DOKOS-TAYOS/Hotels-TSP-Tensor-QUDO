@@ -25,7 +25,7 @@ make -f scripts/makefile clean
 .venv/bin/python -m pytest tests/test_costs.py -v
 .venv/bin/python -m pytest tests/test_costs.py::test_name -v
 
-# Run experiment workflow
+# Run experiment workflow (default: legacy in-memory batch → timestamped JSON in output/raw/)
 .venv/bin/python -m experiments.main_experiment_workflow
 .venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
@@ -34,6 +34,7 @@ make -f scripts/makefile clean
 # Calibration CLIs (output to output/T0sampling/ and output/lambdasSampling/)
 .venv/bin/python -m experiments.estimate_t0 --n-instances 5 --chi0 0.8
 .venv/bin/python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500,1000
+# Modes: --mode generate | cudaq | sa | cirq5 | experiment | check_feasibility (see docs/development.md)
 ```
 
 ## Architecture
@@ -47,7 +48,9 @@ Both formulations normalise their tensors/matrix by `energy_scale = max(|values|
 
 ### Data flow
 
-`config.yaml` + `solver_config.yaml` → `ProblemInstance` → formulation generation → solver → `SolverResult` → JSON in `output/raw/`
+**Legacy (`--mode legacy`, default):** `config.yaml` + `solver_config.yaml` → generate instances in memory → solver → JSON in `output/raw/` (`exp_<timestamp>_...`).
+
+**Disk workflow:** `src/experiments/instance_generation_config.yaml` + `config.yaml` → JSON instances under `output/raw/instances/n_<n_cities>/instance_<k>.json`. Each `src/experiments/experiment_*.yaml` merges with `solver_config.yaml` and writes solutions to `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<qaoa_depth>/]instance_<k>.json` (no `qaoa_depth` folder for simulated annealing).
 
 ### Solver backends (all implement `SolverProtocol`)
 
