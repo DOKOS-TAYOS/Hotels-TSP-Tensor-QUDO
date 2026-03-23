@@ -84,3 +84,7 @@ output/processed/*
 !output/processed/.gitkeep
 output/images/*
 !output/images/.gitkeep
+output/T0sampling/*
+!output/T0sampling/.gitkeep
+output/lambdasSampling/*
+!output/lambdasSampling/.gitkeep

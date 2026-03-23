@@ -4,6 +4,15 @@ Generates small TSP instances, evaluates every combination of lambda values
 on each instance using a chosen solver, and ranks combinations by feasibility
 rate and mean real cost.
 
+Arguments:
+    --instance-config: Path to instance config YAML (default: src/instance_gen_process/config.yaml)
+    --solver-config:   Path to solver config YAML (default: src/instance_gen_process/solver_config.yaml)
+    --formulation:     Formulation to evaluate (default: qubo, choices: qubo, tqudo)
+    --solver:          Solver backend (default: simulated_annealing, choices: simulated_annealing, cirq, cudaq)
+    --n-instances:     Number of random instances per lambda combination (default: 5)
+    --lambda-values:   Comma-separated lambda values to grid-search (default: 10,50,100,500,1000)
+    --output:          Output directory for the JSON file (default: output/lambdasSampling)
+
 Usage::
 
     python -m experiments.estimate_lambdas
@@ -355,16 +364,16 @@ def main() -> None:
     parser.add_argument(
         "--instance-config",
         type=Path,
-        default=None,
-        help=f"Path to instance config YAML (default: {DEFAULT_CONFIG_PATH})",
+        default=Path("src/instance_gen_process/config.yaml"),
+        help="Path to instance config YAML (default: src/instance_gen_process/config.yaml)",
     )
     parser.add_argument(
         "--solver-config",
         type=Path,
-        default=None,
+        default=Path("src/instance_gen_process/solver_config.yaml"),
         help=(
-            f"Path to solver config YAML — reads SA/QAOA params, seed; "
-            f"lambdas are overridden by the grid (default: {DEFAULT_SOLVER_CONFIG_PATH})"
+            "Path to solver config YAML — reads SA/QAOA params, seed; "
+            "lambdas are overridden by the grid (default: src/instance_gen_process/solver_config.yaml)"
         ),
     )
     parser.add_argument(
