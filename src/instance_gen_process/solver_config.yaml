@@ -1,5 +1,8 @@
 # Solver and experiment configuration
 n_instances: 1
+# Optional (CUDA-Q, on-disk experiment mode only): run N instances in parallel processes (default 1).
+# Override with env HTSP_CUDAQ_MAX_PARALLEL_INSTANCES.
+cudaq_max_parallel_instances: 15
 solver: cudaq  # cudaq | cirq | simulated_annealing
 formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
 optimizer: Powell  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead

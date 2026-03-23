@@ -39,6 +39,12 @@ from utils.cooperative_stop import (
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
 
+from experiments.cudaq_parallel import (
+    CudaqParallelJob,
+    CudaqParallelJobSpec,
+    resolve_cudaq_max_parallel_instances,
+    run_cudaq_parallel_batch,
+)
 from experiments.workflow_io import (
     DEFAULT_INSTANCE_GENERATION_CONFIG_PATH,
     experiment_depth_iterations,
@@ -365,13 +371,20 @@ def run_experiment_from_yaml(
                 validate_solver_instance_compatibility(icfg, validated)
                 run_config = solver_config_to_run_config(validated)
                 run_config = _apply_noise_kill_switch(run_config, settings)
-                solver = _get_solver(validated["solver"])
+                inner_solver = validated["solver"]
+                solver = _get_solver(inner_solver)
                 formulation = validated["formulation"]
+                parallel_w = resolve_cudaq_max_parallel_instances(cfg_dict)
+                solver_config_serializable = _solver_config_payload_dict(validated)
+                if inner_solver == "cudaq":
+                    solver_config_serializable["cudaq_max_parallel_instances_effective"] = (
+                        parallel_w
+                    )
 
+                instance_rows: list[tuple[int, Path, ProblemInstance]] = []
                 for k in range(1, n_instances + 1):
-                    if is_interrupted():
+                    if stop_solve or is_interrupted():
                         break
-                    reporter.instance_start(flat_i)
                     src = instance_json_path(output_root_path, n_cities, k)
                     if not src.is_file():
                         raise FileNotFoundError(
@@ -383,51 +396,139 @@ def run_experiment_from_yaml(
                         n_failed += 1
                         flat_i += 1
                         continue
+                    instance_rows.append((k, src, instance))
 
-                    solver_config_serializable = _solver_config_payload_dict(validated)
-                    try:
-                        result = solver.solve(instance, run_config)
-                        payload = {
-                            "instance": _serialize_instance(instance),
-                            "instance_config": _serialize_instance_config(icfg),
-                            "instance_index": k - 1,
-                            "instance_source": str(src),
-                            "solver_config": solver_config_serializable,
-                            "solver_output": _serialize_solver_result(result),
-                        }
-                    except SolverStopRequested:
-                        stop_solve = True
-                        break
-                    except Exception:
-                        logger.exception("Solver failed for %s — saving error record.", src)
-                        n_failed += 1
-                        payload = {
-                            "instance": _serialize_instance(instance),
-                            "instance_config": _serialize_instance_config(icfg),
-                            "instance_index": k - 1,
-                            "instance_source": str(src),
-                            "solver_config": solver_config_serializable,
-                            "solver_output": {
-                                "solver_name": solver_name,
-                                "error": traceback.format_exc(),
-                            },
-                        }
+                if stop_solve or is_interrupted():
+                    break
 
-                    out_dir = solutions_raw_dir(
-                        output_root_path,
-                        solver_name,
-                        formulation,
-                        n_cities,
-                        path_depth,
+                use_cudaq_parallel = (
+                    inner_solver == "cudaq"
+                    and parallel_w > 1
+                    and len(instance_rows) > 1
+                )
+
+                if use_cudaq_parallel:
+                    specs = [
+                        CudaqParallelJobSpec(
+                            k=k,
+                            instance_json_path=str(src),
+                            status_label=(
+                                f"n_cities={n_cities} depth={path_depth} inst={k}"
+                            ),
+                            run_config=run_config,
+                            instance_config_dict=_serialize_instance_config(icfg),
+                            solver_config_serializable=solver_config_serializable,
+                            solver_name=inner_solver,
+                            formulation=formulation,
+                            n_cities=n_cities,
+                            path_depth=path_depth,
+                            output_root=str(output_root_path.resolve()),
+                        )
+                        for k, src, _inst in instance_rows
+                    ]
+                    _pool_workers = min(parallel_w, len(specs))
+                    _par_msg = (
+                        f"CUDA-Q parallel batch: process_pool_workers={_pool_workers} "
+                        f"instance_jobs={len(specs)} "
+                        f"(cudaq_max_parallel_instances_effective={parallel_w}, "
+                        f"n_cities={n_cities}, qaoa_depth_path={path_depth}, "
+                        f"formulation={formulation})"
                     )
-                    out_dir.mkdir(parents=True, exist_ok=True)
-                    out_path = out_dir / f"instance_{k}.json"
-                    with open(out_path, "w", encoding="utf-8") as f:
-                        json.dump(payload, f, indent=2)
+                    logger.info("%s.", _par_msg)
+                    print(f"[cudaq parallel] {_par_msg}", flush=True)
 
-                    reporter.instance_done(flat_i, str(out_path))
-                    flat_i += 1
+                    def _write_cudaq_solution(
+                        job: CudaqParallelJob, payload: dict[str, Any]
+                    ) -> Path:
+                        out_dir = solutions_raw_dir(
+                            output_root_path,
+                            job.solver_name,
+                            job.formulation,
+                            job.n_cities,
+                            job.path_depth,
+                        )
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        out_path = out_dir / f"instance_{job.k}.json"
+                        with open(out_path, "w", encoding="utf-8") as f:
+                            json.dump(payload, f, indent=2)
+                        return out_path
+
+                    batch_result = run_cudaq_parallel_batch(
+                        specs,
+                        min(parallel_w, len(specs)),
+                        solutions_write_fn=_write_cudaq_solution,
+                        is_interrupted=is_interrupted,
+                    )
+                    n_failed += batch_result.n_failed
+                    flat_i += batch_result.n_completed
+                    if batch_result.interrupted:
+                        break
                     gc.collect()
+                else:
+                    if inner_solver == "cudaq" and instance_rows:
+                        if parallel_w <= 1:
+                            _seq_msg = (
+                                f"CUDA-Q sequential solve: {len(instance_rows)} valid "
+                                f"instance(s); parallel disabled "
+                                f"(cudaq_max_parallel_instances_effective={parallel_w}, "
+                                f"n_cities={n_cities}, qaoa_depth_path={path_depth})"
+                            )
+                        else:
+                            _seq_msg = (
+                                f"CUDA-Q sequential solve: {len(instance_rows)} valid "
+                                f"instance(s); parallel needs 2+ instances "
+                                f"(cudaq_max_parallel_instances_effective={parallel_w}, "
+                                f"n_cities={n_cities}, qaoa_depth_path={path_depth})"
+                            )
+                        logger.info("%s.", _seq_msg)
+                        print(f"[cudaq parallel] {_seq_msg}", flush=True)
+                    for k, src, instance in instance_rows:
+                        if stop_solve or is_interrupted():
+                            break
+                        reporter.instance_start(flat_i)
+                        try:
+                            result = solver.solve(instance, run_config)
+                            payload = {
+                                "instance": _serialize_instance(instance),
+                                "instance_config": _serialize_instance_config(icfg),
+                                "instance_index": k - 1,
+                                "instance_source": str(src),
+                                "solver_config": solver_config_serializable,
+                                "solver_output": _serialize_solver_result(result),
+                            }
+                        except SolverStopRequested:
+                            stop_solve = True
+                            break
+                        except Exception:
+                            logger.exception("Solver failed for %s — saving error record.", src)
+                            n_failed += 1
+                            payload = {
+                                "instance": _serialize_instance(instance),
+                                "instance_config": _serialize_instance_config(icfg),
+                                "instance_index": k - 1,
+                                "instance_source": str(src),
+                                "solver_config": solver_config_serializable,
+                                "solver_output": {
+                                    "solver_name": inner_solver,
+                                    "error": traceback.format_exc(),
+                                },
+                            }
+
+                        out_dir = solutions_raw_dir(
+                            output_root_path,
+                            inner_solver,
+                            formulation,
+                            n_cities,
+                            path_depth,
+                        )
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        out_path = out_dir / f"instance_{k}.json"
+                        with open(out_path, "w", encoding="utf-8") as f:
+                            json.dump(payload, f, indent=2)
+
+                        reporter.instance_done(flat_i, str(out_path))
+                        flat_i += 1
+                        gc.collect()
 
                 if is_interrupted() or stop_solve:
                     break
