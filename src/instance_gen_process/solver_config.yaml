@@ -9,23 +9,23 @@ cirq_max_parallel_instances: 15
 solver: cudaq  # cudaq | cirq | simulated_annealing
 formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
 optimizer: Powell  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
-restriction:
-  lambda_0: 1000.0
-  lambda_1: 1000.0
-  lambda_2: 1000.0
+restriction: # python -m experiments.estimate_lambdas --formulation qubo --solver simulated_annealing --lambda-values 10,20,30,40,50,60,70,80,90,100,200,300,400,500,600,700,800,900,1000
+  lambda_0: 10
+  lambda_1: 10 # could be 20,30,40,50
+  lambda_2: 700
 qaoa_depth: 1
-qaoa_max_iter: 1000 # TODO
-qaoa_delta_t: 0.55 # TQA initial gamma/beta scale (see utils.qaoa_helpers.tqa_init_params)
+qaoa_max_iter: 1000
+qaoa_delta_t: 0.55 # TQA initial gamma/beta scale (see utils.qaoa_helpers.tqa_init_params), taken from Sack et al. 2021 delta for random graphs
 qaoa_optimizer_tol: 1.0e-6 # SciPy minimize stopping tolerance for QAOA angles
 qaoa_shots: 100000  # shots per objective evaluation for sampling-based QAOA
 qaoa_sample_shots: 100000  # shots for final solution sampling in QAOA backends
 seed: 42
-max_iterations: 1000 # TODO
+max_iterations: 1000
 timeout_seconds: null
 # Simulated annealing parameters
-sa_t_initial: 1000.0
-sa_t_final: 1.0e-6
-sa_alpha: 0.995
+sa_t_initial: 1722.23 # Starting temperature, by BEN-AMEUR, Computing the Initial Temperature of Simulated Annealing # python -m experiments.estimate_t0 --n-instances 1000 --chi0 0.8 --n-samples 5000
+sa_t_final: 1.0e-6 # Stopping temperature threshold
+sa_alpha: 0.95 # Geometric cooling factor, recommended to be in intervals between 0.5 and 0.99; and 0.9 and 0.98 (A theoretical study on the behavior of simulated annealing leading to a new cooling schedule) (Best Practices for Simulated Annealing in Multiprocessor Task Distribution Problems )
 # Noise simulation (optional, disabled by default)
 noise:
   enabled: false
