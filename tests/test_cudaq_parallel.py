@@ -25,7 +25,7 @@ from instance_gen_process.solver_config_loader import (
     parse_solver_config_dict,
     solver_config_to_run_config,
 )
-from tests.conftest import make_problem_instance
+from conftest import make_problem_instance
 
 
 def test_compact_parallel_status_line_parses_inst_suffix() -> None:
