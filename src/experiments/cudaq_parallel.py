@@ -1,8 +1,8 @@
-"""Parallel CUDA-Q instance solves for on-disk experiment workflows.
+"""Parallel instance solves for on-disk experiment workflows (CUDA-Q and Cirq).
 
 Uses ``multiprocessing`` spawn + :class:`~concurrent.futures.ProcessPoolExecutor`
-so each worker owns its own CUDA-Q context. Parent process shows which instance
-labels are currently running.
+so each worker owns its own backend context (CUDA-Q on GPU; Cirq on CPU).
+Parent process shows which instance labels are currently running.
 """
 
 from __future__ import annotations
@@ -30,11 +30,14 @@ logger = logging.getLogger(__name__)
 
 _INST_LABEL_RE = re.compile(r"\binst=(\d+)\s*$")
 
+# Pool workers set this so ``utils.progress`` stays quiet (CUDA-Q and Cirq parallel batches).
 EXPERIMENT_CUDA_WORKER_ENV = "HTSP_EXPERIMENT_CUDA_WORKER"
 CUDAQ_PARALLEL_ENV = "HTSP_CUDAQ_MAX_PARALLEL_INSTANCES"
+CIRQ_PARALLEL_ENV = "HTSP_CIRQ_MAX_PARALLEL_INSTANCES"
 
 
 def _compact_parallel_status_line(
+    status_prefix: str,
     running_labels: frozenset[str],
     n_finished: int,
     total: int,
@@ -52,7 +55,7 @@ def _compact_parallel_status_line(
         active = f"{len(running_labels)} workers"
     else:
         active = "[]"
-    line = f"[cudaq parallel] active_inst={active} writes={n_finished}/{total}"
+    line = f"{status_prefix} active_inst={active} writes={n_finished}/{total}"
     if len(line) > max_columns and max_columns >= 16:
         return line[: max_columns - 3] + "..."
     return line
@@ -73,6 +76,24 @@ def resolve_cudaq_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
         w = int(raw)
     else:
         w = int(cfg_dict.get("cudaq_max_parallel_instances", 1))
+    return max(1, w)
+
+
+def resolve_cirq_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
+    """Resolve parallel worker count: env overrides YAML ``cirq_max_parallel_instances``.
+
+    Args:
+        cfg_dict: Merged experiment + base solver mapping (may include
+            ``cirq_max_parallel_instances``).
+
+    Returns:
+        Integer >= 1.
+    """
+    raw = os.environ.get(CIRQ_PARALLEL_ENV)
+    if raw is not None and str(raw).strip() != "":
+        w = int(raw)
+    else:
+        w = int(cfg_dict.get("cirq_max_parallel_instances", 1))
     return max(1, w)
 
 
@@ -121,7 +142,7 @@ class CudaqParallelJobSpec:
 
 @dataclass(frozen=True, slots=True)
 class CudaqParallelJob:
-    """Picklable unit of work for one on-disk instance (CUDA-Q only)."""
+    """Picklable unit of work for one on-disk instance (``cudaq`` or ``cirq``)."""
 
     k: int
     instance_json_path: str
@@ -180,6 +201,58 @@ def _cudaq_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, Any]]
         q.put(("done", job.status_label))
 
 
+def _cirq_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, Any]]:
+    """Run Cirq on one instance in a child process (top-level for spawn)."""
+    from solvers import CirqSolver
+
+    os.environ[EXPERIMENT_CUDA_WORKER_ENV] = "1"
+    q = job.status_queue
+    q.put(("start", job.status_label))
+    src = Path(job.instance_json_path)
+    try:
+        instance = load_problem_instance_json(src)
+        result = CirqSolver().solve(instance, job.run_config)
+        payload: dict[str, Any] = {
+            "instance": serialize_problem_instance(instance),
+            "instance_config": job.instance_config_dict,
+            "instance_index": job.k - 1,
+            "instance_source": str(src),
+            "solver_config": job.solver_config_serializable,
+            "solver_output": _serialize_solver_result(result),
+        }
+        return job.k, payload
+    except Exception:
+        logger.exception("Cirq worker failed for %s", src)
+        try:
+            instance = load_problem_instance_json(src)
+            inst_dict = serialize_problem_instance(instance)
+        except Exception:
+            inst_dict = {}
+        payload = {
+            "instance": inst_dict,
+            "instance_config": job.instance_config_dict,
+            "instance_index": job.k - 1,
+            "instance_source": str(src),
+            "solver_config": job.solver_config_serializable,
+            "solver_output": {
+                "solver_name": job.solver_name,
+                "error": traceback.format_exc(),
+            },
+        }
+        return job.k, payload
+    finally:
+        q.put(("done", job.status_label))
+
+
+def _parallel_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, Any]]:
+    """Dispatch to CUDA-Q or Cirq worker (top-level for spawn pickling)."""
+    if job.solver_name == "cudaq":
+        return _cudaq_solve_one_worker(job)
+    if job.solver_name == "cirq":
+        return _cirq_solve_one_worker(job)
+    raise ValueError(f"parallel batch unsupported for solver_name={job.solver_name!r}")
+
+
 @dataclass(frozen=True, slots=True)
 class CudaqParallelBatchResult:
     """Outcome of solving a batch of instances with a process pool."""
@@ -196,13 +269,14 @@ def run_cudaq_parallel_batch(
     solutions_write_fn: Callable[[CudaqParallelJob, dict[str, Any]], Path],
     is_interrupted: Callable[[], bool],
 ) -> CudaqParallelBatchResult:
-    """Execute *job_specs* with up to *max_workers* CUDA-Q worker processes.
+    """Execute *job_specs* with up to *max_workers* worker processes (CUDA-Q or Cirq).
 
     Creates a :class:`multiprocessing.managers.SyncManager` for the status queue
     and shuts it down when the batch finishes.
 
     Args:
-        job_specs: Non-empty list of job descriptions (queue added here).
+        job_specs: Non-empty list of job descriptions (queue added here). All
+            specs must share the same ``solver_name`` (``cudaq`` or ``cirq``).
         max_workers: Cap on concurrent processes (clamped to ``len(job_specs)``).
         solutions_write_fn: Maps (job, payload) to output path; must write JSON.
         is_interrupted: Predicate for cooperative exit (SIGINT / stop flag).
@@ -215,6 +289,11 @@ def run_cudaq_parallel_batch(
         return CudaqParallelBatchResult(n_failed=0, n_completed=0, interrupted=False)
 
     workers = min(max(1, max_workers), len(job_specs))
+    solver_tag = job_specs[0].solver_name
+    if any(s.solver_name != solver_tag for s in job_specs):
+        raise ValueError("job_specs must share the same solver_name for one batch")
+    status_prefix = f"[parallel {solver_tag}]"
+
     stop_event = threading.Event()
     running: set[str] = set()
     lock = threading.Lock()
@@ -263,12 +342,14 @@ def run_cudaq_parallel_batch(
                 if snap != last_snapshot:
                     last_snapshot = snap
                     cols = max(48, shutil.get_terminal_size(fallback=(100, 24)).columns)
-                    line = _compact_parallel_status_line(snap[0], snap[1], total, cols)
+                    line = _compact_parallel_status_line(
+                        status_prefix, snap[0], snap[1], total, cols
+                    )
                     print(f"\r\033[K{line}", end="", flush=True)
                 stop_event.wait(0.05)
 
         display_thread = threading.Thread(
-            target=display_loop, name="cudaq-parallel-display", daemon=True
+            target=display_loop, name="solver-parallel-display", daemon=True
         )
         display_thread.start()
 
@@ -282,7 +363,7 @@ def run_cudaq_parallel_batch(
             pending: set[Future[tuple[int, dict[str, Any]]]] = set()
             future_to_job: dict[Future[tuple[int, dict[str, Any]]], CudaqParallelJob] = {}
             for job in jobs:
-                fut = executor.submit(_cudaq_solve_one_worker, job)
+                fut = executor.submit(_parallel_solve_one_worker, job)
                 pending.add(fut)
                 future_to_job[fut] = job
 
@@ -337,3 +418,6 @@ def run_cudaq_parallel_batch(
         n_completed=n_completed,
         interrupted=interrupted,
     )
+
+
+run_parallel_instance_batch = run_cudaq_parallel_batch

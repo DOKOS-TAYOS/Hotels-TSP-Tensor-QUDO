@@ -48,6 +48,7 @@ class ProgressReporter:
         Args:
             i: Instance index in the batch.
         """
+        # Subprocess pool workers (parallel CUDA-Q / Cirq) must not print; parent owns the TTY line.
         if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
             return
         self._current_instance = i

@@ -42,6 +42,7 @@ from utils.progress import reporter
 from experiments.cudaq_parallel import (
     CudaqParallelJob,
     CudaqParallelJobSpec,
+    resolve_cirq_max_parallel_instances,
     resolve_cudaq_max_parallel_instances,
     run_cudaq_parallel_batch,
 )
@@ -374,10 +375,19 @@ def run_experiment_from_yaml(
                 inner_solver = validated["solver"]
                 solver = _get_solver(inner_solver)
                 formulation = validated["formulation"]
-                parallel_w = resolve_cudaq_max_parallel_instances(cfg_dict)
+                if inner_solver == "cudaq":
+                    parallel_w = resolve_cudaq_max_parallel_instances(cfg_dict)
+                elif inner_solver == "cirq":
+                    parallel_w = resolve_cirq_max_parallel_instances(cfg_dict)
+                else:
+                    parallel_w = 1
                 solver_config_serializable = _solver_config_payload_dict(validated)
                 if inner_solver == "cudaq":
                     solver_config_serializable["cudaq_max_parallel_instances_effective"] = (
+                        parallel_w
+                    )
+                elif inner_solver == "cirq":
+                    solver_config_serializable["cirq_max_parallel_instances_effective"] = (
                         parallel_w
                     )
 
@@ -401,13 +411,13 @@ def run_experiment_from_yaml(
                 if stop_solve or is_interrupted():
                     break
 
-                use_cudaq_parallel = (
-                    inner_solver == "cudaq"
+                use_parallel_instances = (
+                    inner_solver in ("cudaq", "cirq")
                     and parallel_w > 1
                     and len(instance_rows) > 1
                 )
 
-                if use_cudaq_parallel:
+                if use_parallel_instances:
                     specs = [
                         CudaqParallelJobSpec(
                             k=k,
@@ -427,17 +437,22 @@ def run_experiment_from_yaml(
                         for k, src, _inst in instance_rows
                     ]
                     _pool_workers = min(parallel_w, len(specs))
+                    _eff_key = (
+                        "cudaq_max_parallel_instances_effective"
+                        if inner_solver == "cudaq"
+                        else "cirq_max_parallel_instances_effective"
+                    )
                     _par_msg = (
-                        f"CUDA-Q parallel batch: process_pool_workers={_pool_workers} "
+                        f"{inner_solver} parallel batch: process_pool_workers={_pool_workers} "
                         f"instance_jobs={len(specs)} "
-                        f"(cudaq_max_parallel_instances_effective={parallel_w}, "
+                        f"({_eff_key}={parallel_w}, "
                         f"n_cities={n_cities}, qaoa_depth_path={path_depth}, "
                         f"formulation={formulation})"
                     )
                     logger.info("%s.", _par_msg)
-                    print(f"[cudaq parallel] {_par_msg}", flush=True)
+                    print(f"[parallel {inner_solver}] {_par_msg}", flush=True)
 
-                    def _write_cudaq_solution(
+                    def _write_parallel_solution(
                         job: CudaqParallelJob, payload: dict[str, Any]
                     ) -> Path:
                         out_dir = solutions_raw_dir(
@@ -456,7 +471,7 @@ def run_experiment_from_yaml(
                     batch_result = run_cudaq_parallel_batch(
                         specs,
                         min(parallel_w, len(specs)),
-                        solutions_write_fn=_write_cudaq_solution,
+                        solutions_write_fn=_write_parallel_solution,
                         is_interrupted=is_interrupted,
                     )
                     n_failed += batch_result.n_failed
@@ -465,23 +480,28 @@ def run_experiment_from_yaml(
                         break
                     gc.collect()
                 else:
-                    if inner_solver == "cudaq" and instance_rows:
+                    if inner_solver in ("cudaq", "cirq") and instance_rows:
+                        _eff_key = (
+                            "cudaq_max_parallel_instances_effective"
+                            if inner_solver == "cudaq"
+                            else "cirq_max_parallel_instances_effective"
+                        )
                         if parallel_w <= 1:
                             _seq_msg = (
-                                f"CUDA-Q sequential solve: {len(instance_rows)} valid "
+                                f"{inner_solver} sequential solve: {len(instance_rows)} valid "
                                 f"instance(s); parallel disabled "
-                                f"(cudaq_max_parallel_instances_effective={parallel_w}, "
+                                f"({_eff_key}={parallel_w}, "
                                 f"n_cities={n_cities}, qaoa_depth_path={path_depth})"
                             )
                         else:
                             _seq_msg = (
-                                f"CUDA-Q sequential solve: {len(instance_rows)} valid "
+                                f"{inner_solver} sequential solve: {len(instance_rows)} valid "
                                 f"instance(s); parallel needs 2+ instances "
-                                f"(cudaq_max_parallel_instances_effective={parallel_w}, "
+                                f"({_eff_key}={parallel_w}, "
                                 f"n_cities={n_cities}, qaoa_depth_path={path_depth})"
                             )
                         logger.info("%s.", _seq_msg)
-                        print(f"[cudaq parallel] {_seq_msg}", flush=True)
+                        print(f"[parallel {inner_solver}] {_seq_msg}", flush=True)
                     for k, src, instance in instance_rows:
                         if stop_solve or is_interrupted():
                             break
