@@ -78,7 +78,7 @@ formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 - `install.sh` and `bin/setup.sh` for automated environment setup.
 - `scripts/makefile` with setup, lint, test, app, and clean targets.
 - Settings loaded from `.env` with `HTSP_*` prefix variables.
-- ruff linting (line-length 100, Python 3.12 target).
+- ruff linting (line-length 100, Python 3.11 target; runtime 3.11–3.13).
 - 17 test files with shared fixtures in `conftest.py`.
 - GPU tests auto-skip when no NVIDIA GPU is available.
 - Streamlit UI scaffold.

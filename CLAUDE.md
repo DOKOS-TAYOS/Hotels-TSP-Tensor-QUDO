@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Research scaffold for combinatorial optimization of a Hotel TSP (travel routing with precedence constraints) using **Tensor-QUDO** and **QUBO** formulations with quantum/classical solver backends. Reference paper: arXiv:2508.01958.
 
-**Platform:** Linux only. Python 3.12+.
+**Platform:** Linux only. Python 3.11, 3.12, or 3.13.
 
 ## Common commands
 
@@ -93,7 +93,7 @@ The Cirq TQUDO backend uses three custom gates on `cirq.LineQid(dimension=d)`:
 
 - Package root is `src/` (configured in `pyproject.toml` via `tool.setuptools.package-dir`).
 - `pythonpath = ["src"]` in pytest config — imports use bare module names (e.g., `from solvers.base import ...`).
-- Linter: `ruff` with `line-length = 100`, `target-version = "py312"`.
+- Linter: `ruff` with `line-length = 100`, `target-version = "py311"`.
 - All dataclasses use `frozen=True, slots=True`.
 - Type hints required in all function signatures. Uses Python 3.12+ syntax (`X | Y` unions, `tuple[...]` generics).
 - CUDA-Q tests auto-skip when no GPU is available.

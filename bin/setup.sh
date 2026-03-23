@@ -17,8 +17,8 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)'; then
-  log "ERROR: Python 3.12+ is required."
+if ! python3 -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info < (3, 14) else 1)'; then
+  log "ERROR: Python 3.11, 3.12, or 3.13 is required."
   exit 1
 fi
 

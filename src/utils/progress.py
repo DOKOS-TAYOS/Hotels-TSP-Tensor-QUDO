@@ -21,6 +21,7 @@ The display always overwrites a single line in-place (\r).
 
 from __future__ import annotations
 
+import os
 import sys
 
 
@@ -47,6 +48,9 @@ class ProgressReporter:
         Args:
             i: Instance index in the batch.
         """
+        # Subprocess pool workers (parallel CUDA-Q / Cirq) must not print; parent owns the TTY line.
+        if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
+            return
         self._current_instance = i
         msg = self._fmt_instance(i, "running...")
         self._emit(msg, newline=True)
@@ -62,6 +66,8 @@ class ProgressReporter:
             max_steps: Budget for the bar denominator.
             energy: Current objective value to display.
         """
+        if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
+            return
         is_checkpoint = (step % max(1, max_steps // 10) == 0) or (step >= max_steps)
 
         if not self._is_tty and not is_checkpoint:
@@ -86,6 +92,8 @@ class ProgressReporter:
             i: Instance index.
             path: Filesystem path written for this instance.
         """
+        if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
+            return
         msg = self._fmt_instance(i, f"saved -> {path}")
         self._emit(msg, newline=True)
 

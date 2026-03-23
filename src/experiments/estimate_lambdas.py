@@ -39,9 +39,7 @@ from instance_gen_process import (
     solver_config_to_run_config,
     validate_solver_instance_compatibility,
 )
-from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.models import InstanceConfig, ProblemInstance, RestrictionConfig
-from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverProtocol, SolverRunConfig
 

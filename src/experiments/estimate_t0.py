@@ -31,9 +31,7 @@ from instance_gen_process import (
     load_instance_config,
     load_solver_config,
 )
-from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
-from instance_gen_process.solver_config_loader import DEFAULT_SOLVER_CONFIG_PATH
 from solvers.simulated_annealing import T0EstimationResult, estimate_initial_temperature
 
 
