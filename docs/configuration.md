@@ -99,7 +99,7 @@ noise:
 | Field              | Type           | Default  | Constraints                                      |
 |--------------------|----------------|----------|--------------------------------------------------|
 | `n_instances`      | int            | --       | >= 1, required                                   |
-| `solver`           | string         | `cudaq`  | `cudaq`, `cirq`, or `simulated_annealing`        |
+| `solver`           | string         | `cudaq`  | `brute_force`, `cudaq`, `cirq`, or `simulated_annealing` |
 | `formulation`      | string         | `tqudo`  | `qubo`, `tqudo`, or `tqudo_virtual`              |
 | `optimizer`        | string         | `COBYLA` | `COBYLA`, `Powell`, `L-BFGS-B`, `SLSQP`, `Nelder-Mead` |
 | `seed`             | int or null    | null     | Optional random seed                             |
@@ -125,6 +125,28 @@ noise:
 
 The `delta_t` parameter (TQA scheduling scale) defaults to `0.55` in
 `SolverRunConfig` and is not currently exposed in `solver_config.yaml`.
+
+### Brute force solver (`solver: brute_force`)
+
+Exact enumeration over the **full** discrete assignment space of the active
+formulation (not permutations only). Use for baselines and sanity-checking
+penalty weights.
+
+| Formulation | Search space | Evaluations | Hard limits (`solvers/brute_force/limits.py`) |
+|-------------|--------------|------------|-----------------------------------------------|
+| `tqudo`     | All length-`n_available` sequences over `0..n_available-1` | `n_available^n_available` | `n_available ≤ 8` (max `8^8`) |
+| `qubo`      | All `{0,1}^(n_available²)` bitstrings | `2^(n_available²)` | `(n_available²) ≤ 30` binary variables (max `2^30`) |
+
+Not supported: `tqudo_virtual`.
+
+Optional YAML keys (defaults match the maximum allowed full spaces):
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `brute_force_max_assignments_tqudo` | `8**8` | Abort if `n^n` would exceed this (raise cap only if you intentionally allow a smaller run) |
+| `brute_force_max_assignments_qubo` | `2**30` | Abort if `2^n_vars` would exceed this |
+
+COBYLA iteration budget is **not** validated when `solver: brute_force`.
 
 ### Simulated annealing parameters
 
@@ -158,11 +180,11 @@ fallback.
 
 ## Formulation-solver compatibility
 
-| Formulation      | Cirq | CUDA-Q | Simulated Annealing | Additional constraint              |
-|------------------|:----:|:------:|:-------------------:|------------------------------------|
-| `tqudo`          |  Y   |   --   |         Y           | None                               |
-| `tqudo_virtual`  |  Y   |   Y    |         --          | `n_available` must be power of two |
-| `qubo`           |  Y   |   Y    |         Y           | Quantum: <= 30 qubits              |
+| Formulation      | Cirq | CUDA-Q | Simulated Annealing | Brute force | Additional constraint              |
+|------------------|:----:|:------:|:-------------------:|:-----------:|------------------------------------|
+| `tqudo`          |  Y   |   --   |         Y           |      Y      | BF: `n_available ≤ 8`              |
+| `tqudo_virtual`  |  Y   |   Y    |         --          |     --      | `n_available` must be power of two |
+| `qubo`           |  Y   |   Y    |         Y           |      Y      | Quantum: ≤ 30 qubits; BF: ≤ 30 binary vars |
 
 Invalid combinations raise `ValueError` at validation time with a descriptive
 message suggesting alternatives.

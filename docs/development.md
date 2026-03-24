@@ -41,13 +41,14 @@ The default extras are `dev,ui,cudaq`. To use a different set:
 
 Available extras defined in `pyproject.toml`:
 
-| Extra   | Packages                                |
-|---------|-----------------------------------------|
-| `dev`   | pytest >= 8.0, ruff >= 0.6.0            |
-| `cirq`  | cirq >= 1.3.0, scipy >= 1.10.0         |
-| `cudaq` | cudaq >= 0.8.0, scipy >= 1.10.0        |
-| `ui`    | streamlit >= 1.28.0                     |
-| `all`   | All of the above                        |
+| Extra     | Packages                                                |
+|-----------|---------------------------------------------------------|
+| `dev`     | pytest >= 8.0, ruff >= 0.6.0                            |
+| `cirq`    | cirq >= 1.3.0, scipy >= 1.10.0                         |
+| `cudaq`   | cudaq >= 0.8.0, scipy >= 1.10.0                        |
+| `ui`      | streamlit >= 1.28.0                                    |
+| `analysis`| pandas >= 2.0, pyarrow >= 14, matplotlib >= 3.8, scipy  |
+| `all`     | All of the above (including analysis)                  |
 
 Core dependencies (always installed): `pyyaml >= 6.0`, `numpy >= 1.24.0`.
 
@@ -63,6 +64,11 @@ make -f scripts/makefile lint    # ruff check .
 make -f scripts/makefile test    # pytest (all tests)
 make -f scripts/makefile app     # streamlit run src/streamlit_app/app.py
 make -f scripts/makefile clean   # Remove caches, __pycache__, .pyc, temp dirs
+# Require pip install -e '.[analysis]' for the following:
+make -f scripts/makefile analysis-ingest   # raw JSON → processed/manifest.*
+make -f scripts/makefile analysis-metrics  # manifest → paired_metrics, summary, curves, wilcoxon
+make -f scripts/makefile analysis-plots    # processed tables → output/images/*.png
+make -f scripts/makefile analysis-all      # ingest + metrics + plots (default --output-root output)
 ```
 
 ### Running individual tests
@@ -83,8 +89,9 @@ Default **legacy** mode matches the old behaviour: load `config.yaml` and `solve
 | `cudaq` | Preset CUDA-Q experiment YAMLs under `src/experiments/` |
 | `sa` | Preset simulated-annealing experiment YAMLs |
 | `cirq5` | Preset Cirq TQUDO n=5 experiment |
+| `brute_force` | Preset exact-enumeration YAMLs (`experiment_brute_force_n5_qubo.yaml`, `..._n5_tqudo.yaml`, `..._n9_tqudo.yaml`) → `raw/solutions/brute_force/...` |
 | `experiment` | One or more YAMLs via `--experiment-yaml f1.yaml f2.yaml` (merged each with `solver_config.yaml`) |
-| `check_feasibility` | Scan `raw/solutions/<solver>/**/*.json` for one backend; print paths that are not feasible (requires `--check-solver cudaq|cirq|simulated_annealing`). Exit 0 if all OK, 1 if any bad, 2 if the solver folder is missing |
+| `check_feasibility` | Scan `raw/solutions/<solver>/**/*.json` for one backend; print paths that are not feasible (requires `--check-solver brute_force|cudaq|cirq|simulated_annealing`). Exit 0 if all OK, 1 if any bad, 2 if the solver folder is missing |
 
 Experiment modes read instances from `raw/instances/...` and write to `raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`. Run `generate` before experiment modes that need on-disk instances.
 
@@ -115,10 +122,25 @@ When `solver: cirq` and the merged experiment YAML sets `cirq_max_parallel_insta
 .venv/bin/python -m experiments.main_experiment_workflow --mode sa --output path/to/output
 .venv/bin/python -m experiments.main_experiment_workflow --mode experiment --experiment-yaml path/to/exp.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --mode check_feasibility --check-solver cudaq
+.venv/bin/python -m experiments.main_experiment_workflow --mode brute_force
 .venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --output path/to/output
 ```
+
+### Post-processing and figures (`data_analysis`)
+
+After runs exist under `output/raw/`, install the `analysis` extra and run:
+
+```bash
+.venv/bin/python -m data_analysis.ingest --output-root output
+.venv/bin/python -m data_analysis.metrics --output-root output
+.venv/bin/python -m data_analysis.plot --output-root output
+.venv/bin/python -m data_analysis.pipeline --output-root output          # all three
+.venv/bin/python -m data_analysis.metrics --output-root output --sample-quality  # slower: histogram feasible mass
+```
+
+Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`, `wilcoxon_sa_qubo_tqudo.json`; figures under `output/images/`.
 
 ---
 
@@ -152,8 +174,8 @@ Run: `make -f scripts/makefile lint` or `.venv/bin/python -m ruff check .`
 
 ## Test suite
 
-17 test files covering models, formulations, solvers, constraints, costs,
-configuration, and imports.
+Tests cover models, formulations, solvers (including brute force), constraints, costs,
+configuration, data ingest, and imports.
 
 ### Test files
 
@@ -174,6 +196,8 @@ configuration, and imports.
 | `test_cudaq_target.py`        | Target selection (nvidia, density-matrix-cpu), idempotency                 |
 | `test_noise_models.py`        | NoiseConfig, Cirq/CUDA-Q noise, solver config round-trip, qudit Kraus      |
 | `test_streamlit_app.py`       | Lazy import of Streamlit                                                   |
+| `test_brute_force_solver.py`  | Exhaustive QUBO/TQUDO enumeration, config caps                             |
+| `test_data_analysis.py`       | Manifest path parsing, ingest smoke tests                                |
 
 ### Shared fixtures (`conftest.py`)
 
@@ -228,6 +252,6 @@ Hotels-TSP-Tensor-QUDO/
 ├── scripts/makefile      # Task runner targets
 ├── docs/                 # Project documentation
 ├── src/                  # Package source (8 sub-packages)
-├── tests/                # 17 test files + conftest.py
+├── tests/                # pytest + conftest.py
 └── output/               # Experiment results (gitignored contents)
 ```

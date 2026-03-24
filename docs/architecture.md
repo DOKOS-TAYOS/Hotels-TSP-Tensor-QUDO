@@ -38,9 +38,10 @@ src/
 │   ├── noise.py             Backend-agnostic NoiseConfig
 │   ├── cirq_solver/         Cirq backend (native qudits + qubit emulation + QUBO)
 │   ├── cudaq_solver/        CUDA-Q backend (qubit emulation + QUBO)
-│   └── simulated_annealing/ Classical SA backend
+│   ├── simulated_annealing/ Classical SA backend
+│   └── brute_force/         Exact enumeration (full QUBO / TQUDO assignment space)
 ├── experiments/             Experiment workflow (generate, solve, save)
-├── data_analysis/           Post-processing pipeline (scaffold, not yet implemented)
+├── data_analysis/           Ingest raw JSON → manifest, paired metrics, plots
 ├── streamlit_app/           Streamlit UI shell
 └── utils/                   Costs, constraints, QAOA helpers, progress, output paths
 ```
@@ -136,7 +137,7 @@ flowchart LR
 6. For each instance, the solver's `solve()` method:
    - Calls `generate_TQUDO_from_problem()` or `generate_QUBO_from_problem()`
      internally to build the formulation-specific representation.
-   - Runs the optimisation (QAOA or SA).
+   - Runs the optimisation (QAOA, SA, or brute-force enumeration).
    - Returns a `SolverResult` with objective value, feasibility flag, runtime,
      and metadata (best sequence, energy history, optimal angles, samples).
 7. Results are saved incrementally as JSON files in `output/raw/`, one per
@@ -204,11 +205,11 @@ class SolverProtocol(Protocol):
 
 ### Formulation-backend compatibility matrix
 
-| Formulation      | Cirq | CUDA-Q | Simulated Annealing |
-|------------------|:----:|:------:|:-------------------:|
-| `tqudo`          |  Y   |   --   |         Y           |
-| `tqudo_virtual`  |  Y   |   Y    |         --          |
-| `qubo`           |  Y   |   Y    |         Y           |
+| Formulation      | Cirq | CUDA-Q | Simulated Annealing | Brute force |
+|------------------|:----:|:------:|:-------------------:|:-----------:|
+| `tqudo`          |  Y   |   --   |         Y           |      Y      |
+| `tqudo_virtual`  |  Y   |   Y    |         --          |     --      |
+| `qubo`           |  Y   |   Y    |         Y           |      Y      |
 
 - `tqudo`: native d-dimensional qudits. Only Cirq supports real qudit gates.
 - `tqudo_virtual`: qubit emulation of qudits. Requires `n_available` to be a
@@ -319,6 +320,17 @@ No quantum circuit -- operates directly on permutation sequences.
 - Acceptance: Metropolis criterion `exp(-delta_E / T)`.
 - Metadata includes `iterations_completed` and `final_temperature`.
 
+### Brute force
+
+Module: `solvers/brute_force/solver.py`
+
+Exact baseline: enumerates **every** assignment in the active formulation space
+(`qubo`: all `2^(n_available²)` bitstrings; `tqudo`: all `n_available^n_available`
+integer sequences). Not supported: `tqudo_virtual`. Hard caps are enforced in
+`solvers/brute_force/limits.py` (`n_available ≤ 8` for TQUDO, `(n_available²) ≤ 30`
+binary variables for QUBO). Optional YAML caps:
+`brute_force_max_assignments_tqudo` / `brute_force_max_assignments_qubo`.
+
 ---
 
 ## Noise simulation
@@ -411,9 +423,9 @@ Always use `calculate_real_cost()` when comparing solutions across formulations.
 
 ```
 output/
-├── raw/           Per-instance JSON results (auto-created by workflow)
-├── processed/     Curated benchmark datasets (scaffold, not yet implemented)
-└── images/        Figures for the paper (scaffold, not yet implemented)
+├── raw/           Per-instance JSON (workflow); solutions under raw/solutions/<solver>/...
+├── processed/     data_analysis: manifest, paired_metrics, summary_by_config, optional curves
+└── images/        data_analysis: feasibility, ratios, energy curves (*.png)
 ```
 
 Each JSON file in `output/raw/` contains:
@@ -459,13 +471,18 @@ orchestrates the full pipeline:
 
 CLI entry point: `python -m experiments.main_experiment_workflow`
 
-Options: `--instance-config`, `--solver-config`, `--output`.
+Options: `--instance-config`, `--solver-config`, `--output`, `--mode` (see
+[development.md](development.md)).
+
+### Post-processing
+
+After JSON exists under `output/raw/`, run `python -m data_analysis.pipeline`
+(or `make analysis-all` with the `analysis` extra installed) to populate
+`output/processed/` and `output/images/`.
 
 ---
 
-## Unimplemented scaffolds
+## Streamlit UI
 
-| Module                 | Status                                                |
-|------------------------|-------------------------------------------------------|
-| `data_analysis/`       | `process_raw_results()` raises `NotImplementedError`  |
-| `streamlit_app/`       | Minimal shell displaying settings and config as JSON  |
+`streamlit_app/` is a minimal shell displaying settings and config as JSON;
+extend as needed for interactive experiments.
