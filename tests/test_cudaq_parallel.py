@@ -12,10 +12,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from experiments.cudaq_parallel import (
+    BRUTE_FORCE_PARALLEL_ENV,
     CIRQ_PARALLEL_ENV,
     CUDAQ_PARALLEL_ENV,
     CudaqParallelJobSpec,
     _compact_parallel_status_line,
+    resolve_brute_force_max_parallel_instances,
     resolve_cirq_max_parallel_instances,
     resolve_cudaq_max_parallel_instances,
     run_cudaq_parallel_batch,
@@ -91,6 +93,32 @@ def test_resolve_cirq_max_parallel_instances_env_empty_uses_yaml(
     monkeypatch.setenv(CIRQ_PARALLEL_ENV, "  ")
     assert resolve_cirq_max_parallel_instances({"cirq_max_parallel_instances": 3}) == 3
     monkeypatch.delenv(CIRQ_PARALLEL_ENV, raising=False)
+
+
+def test_resolve_brute_force_max_parallel_instances_default() -> None:
+    assert resolve_brute_force_max_parallel_instances({}) == 1
+    assert resolve_brute_force_max_parallel_instances({"brute_force_max_parallel_instances": 4}) == 4
+
+
+def test_resolve_brute_force_max_parallel_instances_clamps_minimum() -> None:
+    assert resolve_brute_force_max_parallel_instances({"brute_force_max_parallel_instances": 0}) == 1
+    assert resolve_brute_force_max_parallel_instances({"brute_force_max_parallel_instances": -3}) == 1
+
+
+def test_resolve_brute_force_max_parallel_instances_env_overrides_yaml(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(BRUTE_FORCE_PARALLEL_ENV, "5")
+    assert resolve_brute_force_max_parallel_instances({"brute_force_max_parallel_instances": 2}) == 5
+    monkeypatch.delenv(BRUTE_FORCE_PARALLEL_ENV, raising=False)
+
+
+def test_resolve_brute_force_max_parallel_instances_env_empty_uses_yaml(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(BRUTE_FORCE_PARALLEL_ENV, "\t")
+    assert resolve_brute_force_max_parallel_instances({"brute_force_max_parallel_instances": 3}) == 3
+    monkeypatch.delenv(BRUTE_FORCE_PARALLEL_ENV, raising=False)
 
 
 def test_run_cudaq_parallel_batch_empty() -> None:
@@ -265,6 +293,108 @@ def test_run_cirq_parallel_batch_two_instances_inline(
     )
 
     with patch("solvers.cirq_solver.CirqSolver", return_value=mock_solver):
+        batch = run_cudaq_parallel_batch(
+            specs,
+            max_workers=2,
+            solutions_write_fn=_write,
+            is_interrupted=lambda: False,
+        )
+
+    assert batch.n_completed == 2
+    assert batch.n_failed == 0
+    assert not batch.interrupted
+    assert len(written) == 2
+    assert mock_solver.solve.call_count == 2
+
+
+def test_run_brute_force_parallel_batch_two_instances_inline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """brute_force path with inline executor so BruteForceSolver can be mocked in-process."""
+    import experiments.cudaq_parallel as cqp
+
+    monkeypatch.setattr(cqp, "ProcessPoolExecutor", _InlineProcessPoolExecutor)
+
+    inst_dir = tmp_path / "raw" / "instances" / "n_5"
+    inst_dir.mkdir(parents=True)
+    for k in (1, 2):
+        inst = make_problem_instance(n_cities=5)
+        (inst_dir / f"instance_{k}.json").write_text(
+            json.dumps(serialize_problem_instance(inst)),
+            encoding="utf-8",
+        )
+
+    base_cfg = {
+        "n_instances": 2,
+        "solver": "brute_force",
+        "formulation": "tqudo",
+        "optimizer": "COBYLA",
+        "restriction": {"lambda_0": 100.0, "lambda_1": 100.0, "lambda_2": 100.0},
+        "qaoa_depth": 1,
+        "qaoa_max_iter": 8,
+        "qaoa_delta_t": 0.55,
+        "qaoa_optimizer_tol": 1.0e-6,
+        "qaoa_shots": 32,
+        "qaoa_sample_shots": 32,
+        "seed": 0,
+        "max_iterations": 100,
+        "timeout_seconds": None,
+        "sa_t_initial": 1000.0,
+        "sa_t_final": 1.0e-6,
+        "sa_alpha": 0.995,
+        "noise": {"enabled": False},
+    }
+    validated = parse_solver_config_dict(base_cfg)
+    run_config = solver_config_to_run_config(validated)
+    serializable = {
+        "n_instances": validated["n_instances"],
+        "solver": validated["solver"],
+        "formulation": validated["formulation"],
+        "brute_force_max_parallel_instances_effective": 2,
+    }
+
+    out_root = str(tmp_path.resolve())
+    specs = [
+        CudaqParallelJobSpec(
+            k=k,
+            instance_json_path=str(inst_dir / f"instance_{k}.json"),
+            status_label=f"n_cities=5 depth=None inst={k}",
+            run_config=run_config,
+            instance_config_dict={"n_cities": 5, "seed": 0},
+            solver_config_serializable=serializable,
+            solver_name="brute_force",
+            formulation="tqudo",
+            n_cities=5,
+            path_depth=None,
+            output_root=out_root,
+        )
+        for k in (1, 2)
+    ]
+
+    written: list[Path] = []
+
+    def _write(job: object, payload: dict[str, Any]) -> Path:
+        from experiments.cudaq_parallel import CudaqParallelJob
+
+        assert isinstance(job, CudaqParallelJob)
+        out = tmp_path / "out" / f"instance_{job.k}.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload), encoding="utf-8")
+        written.append(out)
+        return out
+
+    from solvers.base import SolverResult
+
+    mock_solver = MagicMock()
+    mock_solver.solve.return_value = SolverResult(
+        solver_name="brute_force",
+        objective_value=0.0,
+        feasible=True,
+        runtime_seconds=0.01,
+        metadata={},
+    )
+
+    with patch("solvers.brute_force.BruteForceSolver", return_value=mock_solver):
         batch = run_cudaq_parallel_batch(
             specs,
             max_workers=2,
@@ -598,6 +728,127 @@ def test_run_experiment_cirq_parallel_path_not_used_when_workers_one(
 
         mock_solve.return_value = SolverResult(
             solver_name="cirq",
+            objective_value=0.0,
+            feasible=True,
+            runtime_seconds=0.01,
+            metadata={},
+        )
+        mew.run_experiment_from_yaml(
+            experiment_yaml_path=exp_yaml,
+            instance_config_path=icfg,
+            solver_config_path=base_solver,
+            output_root=tmp_path,
+            settings=None,
+        )
+
+    assert called == []
+    assert mock_solve.call_count == 2
+
+
+def test_run_experiment_brute_force_parallel_path_not_used_when_workers_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With brute_force_max_parallel_instances=1, ProcessPoolExecutor must not start."""
+    import experiments.cudaq_parallel as cqp
+    from experiments import main_experiment_workflow as mew
+
+    called: list[int] = []
+
+    class BoomExecutor:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            called.append(1)
+            raise AssertionError("ProcessPoolExecutor should not be constructed")
+
+        def submit(self, *_a: object, **_k: object) -> object:
+            raise AssertionError
+
+        def shutdown(self, *_a: object, **_k: object) -> None:
+            pass
+
+    monkeypatch.setattr(cqp, "ProcessPoolExecutor", BoomExecutor)
+
+    inst = make_problem_instance(n_cities=5)
+    inst_dir = tmp_path / "raw" / "instances" / "n_5"
+    inst_dir.mkdir(parents=True)
+    for k in (1, 2):
+        (inst_dir / f"instance_{k}.json").write_text(
+            json.dumps(serialize_problem_instance(inst)),
+            encoding="utf-8",
+        )
+
+    exp_yaml = tmp_path / "exp.yaml"
+    exp_yaml.write_text(
+        "\n".join(
+            [
+                "n_cities: 5",
+                "n_instances: 2",
+                "solver: brute_force",
+                "formulation: tqudo",
+                "qaoa_depth: 1",
+                "qaoa_max_iter: 8",
+                "qaoa_shots: 4",
+                "qaoa_sample_shots: 4",
+                "brute_force_max_parallel_instances: 1",
+                "optimizer: COBYLA",
+                "restriction:",
+                "  lambda_0: 100.0",
+                "  lambda_1: 100.0",
+                "  lambda_2: 100.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    base_solver = tmp_path / "base.yaml"
+    base_solver.write_text(
+        "\n".join(
+            [
+                "n_instances: 2",
+                "solver: brute_force",
+                "formulation: tqudo",
+                "optimizer: COBYLA",
+                "restriction:",
+                "  lambda_0: 100.0",
+                "  lambda_1: 100.0",
+                "  lambda_2: 100.0",
+                "qaoa_depth: 1",
+                "qaoa_max_iter: 8",
+                "qaoa_delta_t: 0.55",
+                "qaoa_optimizer_tol: 1.0e-6",
+                "qaoa_shots: 4",
+                "qaoa_sample_shots: 4",
+                "seed: 0",
+                "max_iterations: 100",
+                "timeout_seconds: null",
+                "sa_t_initial: 1000.0",
+                "sa_t_final: 1.0e-6",
+                "sa_alpha: 0.995",
+                "noise:",
+                "  enabled: false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    icfg = tmp_path / "icfg.yaml"
+    icfg.write_text(
+        "\n".join(
+            [
+                "n_cities: 5",
+                "n_precedences_range: [0, 0]",
+                "prices_range_hotels: [1.0, 1.0]",
+                "prices_range_travels: [1.0, 1.0]",
+                "seed: 0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with patch.object(mew.BruteForceSolver, "solve") as mock_solve:
+        from solvers.base import SolverResult
+
+        mock_solve.return_value = SolverResult(
+            solver_name="brute_force",
             objective_value=0.0,
             feasible=True,
             runtime_seconds=0.01,

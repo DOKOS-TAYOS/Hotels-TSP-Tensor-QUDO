@@ -1,7 +1,7 @@
-"""Parallel instance solves for on-disk experiment workflows (CUDA-Q and Cirq).
+"""Parallel instance solves for on-disk experiment workflows (CUDA-Q, Cirq, brute_force).
 
 Uses ``multiprocessing`` spawn + :class:`~concurrent.futures.ProcessPoolExecutor`
-so each worker owns its own backend context (CUDA-Q on GPU; Cirq on CPU).
+so each worker owns its own backend context (CUDA-Q on GPU; Cirq and brute_force on CPU).
 Parent process shows which instance labels are currently running.
 """
 
@@ -30,10 +30,11 @@ logger = logging.getLogger(__name__)
 
 _INST_LABEL_RE = re.compile(r"\binst=(\d+)\s*$")
 
-# Pool workers set this so ``utils.progress`` stays quiet (CUDA-Q and Cirq parallel batches).
+# Pool workers set this so ``utils.progress`` stays quiet for parallel experiment batches.
 EXPERIMENT_CUDA_WORKER_ENV = "HTSP_EXPERIMENT_CUDA_WORKER"
 CUDAQ_PARALLEL_ENV = "HTSP_CUDAQ_MAX_PARALLEL_INSTANCES"
 CIRQ_PARALLEL_ENV = "HTSP_CIRQ_MAX_PARALLEL_INSTANCES"
+BRUTE_FORCE_PARALLEL_ENV = "HTSP_BRUTE_FORCE_MAX_PARALLEL_INSTANCES"
 
 
 def _compact_parallel_status_line(
@@ -97,6 +98,24 @@ def resolve_cirq_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
     return max(1, w)
 
 
+def resolve_brute_force_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
+    """Resolve parallel worker count: env overrides YAML ``brute_force_max_parallel_instances``.
+
+    Args:
+        cfg_dict: Merged experiment + base solver mapping (may include
+            ``brute_force_max_parallel_instances``).
+
+    Returns:
+        Integer >= 1.
+    """
+    raw = os.environ.get(BRUTE_FORCE_PARALLEL_ENV)
+    if raw is not None and str(raw).strip() != "":
+        w = int(raw)
+    else:
+        w = int(cfg_dict.get("brute_force_max_parallel_instances", 1))
+    return max(1, w)
+
+
 def _metadata_to_json(obj: Any) -> Any:
     """Recursively normalise metadata for JSON (same rules as workflow)."""
     if isinstance(obj, (int, float, str, bool, type(None))):
@@ -142,7 +161,7 @@ class CudaqParallelJobSpec:
 
 @dataclass(frozen=True, slots=True)
 class CudaqParallelJob:
-    """Picklable unit of work for one on-disk instance (``cudaq`` or ``cirq``)."""
+    """Picklable unit of work for one on-disk instance (``cudaq``, ``cirq``, or ``brute_force``)."""
 
     k: int
     instance_json_path: str
@@ -244,12 +263,57 @@ def _cirq_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, Any]]:
         q.put(("done", job.status_label))
 
 
+def _brute_force_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, Any]]:
+    """Run brute_force on one instance in a child process (top-level for spawn)."""
+    from solvers.brute_force import BruteForceSolver
+
+    os.environ[EXPERIMENT_CUDA_WORKER_ENV] = "1"
+    q = job.status_queue
+    q.put(("start", job.status_label))
+    src = Path(job.instance_json_path)
+    try:
+        instance = load_problem_instance_json(src)
+        result = BruteForceSolver().solve(instance, job.run_config)
+        payload: dict[str, Any] = {
+            "instance": serialize_problem_instance(instance),
+            "instance_config": job.instance_config_dict,
+            "instance_index": job.k - 1,
+            "instance_source": str(src),
+            "solver_config": job.solver_config_serializable,
+            "solver_output": _serialize_solver_result(result),
+        }
+        return job.k, payload
+    except Exception:
+        logger.exception("brute_force worker failed for %s", src)
+        try:
+            instance = load_problem_instance_json(src)
+            inst_dict = serialize_problem_instance(instance)
+        except Exception:
+            inst_dict = {}
+        payload = {
+            "instance": inst_dict,
+            "instance_config": job.instance_config_dict,
+            "instance_index": job.k - 1,
+            "instance_source": str(src),
+            "solver_config": job.solver_config_serializable,
+            "solver_output": {
+                "solver_name": job.solver_name,
+                "error": traceback.format_exc(),
+            },
+        }
+        return job.k, payload
+    finally:
+        q.put(("done", job.status_label))
+
+
 def _parallel_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, Any]]:
-    """Dispatch to CUDA-Q or Cirq worker (top-level for spawn pickling)."""
+    """Dispatch to CUDA-Q, Cirq, or brute_force worker (top-level for spawn pickling)."""
     if job.solver_name == "cudaq":
         return _cudaq_solve_one_worker(job)
     if job.solver_name == "cirq":
         return _cirq_solve_one_worker(job)
+    if job.solver_name == "brute_force":
+        return _brute_force_solve_one_worker(job)
     raise ValueError(f"parallel batch unsupported for solver_name={job.solver_name!r}")
 
 
@@ -269,14 +333,15 @@ def run_cudaq_parallel_batch(
     solutions_write_fn: Callable[[CudaqParallelJob, dict[str, Any]], Path],
     is_interrupted: Callable[[], bool],
 ) -> CudaqParallelBatchResult:
-    """Execute *job_specs* with up to *max_workers* worker processes (CUDA-Q or Cirq).
+    """Execute *job_specs* with up to *max_workers* worker processes (CUDA-Q, Cirq, or brute_force).
 
     Creates a :class:`multiprocessing.managers.SyncManager` for the status queue
     and shuts it down when the batch finishes.
 
     Args:
         job_specs: Non-empty list of job descriptions (queue added here). All
-            specs must share the same ``solver_name`` (``cudaq`` or ``cirq``).
+            specs must share the same ``solver_name`` (``cudaq``, ``cirq``, or
+            ``brute_force``).
         max_workers: Cap on concurrent processes (clamped to ``len(job_specs)``).
         solutions_write_fn: Maps (job, payload) to output path; must write JSON.
         is_interrupted: Predicate for cooperative exit (SIGINT / stop flag).

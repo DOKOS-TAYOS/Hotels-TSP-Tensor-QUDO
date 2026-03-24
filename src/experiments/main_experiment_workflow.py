@@ -43,6 +43,7 @@ from utils.progress import reporter
 from experiments.cudaq_parallel import (
     CudaqParallelJob,
     CudaqParallelJobSpec,
+    resolve_brute_force_max_parallel_instances,
     resolve_cirq_max_parallel_instances,
     resolve_cudaq_max_parallel_instances,
     run_cudaq_parallel_batch,
@@ -66,6 +67,12 @@ from experiments.workflow_io import (
 logger = logging.getLogger(__name__)
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent
+
+_PARALLEL_INSTANCES_EFF_KEY: dict[str, str] = {
+    "cudaq": "cudaq_max_parallel_instances_effective",
+    "cirq": "cirq_max_parallel_instances_effective",
+    "brute_force": "brute_force_max_parallel_instances_effective",
+}
 
 FEASIBILITY_CHECK_SOLVERS: tuple[str, ...] = (
     "brute_force",
@@ -390,15 +397,13 @@ def run_experiment_from_yaml(
                     parallel_w = resolve_cudaq_max_parallel_instances(cfg_dict)
                 elif inner_solver == "cirq":
                     parallel_w = resolve_cirq_max_parallel_instances(cfg_dict)
+                elif inner_solver == "brute_force":
+                    parallel_w = resolve_brute_force_max_parallel_instances(cfg_dict)
                 else:
                     parallel_w = 1
                 solver_config_serializable = _solver_config_payload_dict(validated)
-                if inner_solver == "cudaq":
-                    solver_config_serializable["cudaq_max_parallel_instances_effective"] = (
-                        parallel_w
-                    )
-                elif inner_solver == "cirq":
-                    solver_config_serializable["cirq_max_parallel_instances_effective"] = (
+                if inner_solver in _PARALLEL_INSTANCES_EFF_KEY:
+                    solver_config_serializable[_PARALLEL_INSTANCES_EFF_KEY[inner_solver]] = (
                         parallel_w
                     )
 
@@ -423,7 +428,7 @@ def run_experiment_from_yaml(
                     break
 
                 use_parallel_instances = (
-                    inner_solver in ("cudaq", "cirq")
+                    inner_solver in _PARALLEL_INSTANCES_EFF_KEY
                     and parallel_w > 1
                     and len(instance_rows) > 1
                 )
@@ -448,11 +453,7 @@ def run_experiment_from_yaml(
                         for k, src, _inst in instance_rows
                     ]
                     _pool_workers = min(parallel_w, len(specs))
-                    _eff_key = (
-                        "cudaq_max_parallel_instances_effective"
-                        if inner_solver == "cudaq"
-                        else "cirq_max_parallel_instances_effective"
-                    )
+                    _eff_key = _PARALLEL_INSTANCES_EFF_KEY[inner_solver]
                     _par_msg = (
                         f"{inner_solver} parallel batch: process_pool_workers={_pool_workers} "
                         f"instance_jobs={len(specs)} "
@@ -491,12 +492,8 @@ def run_experiment_from_yaml(
                         break
                     gc.collect()
                 else:
-                    if inner_solver in ("cudaq", "cirq") and instance_rows:
-                        _eff_key = (
-                            "cudaq_max_parallel_instances_effective"
-                            if inner_solver == "cudaq"
-                            else "cirq_max_parallel_instances_effective"
-                        )
+                    if inner_solver in _PARALLEL_INSTANCES_EFF_KEY and instance_rows:
+                        _eff_key = _PARALLEL_INSTANCES_EFF_KEY[inner_solver]
                         if parallel_w <= 1:
                             _seq_msg = (
                                 f"{inner_solver} sequential solve: {len(instance_rows)} valid "
