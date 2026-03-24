@@ -1,4 +1,7 @@
-"""Filesystem layout for on-disk experiment instances and solutions."""
+"""Filesystem layout for on-disk experiment instances and solutions.
+
+For generic output roots (raw/processed/images), see :mod:`utils.output_paths`.
+"""
 
 from __future__ import annotations
 

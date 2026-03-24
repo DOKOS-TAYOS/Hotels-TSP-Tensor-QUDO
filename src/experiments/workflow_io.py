@@ -16,7 +16,7 @@ from utils.experiment_paths import (
     solutions_raw_dir,
     solutions_solver_root,
 )
-from utils.yaml_tools import load_yaml_mapping, merge_solver_yaml_dicts
+from utils.yaml_tools import load_yaml_mapping
 
 DEFAULT_INSTANCE_GENERATION_CONFIG_PATH = Path(__file__).with_name("instance_generation_config.yaml")
 
@@ -149,8 +149,6 @@ __all__ = [
     "instances_raw_dir",
     "load_instance_generation_entries",
     "load_problem_instance_json",
-    "load_yaml_mapping",
-    "merge_solver_yaml_dicts",
     "normalise_n_cities",
     "serialize_problem_instance",
     "solutions_raw_dir",

@@ -21,6 +21,15 @@ def load_yaml_mapping(path: Path | str) -> dict[str, Any]:
     return data
 
 
+def read_solver_yaml_as_mapping(path: Path | str) -> dict[str, Any]:
+    """Load a solver YAML file as a mapping.
+
+    Same semantics as :func:`load_yaml_mapping` — used for
+    ``load_solver_config`` and experiment YAML merge pipelines.
+    """
+    return load_yaml_mapping(path)
+
+
 def merge_solver_yaml_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Deep-merge solver-related YAML dicts; *override* wins.
 

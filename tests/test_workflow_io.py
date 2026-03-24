@@ -15,12 +15,12 @@ from experiments.workflow_io import (
     instance_json_path,
     instances_raw_dir,
     load_instance_generation_entries,
-    merge_solver_yaml_dicts,
     normalise_n_cities,
     serialize_problem_instance,
     solutions_raw_dir,
     solutions_solver_root,
 )
+from utils.yaml_tools import merge_solver_yaml_dicts
 from instance_gen_process.models import ProblemInstance
 from instance_gen_process.solver_config_loader import parse_solver_config_dict
 

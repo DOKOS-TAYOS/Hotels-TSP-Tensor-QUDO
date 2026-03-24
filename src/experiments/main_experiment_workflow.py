@@ -33,10 +33,12 @@ from solvers.base import SolverProtocol
 from config.settings import Settings, load_settings
 from utils.constraints import validate_instance_constraints
 from utils.experiment_serialize import (
+    build_solution_record,
     serialize_instance_config,
     serialize_solver_result,
     solver_config_payload_dict,
 )
+from utils.yaml_tools import load_yaml_mapping, merge_solver_yaml_dicts
 from utils.cooperative_stop import (
     SolverStopRequested,
     clear_solver_stop_request,
@@ -45,12 +47,11 @@ from utils.cooperative_stop import (
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
 
-from experiments.cudaq_parallel import (
-    CudaqParallelJob,
-    CudaqParallelJobSpec,
+from experiments.parallel_solve_batch import (
+    ParallelSolveJob,
     resolve_cpu_max_parallel_instances,
     resolve_cudaq_max_parallel_instances,
-    run_cudaq_parallel_batch,
+    run_parallel_solve_batch,
 )
 from experiments.workflow_io import (
     DEFAULT_INSTANCE_GENERATION_CONFIG_PATH,
@@ -60,8 +61,6 @@ from experiments.workflow_io import (
     instances_raw_dir,
     load_instance_generation_entries,
     load_problem_instance_json,
-    load_yaml_mapping,
-    merge_solver_yaml_dicts,
     normalise_n_cities,
     serialize_problem_instance,
     solutions_raw_dir,
@@ -215,28 +214,28 @@ def run_workflow(
 
             try:
                 result = solver.solve(instance, run_config)
-                payload: dict[str, Any] = {
-                    "instance": _serialize_instance(instance),
-                    "instance_config": serialize_instance_config(instance_config),
-                    "instance_index": i,
-                    "solver_config": solver_config_serializable,
-                    "solver_output": serialize_solver_result(result),
-                }
+                payload = build_solution_record(
+                    instance=_serialize_instance(instance),
+                    instance_config=serialize_instance_config(instance_config),
+                    instance_index=i,
+                    solver_config=solver_config_serializable,
+                    solver_output=serialize_solver_result(result),
+                )
             except SolverStopRequested:
                 break
             except Exception:
                 logger.exception("Instance %d solver failed — saving error record.", i)
                 n_failed += 1
-                payload = {
-                    "instance": _serialize_instance(instance),
-                    "instance_config": serialize_instance_config(instance_config),
-                    "instance_index": i,
-                    "solver_config": solver_config_serializable,
-                    "solver_output": {
+                payload = build_solution_record(
+                    instance=_serialize_instance(instance),
+                    instance_config=serialize_instance_config(instance_config),
+                    instance_index=i,
+                    solver_config=solver_config_serializable,
+                    solver_output={
                         "solver_name": solver_name,
                         "error": traceback.format_exc(),
                     },
-                }
+                )
 
             filename = f"exp_{timestamp}_inst_{i}_{solver_name}_{formulation}.json"
             out_path = layout.raw / filename
@@ -391,7 +390,7 @@ def run_experiment_from_yaml(
 
                 if use_parallel_instances:
                     specs = [
-                        CudaqParallelJobSpec(
+                        ParallelSolveJob(
                             k=k,
                             instance_json_path=str(src),
                             status_label=(
@@ -421,7 +420,7 @@ def run_experiment_from_yaml(
                     print(f"[parallel {inner_solver}] {_par_msg}", flush=True)
 
                     def _write_parallel_solution(
-                        job: CudaqParallelJob, payload: dict[str, Any]
+                        job: ParallelSolveJob, payload: dict[str, Any]
                     ) -> Path:
                         out_dir = solutions_raw_dir(
                             output_root_path,
@@ -436,7 +435,7 @@ def run_experiment_from_yaml(
                             json.dump(payload, f, indent=2)
                         return out_path
 
-                    batch_result = run_cudaq_parallel_batch(
+                    batch_result = run_parallel_solve_batch(
                         specs,
                         min(parallel_w, len(specs)),
                         solutions_write_fn=_write_parallel_solution,
@@ -472,31 +471,31 @@ def run_experiment_from_yaml(
                         reporter.instance_start(flat_i)
                         try:
                             result = solver.solve(instance, run_config)
-                            payload = {
-                                "instance": _serialize_instance(instance),
-                                "instance_config": serialize_instance_config(icfg),
-                                "instance_index": k - 1,
-                                "instance_source": str(src),
-                                "solver_config": solver_config_serializable,
-                                "solver_output": serialize_solver_result(result),
-                            }
+                            payload = build_solution_record(
+                                instance=_serialize_instance(instance),
+                                instance_config=serialize_instance_config(icfg),
+                                instance_index=k - 1,
+                                solver_config=solver_config_serializable,
+                                solver_output=serialize_solver_result(result),
+                                instance_source=str(src),
+                            )
                         except SolverStopRequested:
                             stop_solve = True
                             break
                         except Exception:
                             logger.exception("Solver failed for %s — saving error record.", src)
                             n_failed += 1
-                            payload = {
-                                "instance": _serialize_instance(instance),
-                                "instance_config": serialize_instance_config(icfg),
-                                "instance_index": k - 1,
-                                "instance_source": str(src),
-                                "solver_config": solver_config_serializable,
-                                "solver_output": {
+                            payload = build_solution_record(
+                                instance=_serialize_instance(instance),
+                                instance_config=serialize_instance_config(icfg),
+                                instance_index=k - 1,
+                                solver_config=solver_config_serializable,
+                                solver_output={
                                     "solver_name": inner_solver,
                                     "error": traceback.format_exc(),
                                 },
-                            }
+                                instance_source=str(src),
+                            )
 
                         out_dir = solutions_raw_dir(
                             output_root_path,

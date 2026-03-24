@@ -41,6 +41,28 @@ def serialize_solver_result(result: SolverResult) -> dict[str, Any]:
     }
 
 
+def build_solution_record(
+    *,
+    instance: dict[str, Any],
+    instance_config: dict[str, Any],
+    instance_index: int,
+    solver_config: dict[str, Any],
+    solver_output: dict[str, Any],
+    instance_source: str | None = None,
+) -> dict[str, Any]:
+    """Assemble the standard top-level JSON object for experiment solution files."""
+    out: dict[str, Any] = {
+        "instance": instance,
+        "instance_config": instance_config,
+        "instance_index": instance_index,
+        "solver_config": solver_config,
+        "solver_output": solver_output,
+    }
+    if instance_source is not None:
+        out["instance_source"] = instance_source
+    return out
+
+
 def solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str, Any]:
     """Build JSON-safe solver config snapshot (expand restriction dataclass)."""
     restriction = solver_config_dict["restriction"]
