@@ -35,6 +35,7 @@ make -f scripts/makefile clean
 # Calibration CLIs (output to output/T0sampling/ and output/lambdasSampling/)
 .venv/bin/python -m experiments.estimate_t0 --n-instances 5 --chi0 0.8
 .venv/bin/python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500,1000
+.venv/bin/python -m experiments.estimate_lambdas --solver brute_force --formulation tqudo --lambda-values 100,500  # exact global min + gap vs combinatorial optimum; needs small n_cities for QUBO
 # Workflow modes: --mode generate | cudaq | sa | cirq5 | brute_force | experiment | check_feasibility
 
 # Data analysis (requires pip install -e '.[analysis]'): manifest → paired metrics → figures
