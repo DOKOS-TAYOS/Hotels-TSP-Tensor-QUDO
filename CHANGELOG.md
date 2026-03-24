@@ -10,6 +10,14 @@ Initial research scaffold for Hotel TSP optimization with Tensor-QUDO and QUBO
 formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 6 merged pull requests.
 
+### Calibration and configuration
+
+- `experiments.estimate_lambdas`: grid search with optional `brute_force` ranking by
+  gap to combinatorial minimum real cost; CPU parallel workers respect
+  `cpu_max_parallel_instances` from `solver_config.yaml` (or `HTSP_CPU_MAX_PARALLEL_INSTANCES`).
+- `docs/configuration.md`: documents `qaoa_delta_t`, `qaoa_optimizer_tol`, parallel YAML
+  keys, and parallel-related `HTSP_*` env vars (aligned with `solver_config.yaml`).
+
 ### Breaking changes (experiment CLI and data analysis)
 
 - Removed in-memory **legacy** workflow and `run_workflow()`; solution JSON is only
@@ -99,7 +107,7 @@ avoid import cycles with `instance_gen_process` / `data_analysis`.
 - `scripts/makefile` with setup, lint, test, app, and clean targets.
 - Settings loaded from `.env` with `HTSP_*` prefix variables.
 - ruff linting (line-length 100, Python 3.11 target; runtime 3.11–3.13).
-- 17 test files with shared fixtures in `conftest.py`.
+- 22 test files with shared fixtures in `conftest.py`.
 - GPU tests auto-skip when no NVIDIA GPU is available.
 - Streamlit UI scaffold.
 

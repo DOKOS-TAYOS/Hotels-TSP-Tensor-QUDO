@@ -19,6 +19,8 @@ Settings are resolved in this order: **environment variable > `.env` file > defa
 | `HTSP_INSTANCE_CONFIG`          | path    | `src/instance_gen_process/config.yaml`    | Path to instance generation config                           |
 | `HTSP_ENABLE_NOISE_SIMULATION`  | bool    | `false`                                   | Noise kill-switch (overrides solver_config.yaml if `false`)  |
 | `HTSP_RANDOM_SEED`              | int     | `42`                                      | Global random seed                                           |
+| `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` | int | `1` (implicit)                          | Overrides `cudaq_max_parallel_instances` in solver YAML when set (non-empty string) |
+| `HTSP_CPU_MAX_PARALLEL_INSTANCES`   | int | `1` (implicit)                          | Overrides `cpu_max_parallel_instances` in solver YAML when set (non-empty string)   |
 
 Boolean values accept: `1`, `true`, `yes`, `on` (case-insensitive) for true;
 everything else is false.
@@ -71,6 +73,9 @@ seed: 42
 
 ```yaml
 n_instances: 1
+# Optional: on-disk experiment workflow (and λ calibration for CPU backends); see below.
+cudaq_max_parallel_instances: 1
+cpu_max_parallel_instances: 1
 solver: cudaq
 formulation: tqudo_virtual
 optimizer: COBYLA
@@ -80,6 +85,8 @@ restriction:
   lambda_2: 1000.0
 qaoa_depth: 1
 qaoa_max_iter: 100
+qaoa_delta_t: 0.55
+qaoa_optimizer_tol: 1.0e-6
 qaoa_shots: 100000
 qaoa_sample_shots: 100000
 seed: 42
@@ -106,6 +113,17 @@ noise:
 | `max_iterations`   | int            | `1000`   | >= 0 (SA max iterations)                         |
 | `timeout_seconds`  | float or null  | null     | Optional timeout in seconds                      |
 
+### Parallel instance solves (optional)
+
+Used by the **on-disk experiment workflow** (`experiments.main_experiment_workflow` experiment modes) and by **`experiments.estimate_lambdas`** for CPU backends (`cirq`, `simulated_annealing`, `brute_force`). When greater than `1`, multiple instances are solved in separate processes; see `docs/development.md` for details.
+
+| Field                          | Type | Default | Description |
+|--------------------------------|------|---------|-------------|
+| `cudaq_max_parallel_instances` | int  | `1`     | Max concurrent CUDA-Q instance solves (experiment workflow only). |
+| `cpu_max_parallel_instances`   | int  | `1`     | Max concurrent workers for Cirq, brute force, and simulated annealing (experiment workflow and λ calibration). |
+
+Non-empty env vars `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` and `HTSP_CPU_MAX_PARALLEL_INSTANCES` override the YAML values. The λ calibration CLI (`experiments.estimate_lambdas`) does not run CUDA-Q solves in parallel; use the main experiment workflow for multi-process CUDA-Q.
+
 ### Restriction (penalty coefficients)
 
 | Field      | Type  | Default | Description                                        |
@@ -120,11 +138,10 @@ noise:
 |--------------------|-------|---------|----------------------------------------------------------------|
 | `qaoa_depth`       | int   | `1`     | >= 1 (circuit depth `p`)                                       |
 | `qaoa_max_iter`    | int   | `100`   | >= 1; for COBYLA must be >= `2 * qaoa_depth + 2`               |
+| `qaoa_delta_t`     | float | `0.55`  | > 0 — TQA initial γ/β scale (`SolverRunConfig.delta_t`)          |
+| `qaoa_optimizer_tol` | float | `1e-6` | > 0 — SciPy `minimize` tolerance for QAOA angles               |
 | `qaoa_shots`       | int   | `500`   | >= 1 (shots per objective evaluation)                          |
 | `qaoa_sample_shots`| int   | `1000`  | >= 1 (shots for final solution sampling)                       |
-
-The `delta_t` parameter (TQA scheduling scale) defaults to `0.55` in
-`SolverRunConfig` and is not currently exposed in `solver_config.yaml`.
 
 ### Brute force solver (`solver: brute_force`)
 

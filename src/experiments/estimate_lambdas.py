@@ -60,6 +60,7 @@ from experiments.parallel_solve_batch import (
     resolve_cpu_max_parallel_instances,
 )
 from instance_gen_process import (
+    DEFAULT_SOLVER_CONFIG_PATH,
     generate_random_set_instances,
     load_instance_config,
     load_solver_config,
@@ -79,8 +80,18 @@ from utils.experiment_serialize import (
     serialize_restriction_config,
 )
 from utils.json_serialize import to_json_friendly
+from utils.yaml_tools import read_solver_yaml_as_mapping
 
 logger = logging.getLogger(__name__)
+
+_PARALLEL_SOLVER_YAML_KEYS = ("cudaq_max_parallel_instances", "cpu_max_parallel_instances")
+
+
+def _parallel_fields_from_solver_yaml(path: Path | str | None) -> dict[str, Any]:
+    """Keys not returned by :func:`load_solver_config` but needed for parallel resolution."""
+    p = Path(path) if path is not None else DEFAULT_SOLVER_CONFIG_PATH
+    raw = read_solver_yaml_as_mapping(p)
+    return {k: raw[k] for k in _PARALLEL_SOLVER_YAML_KEYS if k in raw}
 
 # Recovery of combinatorial optimal real cost (brute-force ranking only).
 _GAP_RECOVERY_EPS = 1e-6
@@ -434,12 +445,18 @@ def run_lambda_sampling(
     # --- Load configs -------------------------------------------------------
     instance_config = load_instance_config(instance_config_path)
     solver_config = load_solver_config(solver_config_path)
+    parallel_yaml = _parallel_fields_from_solver_yaml(solver_config_path)
 
     original_restriction: RestrictionConfig = solver_config["restriction"]
     seed: int | None = solver_config["seed"]
 
     # Work on a copy to avoid mutating the loaded config dict.
-    cfg = {**solver_config, "formulation": formulation, "solver": solver_name}
+    cfg = {
+        **solver_config,
+        **parallel_yaml,
+        "formulation": formulation,
+        "solver": solver_name,
+    }
     validate_solver_instance_compatibility(instance_config, cfg)
 
     cpu_parallel_effective = 1

@@ -176,7 +176,7 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]
 Loads and validates `solver_config.yaml`. Returns a dict with all solver
 parameters. Validates:
 - `n_instances >= 1`.
-- `solver` in `{cudaq, cirq, simulated_annealing}`.
+- `solver` in `{brute_force, cudaq, cirq, simulated_annealing}`.
 - `formulation` in `{qubo, tqudo, tqudo_virtual}`.
 - `optimizer` in `{COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead}`.
 - COBYLA budget: `qaoa_max_iter >= 2 * qaoa_depth + 2`.
@@ -778,6 +778,17 @@ def main() -> None
 CLI entry point with required `--mode`, plus `--instance-config`, `--solver-config`,
 `--output`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
 `Settings` from `.env` and passes them to experiment runs where applicable.
+
+### Calibration (`experiments/estimate_t0.py`, `experiments/estimate_lambdas.py`)
+
+- **`estimate_t0`**: `run_estimation(...)` — samples random instances, runs Ben–Ameur
+  `estimate_initial_temperature`, prints a recommended median `T₀`, writes JSON
+  under `--output` (default `output/T0sampling`).
+- **`estimate_lambdas`**: `run_lambda_sampling(...)` — grid search over λ triples
+  (`--lambda-values`), ranks by feasibility and mean real cost (heuristic solvers)
+  or mean gap to combinatorial optimum (`brute_force`). Merges parallel-instance
+  YAML keys (`cpu_max_parallel_instances`, `cudaq_max_parallel_instances`) from the
+  solver file for `resolve_cpu_max_parallel_instances` (CUDA-Q stays sequential).
 
 ### Workflow I/O (`experiments/workflow_io.py`)
 

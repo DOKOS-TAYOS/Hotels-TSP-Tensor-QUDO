@@ -126,6 +126,15 @@ When `solver` is `cirq`, `brute_force`, or `simulated_annealing` and the merged 
 .venv/bin/python -m experiments.main_experiment_workflow --mode cudaq --output path/to/output
 ```
 
+### Calibration CLIs
+
+| Command | Purpose | Default output |
+|---------|---------|----------------|
+| `python -m experiments.estimate_t0` | Ben–Ameur estimate of SA initial temperature `sa_t_initial` (`chi0`, `n-samples`, …) | `output/T0sampling/` |
+| `python -m experiments.estimate_lambdas` | Grid search over shared λ values for QUBO/TQUDO; heuristic solvers ranked by feasibility and mean real cost, `brute_force` by gap to combinatorial minimum | `output/lambdasSampling/` |
+
+Both read `config.yaml` and `solver_config.yaml` by default (`--instance-config`, `--solver-config`). For `estimate_lambdas`, optional `cpu_max_parallel_instances` in `solver_config.yaml` (or `HTSP_CPU_MAX_PARALLEL_INSTANCES`) speeds CPU backends across instances; CUDA-Q runs sequentially in this tool.
+
 ### Post-processing and figures (`data_analysis`)
 
 After runs exist under `output/raw/`, install the `analysis` extra and run:
@@ -196,6 +205,8 @@ configuration, data ingest, and imports.
 | `test_streamlit_app.py`       | Lazy import of Streamlit                                                   |
 | `test_brute_force_solver.py`  | Exhaustive QUBO/TQUDO enumeration, config caps                             |
 | `test_data_analysis.py`       | Manifest path parsing, ingest smoke tests                                |
+| `test_estimate_lambdas.py`  | Reference cost helper, brute-force λ ranking, parallel combo smoke, JSON payload |
+| `test_cudaq_parallel.py`    | CUDA-Q / CPU parallel batch helpers and workflow integration               |
 
 ### Shared fixtures (`conftest.py`)
 
