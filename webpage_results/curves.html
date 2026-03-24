@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Curvas de energía — Resultados</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <h1>Curvas de energía agregadas</h1>
+        <p class="lede">Fuente: <code>processed/energy_curves_agg.csv</code></p>
+      </header>
+      <nav id="site-nav" aria-label="Principal"></nav>
+      <p id="curves-error" class="status-bad"></p>
+      <div class="chart-box tall">
+        <canvas id="chart-curves" aria-label="Curvas p50"></canvas>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script type="module" src="js/nav.js"></script>
+    <script type="module" src="js/curves.js"></script>
+  </body>
+</html>

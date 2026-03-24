@@ -19,6 +19,7 @@ Research scaffold for combinatorial optimization of a Hotel TSP (travel routing 
 make -f scripts/makefile lint   # ruff check .
 make -f scripts/makefile test   # pytest
 make -f scripts/makefile app    # streamlit run
+make -f scripts/makefile results-web   # python -m http.server 8765 from repo root → open webpage_results/
 make -f scripts/makefile clean
 
 # Run a single test
@@ -41,6 +42,9 @@ make -f scripts/makefile clean
 .venv/bin/python -m data_analysis.metrics --output-root output
 .venv/bin/python -m data_analysis.plot --output-root output
 # Or full pipeline: .venv/bin/python -m data_analysis.pipeline --output-root output
+
+# Local results dashboard (static HTML; requires HTTP — not file://)
+# After analysis-all: make -f scripts/makefile results-web → http://localhost:8765/webpage_results/index.html
 ```
 
 ## Architecture

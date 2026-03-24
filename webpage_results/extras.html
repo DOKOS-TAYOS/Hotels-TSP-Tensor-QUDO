@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Extras — Resultados</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <h1>Extras y calibración</h1>
+        <p class="lede">Wilcoxon, JSON de T0 y lambdas (listado vía índice del servidor HTTP).</p>
+      </header>
+      <nav id="site-nav" aria-label="Principal"></nav>
+      <p id="extras-base" class="muted"></p>
+
+      <h2>Wilcoxon (SA QUBO vs TQUDO)</h2>
+      <pre id="json-wilcoxon" class="json-view"></pre>
+
+      <h2>Manifest</h2>
+      <p id="manifest-note" class="muted"></p>
+
+      <h2>T0 sampling</h2>
+      <div id="t0-list" class="muted"></div>
+
+      <h2>Lambda grid</h2>
+      <div id="lambda-list" class="muted"></div>
+
+      <h2>JSON seleccionado</h2>
+      <pre id="json-picked" class="json-view">Pulsa un nombre de archivo arriba.</pre>
+    </div>
+    <script type="module" src="js/nav.js"></script>
+    <script type="module" src="js/extras.js"></script>
+  </body>
+</html>

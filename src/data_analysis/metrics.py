@@ -338,6 +338,7 @@ def run_metrics(output_root: Path, sample_quality: bool) -> None:
     curves = aggregate_energy_curves(paired, output_root)
     if not curves.empty:
         curves.to_parquet(layout.processed / "energy_curves_agg.parquet", index=False)
+        curves.to_csv(layout.processed / "energy_curves_agg.csv", index=False)
 
     wc = wilcoxon_sa_qubo_vs_tqudo(paired)
     if wc is not None:

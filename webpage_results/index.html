@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Resultados — Hotel TSP</title>
+    <!--
+      Abre vía HTTP local (fetch no funciona con file://). Ejemplo:
+      cd <raíz del repo> && python -m http.server 8765
+      Luego: http://localhost:8765/webpage_results/index.html
+      Otro directorio de salida: ?output=/ruta/absoluta/output/
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <h1>Visor de resultados</h1>
+        <p class="lede">
+          Análisis interactivo sobre <code>output/processed/</code> y figuras en
+          <code>output/images/</code>. Recarga tras regenerar datos.
+        </p>
+      </header>
+      <nav id="site-nav" aria-label="Principal"></nav>
+
+      <div class="callout warn">
+        <strong>Servidor HTTP</strong>: no abras el HTML con doble clic (<code>file://</code>).
+        Desde la raíz del repositorio:
+        <code>python -m http.server 8765</code> y entra en
+        <code>http://localhost:8765/webpage_results/index.html</code>
+      </div>
+
+      <h2>Estado de los datos</h2>
+      <ul id="status-list">
+        <li id="st-summary" class="muted">Comprobando…</li>
+        <li id="st-paired" class="muted">Comprobando…</li>
+        <li id="st-curves" class="muted">Comprobando…</li>
+        <li id="st-wilcoxon" class="muted">Comprobando…</li>
+        <li id="st-images" class="muted">Comprobando…</li>
+      </ul>
+
+      <div class="card-grid">
+        <a class="card" href="summary.html">
+          <h2>Resumen por configuración</h2>
+          <p>Tabla y gráfico de tasas de factibilidad.</p>
+        </a>
+        <a class="card" href="paired.html">
+          <h2>Paired metrics</h2>
+          <p>Tabla filtrable con todas las ejecuciones.</p>
+        </a>
+        <a class="card" href="curves.html">
+          <h2>Curvas de energía</h2>
+          <p>Series p50 agregadas por solver / formulación.</p>
+        </a>
+        <a class="card" href="figures.html">
+          <h2>Figuras PNG</h2>
+          <p>Imágenes generadas por data_analysis.plot.</p>
+        </a>
+        <a class="card" href="extras.html">
+          <h2>Extras</h2>
+          <p>Wilcoxon, T0, lambdas.</p>
+        </a>
+      </div>
+    </div>
+    <script type="module" src="js/nav.js"></script>
+    <script type="module" src="js/home.js"></script>
+  </body>
+</html>

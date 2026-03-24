@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Figuras — Resultados</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <h1>Figuras PNG</h1>
+        <p class="lede">Generadas por <code>data_analysis.plot</code> en <code>output/images/</code></p>
+      </header>
+      <nav id="site-nav" aria-label="Principal"></nav>
+      <div class="figure-grid">
+        <figure>
+          <img id="img-feas" alt="" />
+          <figcaption data-for="img-feas" class="muted">Cargando…</figcaption>
+        </figure>
+        <figure>
+          <img id="img-violin" alt="" />
+          <figcaption data-for="img-violin" class="muted">Cargando…</figcaption>
+        </figure>
+        <figure>
+          <img id="img-energy" alt="" />
+          <figcaption data-for="img-energy" class="muted">Cargando…</figcaption>
+        </figure>
+      </div>
+    </div>
+    <script type="module" src="js/nav.js"></script>
+    <script type="module" src="js/figures.js"></script>
+  </body>
+</html>

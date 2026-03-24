@@ -1,8 +1,10 @@
-.PHONY: setup lint test app clean analysis-ingest analysis-metrics analysis-plots analysis-all
+.PHONY: setup lint test app clean analysis-ingest analysis-metrics analysis-plots analysis-all results-web
 
 EXTRAS ?= dev,ui,cudaq
 PYTHON := .venv/bin/python
 STREAMLIT := .venv/bin/streamlit
+# scripts/makefile lives in scripts/; repo root is one level up.
+REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 setup:
 	./bin/setup.sh "$(EXTRAS)"
@@ -27,6 +29,11 @@ analysis-plots:
 
 analysis-all:
 	$(PYTHON) -m data_analysis.pipeline --output-root output
+
+# Serve repo root over HTTP so webpage_results/ can fetch output/processed/*.csv (not for file://).
+results-web:
+	@echo "Open http://localhost:8765/webpage_results/index.html"
+	cd $(REPO_ROOT) && $(PYTHON) -m http.server 8765
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage htmlcov .tmp tests/.tmp
