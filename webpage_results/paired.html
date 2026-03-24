@@ -3,10 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Paired metrics — Resultados</title>
+    <meta
+      name="description"
+      content="Métricas emparejadas por instancia: Hotel TSP, QUBO y Tensor-QUDO."
+    />
+    <title>Métricas emparejadas — Hotel TSP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600&display=swap"
       rel="stylesheet"
     />
     <link
@@ -17,11 +22,16 @@
   </head>
   <body>
     <div class="wrap">
-      <header class="site-header">
-        <h1>Paired metrics</h1>
-        <p class="lede">Fuente: <code>processed/paired_metrics.csv</code> — filtros en cabeceras.</p>
-      </header>
       <nav id="site-nav" aria-label="Principal"></nav>
+      <header class="site-header">
+        <h1>Métricas emparejadas</h1>
+        <p class="lede">Fuente: <code>processed/paired_metrics.csv</code> — filtros en cabeceras.</p>
+        <p class="header-context">
+          Cada fila alinea ejecuciones sobre la misma instancia generada: útil para comparar coste
+          real, ratio de aproximación y factibilidad entre backends sin confundir el efecto del
+          muestreo de instancias.
+        </p>
+      </header>
       <p id="paired-error" class="status-bad"></p>
       <div id="table-paired" class="table-host"></div>
     </div>

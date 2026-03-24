@@ -3,7 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Resultados — Hotel TSP</title>
+    <meta
+      name="description"
+      content="Dashboard de resultados: Hotel TSP con Tensor-QUDO y QUBO — factibilidad, costes y curvas de energía."
+    />
+    <title>Resultados — Hotel TSP · Tensor-QUDO</title>
     <!--
       Abre vía HTTP local (fetch no funciona con file://). Ejemplo:
       cd <raíz del repo> && python -m http.server 8765
@@ -11,61 +15,195 @@
       Otro directorio de salida: ?output=/ruta/absoluta/output/
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <div class="wrap">
-      <header class="site-header">
-        <h1>Visor de resultados</h1>
-        <p class="lede">
-          Análisis interactivo sobre <code>output/processed/</code> y figuras en
-          <code>output/images/</code>. Recarga tras regenerar datos.
-        </p>
-      </header>
       <nav id="site-nav" aria-label="Principal"></nav>
 
+      <header class="hero" role="banner">
+        <div class="hero-inner">
+          <p class="hero-kicker">Optimización combinatoria · cuántica y clásica</p>
+          <h1>Hotel TSP con Tensor-QUDO</h1>
+          <p class="hero-lede">
+            Routing de estancias con <strong>restricciones de precedencia</strong>: comparamos la
+            formulación <strong>QUBO</strong> (variables binarias one-hot) frente a
+            <strong>Tensor-QUDO</strong> (codificación en qudits), usando QAOA, recocido simulado y
+            referencias exactas cuando el tamaño lo permite. Los costes se alinean con el trabajo de
+            referencia (Tensor-QUDO / QUBO sobre el mismo problema).
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="summary.html">Ver métricas por configuración</a>
+            <a
+              class="btn btn-ghost"
+              href="https://arxiv.org/abs/2508.01958"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Paper arXiv:2508.01958</a
+            >
+          </div>
+        </div>
+      </header>
+
+      <section class="pipeline" aria-labelledby="pipeline-heading">
+        <h2 id="pipeline-heading" class="section-title">Flujo del experimento</h2>
+        <p class="section-lede">
+          Los JSON de <code>output/raw/</code> se ingestan y resumen en CSV bajo
+          <code>output/processed/</code>; las figuras listas para publicar salen de
+          <code>data_analysis.plot</code>.
+        </p>
+        <ol class="pipeline-steps">
+          <li>
+            <strong>Instancias</strong>
+            Ciudades, precios y precedencias según la configuración del generador.
+          </li>
+          <li>
+            <strong>Solvers</strong>
+            CUDA-Q, Cirq, SA o fuerza bruta según <code>solver_config.yaml</code>.
+          </li>
+          <li>
+            <strong>Formulación</strong>
+            Misma instancia codificada como QUBO o TQUDO (nativo o virtual).
+          </li>
+          <li>
+            <strong>Análisis</strong>
+            <code>data_analysis.ingest</code> → métricas emparejadas y agregados.
+          </li>
+          <li>
+            <strong>Este visor</strong>
+            Tablas interactivas, curvas de energía y figuras PNG.
+          </li>
+        </ol>
+      </section>
+
+      <section class="compare-block" aria-labelledby="compare-heading">
+        <h2 id="compare-heading" class="section-title">Dos formulaciones del mismo problema</h2>
+        <div class="compare-row">
+        <article class="compare-card tqudo">
+          <h3>Tensor-QUDO</h3>
+          <p>
+            Coste en tensores <code>E</code> sobre qudits: la codificación impone una ciudad por
+            paso temporal sin penalización extra de tipo <code>λ₀</code> por exclusión.
+          </p>
+        </article>
+        <article class="compare-card qubo">
+          <h3>QUBO</h3>
+          <p>
+            Matriz simétrica 2D; hacen falta penalizaciones λ para factibilidad. El objetivo QUBO
+            difiere del coste “real” en un término constante conocido (ver documentación del repo).
+          </p>
+        </article>
+        </div>
+      </section>
+
       <div class="callout warn">
-        <strong>Servidor HTTP</strong>: no abras el HTML con doble clic (<code>file://</code>).
-        Desde la raíz del repositorio:
+        <strong>Servidor HTTP</strong>: el visor usa <code>fetch</code>; no abras estos HTML con
+        doble clic (<code>file://</code>). Desde la raíz del repositorio:
         <code>python -m http.server 8765</code> y entra en
-        <code>http://localhost:8765/webpage_results/index.html</code>
+        <code>http://localhost:8765/webpage_results/index.html</code>. Otro directorio de salida:
+        <code>?output=/ruta/a/output/</code>
       </div>
 
-      <h2>Estado de los datos</h2>
-      <ul id="status-list">
-        <li id="st-summary" class="muted">Comprobando…</li>
-        <li id="st-paired" class="muted">Comprobando…</li>
-        <li id="st-curves" class="muted">Comprobando…</li>
-        <li id="st-wilcoxon" class="muted">Comprobando…</li>
-        <li id="st-images" class="muted">Comprobando…</li>
-      </ul>
+      <section class="status-section" aria-labelledby="status-heading">
+        <h2 id="status-heading" class="section-title">Estado de los datos</h2>
+        <p class="section-lede">
+          Comprueba que hayas ejecutado el pipeline de análisis sobre tu carpeta
+          <code>output</code> (o la indicada en la URL). Recarga tras regenerar CSV o figuras.
+        </p>
+        <ul id="status-list" class="status-grid">
+          <li id="st-summary">
+            <span class="status-label">Resumen por config</span>
+            <span class="status-value muted">Comprobando…</span>
+          </li>
+          <li id="st-paired">
+            <span class="status-label">Métricas emparejadas</span>
+            <span class="status-value muted">Comprobando…</span>
+          </li>
+          <li id="st-curves">
+            <span class="status-label">Curvas agregadas</span>
+            <span class="status-value muted">Comprobando…</span>
+          </li>
+          <li id="st-wilcoxon">
+            <span class="status-label">Wilcoxon (opcional)</span>
+            <span class="status-value muted">Comprobando…</span>
+          </li>
+          <li id="st-images">
+            <span class="status-label">Figuras PNG</span>
+            <span class="status-value muted">Comprobando…</span>
+          </li>
+        </ul>
+      </section>
 
-      <div class="card-grid">
-        <a class="card" href="summary.html">
-          <h2>Resumen por configuración</h2>
-          <p>Tabla y gráfico de tasas de factibilidad.</p>
-        </a>
-        <a class="card" href="paired.html">
-          <h2>Paired metrics</h2>
-          <p>Tabla filtrable con todas las ejecuciones.</p>
-        </a>
-        <a class="card" href="curves.html">
-          <h2>Curvas de energía</h2>
-          <p>Series p50 agregadas por solver / formulación.</p>
-        </a>
-        <a class="card" href="figures.html">
-          <h2>Figuras PNG</h2>
-          <p>Imágenes generadas por data_analysis.plot.</p>
-        </a>
-        <a class="card" href="extras.html">
-          <h2>Extras</h2>
-          <p>Wilcoxon, T0, lambdas.</p>
-        </a>
-      </div>
+      <section aria-labelledby="explore-heading">
+        <h2 id="explore-heading" class="section-title">Explorar resultados</h2>
+        <p class="section-lede">
+          Cada vista responde a una pregunta distinta del estudio: ¿qué tan factibles son las
+          soluciones?, ¿cómo se comparan pares de ejecuciones?, ¿cómo evoluciona la energía?
+        </p>
+        <div class="card-grid">
+          <a class="card" href="summary.html">
+            <span class="card-tag">Agregados</span>
+            <h2>Resumen por configuración</h2>
+            <p>
+              Tasas de factibilidad y estadísticos por solver, formulación, tamaño y profundidad
+              QAOA.
+            </p>
+            <span class="card-arrow">Abrir vista →</span>
+          </a>
+          <a class="card" href="paired.html">
+            <span class="card-tag">Detalle</span>
+            <h2>Métricas emparejadas</h2>
+            <p>
+              Tabla filtrable con ejecuciones alineadas para comparar costes reales y ratios de
+              aproximación.
+            </p>
+            <span class="card-arrow">Abrir vista →</span>
+          </a>
+          <a class="card" href="curves.html">
+            <span class="card-tag">Optimización</span>
+            <h2>Curvas de energía</h2>
+            <p>
+              Series agregadas (p50) durante el bucle QAOA, comparables entre backends y
+              formulaciones.
+            </p>
+            <span class="card-arrow">Abrir vista →</span>
+          </a>
+          <a class="card" href="figures.html">
+            <span class="card-tag">Figuras</span>
+            <h2>Imágenes del análisis</h2>
+            <p>
+              PNG generados por <code>data_analysis.plot</code>: violines, factibilidad e historial
+              de energía.
+            </p>
+            <span class="card-arrow">Abrir vista →</span>
+          </a>
+          <a class="card" href="extras.html">
+            <span class="card-tag">Calibración</span>
+            <h2>Extras y estadística</h2>
+            <p>
+              Wilcoxon SA QUBO vs TQUDO, manifest, muestreo de T₀ y rejillas de λ para penalizaciones
+              QUBO.
+            </p>
+            <span class="card-arrow">Abrir vista →</span>
+          </a>
+        </div>
+      </section>
+
+      <footer class="site-footer">
+        <p>
+          Proyecto de investigación Hotel TSP / Tensor-QUDO · Referencia:
+          <a href="https://arxiv.org/abs/2508.01958" target="_blank" rel="noopener noreferrer"
+            >arXiv:2508.01958</a
+          >
+          · Los costes reportados conviene contrastarlos con <code>calculate_real_cost</code> en el
+          código para comparar formulaciones de forma equitativa.
+        </p>
+      </footer>
     </div>
     <script type="module" src="js/nav.js"></script>
     <script type="module" src="js/home.js"></script>

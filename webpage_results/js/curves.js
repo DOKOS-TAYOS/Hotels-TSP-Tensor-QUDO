@@ -8,12 +8,12 @@ function seriesKey(row) {
 }
 
 const palette = [
-  "rgba(94, 184, 255, 1)",
-  "rgba(105, 219, 124, 1)",
-  "rgba(255, 180, 100, 1)",
-  "rgba(255, 107, 107, 1)",
-  "rgba(200, 150, 255, 1)",
-  "rgba(255, 230, 120, 1)",
+  "rgba(78, 205, 196, 1)",
+  "rgba(199, 146, 234, 1)",
+  "rgba(127, 217, 154, 1)",
+  "rgba(240, 113, 120, 1)",
+  "rgba(230, 192, 109, 1)",
+  "rgba(130, 170, 255, 1)",
 ];
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -45,8 +45,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  Chart.defaults.color = "#e7ecf3";
-  Chart.defaults.borderColor = "#2a3a4f";
+  Chart.defaults.color = "#e8edf4";
+  Chart.defaults.borderColor = "#2a3441";
 
   const byKey = new Map();
   for (const row of rows) {
@@ -78,7 +78,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       plugins: {
         title: {
           display: true,
-          text: "Energía mediana (p50) por paso del optimizador",
+          text: "Objetivo QUBO/TQUDO (normalizado): mediana p50 por paso QAOA",
         },
         legend: {
           position: "bottom",
@@ -91,7 +91,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           title: { display: true, text: "step" },
         },
         y: {
-          title: { display: true, text: "p50 (unidades escaladas)" },
+          title: {
+            display: true,
+            text: "p50 (energía escalada; ver energy_scale en JSON)",
+          },
         },
       },
     },

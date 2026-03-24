@@ -1,8 +1,19 @@
 import { fetchText, DataLoadError, resourceExists } from "./data.js";
 
+/**
+ * @param {string} id
+ * @param {boolean} ok
+ * @param {string} text
+ */
 function line(id, ok, text) {
   const el = document.getElementById(id);
   if (!el) return;
+  const msg = el.querySelector(".status-value");
+  if (msg) {
+    msg.className = ok ? "status-value status-ok" : "status-value status-bad";
+    msg.textContent = text;
+    return;
+  }
   el.className = ok ? "status-ok" : "status-bad";
   el.textContent = text;
 }

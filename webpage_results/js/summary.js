@@ -62,8 +62,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  Chart.defaults.color = "#e7ecf3";
-  Chart.defaults.borderColor = "#2a3a4f";
+  Chart.defaults.color = "#e8edf4";
+  Chart.defaults.borderColor = "#2a3441";
 
   const withFeas = rows.filter((r) => r.feas_rate !== null && r.feas_rate !== undefined);
   if (!withFeas.length) {
@@ -81,8 +81,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         {
           label: "feas_rate",
           data: values,
-          backgroundColor: "rgba(94, 184, 255, 0.55)",
-          borderColor: "rgba(94, 184, 255, 1)",
+          backgroundColor: "rgba(78, 205, 196, 0.5)",
+          borderColor: "rgba(78, 205, 196, 1)",
           borderWidth: 1,
         },
       ],
@@ -93,10 +93,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        title: { display: true, text: "Tasa de factibilidad por configuración" },
+        title: {
+          display: true,
+          text: "Factibilidad de rutas (precedencias) por configuración experimental",
+        },
       },
       scales: {
-        x: { min: 0, max: 1.05, title: { display: true, text: "feas_rate" } },
+        x: {
+          min: 0,
+          max: 1.05,
+          title: { display: true, text: "feas_rate (fracción de ejecuciones factibles)" },
+        },
       },
     },
   });

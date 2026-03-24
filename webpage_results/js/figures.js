@@ -1,9 +1,21 @@
 import { outputUrl } from "./config.js";
 
 const knownFigures = [
-  ["img-feas", "images/feasibility_by_config.png", "Feasibilidad por configuración (matplotlib)"],
-  ["img-violin", "images/approx_ratio_real_violin.png", "approx_ratio_real (violin)"],
-  ["img-energy", "images/energy_history_median.png", "Historial de energía (mediana)"],
+  [
+    "img-feas",
+    "images/feasibility_by_config.png",
+    "Factibilidad de rutas vs configuración (solver × formulación × n)",
+  ],
+  [
+    "img-violin",
+    "images/approx_ratio_real_violin.png",
+    "Distribución del ratio de aproximación sobre el coste real",
+  ],
+  [
+    "img-energy",
+    "images/energy_history_median.png",
+    "Historial de energía (mediana) durante la optimización QAOA",
+  ],
 ];
 
 document.addEventListener("DOMContentLoaded", () => {

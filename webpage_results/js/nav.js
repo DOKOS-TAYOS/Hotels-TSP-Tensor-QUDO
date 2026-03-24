@@ -21,13 +21,15 @@ document.addEventListener("DOMContentLoaded", () => {
     })
     .join("");
   el.innerHTML = `
-    <ul class="nav-list">
-      ${lis}
-    </ul>
-    <p class="nav-meta">
-      <button type="button" id="btn-refresh" class="btn">Refrescar datos</button>
-      <span id="nav-output-base" class="muted"></span>
-    </p>
+    <div class="nav-shell">
+      <ul class="nav-list">
+        ${lis}
+      </ul>
+      <p class="nav-meta">
+        <button type="button" id="btn-refresh" class="btn">Refrescar datos</button>
+        <span id="nav-output-base" class="muted"></span>
+      </p>
+    </div>
   `;
   const baseEl = el.querySelector("#nav-output-base");
   if (baseEl) {
