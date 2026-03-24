@@ -19,7 +19,7 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
-from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences
+from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences, bitstring_to_qudit_sequence
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -198,30 +198,6 @@ def _param_resolver(
         resolver_dict[symbols[f"gamma_{k}"]] = float(params[k])
         resolver_dict[symbols[f"beta_{k}"]] = float(params[depth + k])
     return cirq.ParamResolver(resolver_dict)
-
-
-def bitstring_to_qudit_sequence(
-    bitstring: str,
-    n_qudits: int,
-    qubits_per_qudit: int,
-) -> np.ndarray:
-    """Decode a contiguous bitstring into ``n_qudits`` integer qudit values.
-
-    Args:
-        bitstring: Concatenated measurement bits in qudit-major order.
-        n_qudits: Number of logical qudits.
-        qubits_per_qudit: Bits encoding each qudit (little-endian within block).
-
-    Returns:
-        Integer array of length ``n_qudits``.
-    """
-    seq = np.zeros(n_qudits, dtype=np.int64)
-    for i in range(n_qudits):
-        start = i * qubits_per_qudit
-        for j in range(qubits_per_qudit):
-            if start + j < len(bitstring) and bitstring[start + j] == "1":
-                seq[i] += 1 << j
-    return seq
 
 
 def evaluate_cost(

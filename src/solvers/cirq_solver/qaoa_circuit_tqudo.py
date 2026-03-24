@@ -45,7 +45,7 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
-from utils.costs_batch import batch_tqudo_costs
+from utils.costs_batch import batch_tqudo_costs, bitstring_to_qudit_sequence as _binary_bitstring_to_qudit_sequence
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -427,14 +427,7 @@ def bitstring_to_qudit_sequence(
     """
     if "-" in bitstring:
         return key_to_qudit_sequence(bitstring)
-    # Legacy binary format (for any remaining callers)
-    seq = np.zeros(n_qudits, dtype=np.int64)
-    for i in range(n_qudits):
-        start = i * qubits_per_qudit
-        for j in range(qubits_per_qudit):
-            if start + j < len(bitstring) and bitstring[start + j] == "1":
-                seq[i] += 1 << j
-    return seq
+    return _binary_bitstring_to_qudit_sequence(bitstring, n_qudits, qubits_per_qudit)
 
 
 # ---------------------------------------------------------------------------

@@ -14,7 +14,12 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
-from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences, bitstrings_to_binary_matrix
+from utils.costs_batch import (
+    batch_tqudo_costs,
+    bit_rows_to_qudit_sequences,
+    bitstring_to_qudit_sequence,
+    bitstrings_to_binary_matrix,
+)
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -383,30 +388,6 @@ def optimize_qaoa(
             noise_model=noise_model,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
-
-
-def bitstring_to_qudit_sequence(
-    bitstring: str,
-    n_qudits: int,
-    qubits_per_qudit: int,
-) -> np.ndarray:
-    """Convert a measurement bitstring to qudit sequence (route).
-
-    Args:
-        bitstring: String of '0' and '1', length n_qudits * qubits_per_qudit.
-        n_qudits: Number of qudit registers.
-        qubits_per_qudit: Qubits per qudit.
-
-    Returns:
-        1D array of qudit values (city per timestep), shape (n_qudits,).
-    """
-    seq = np.zeros(n_qudits, dtype=np.int64)
-    for i in range(n_qudits):
-        start = i * qubits_per_qudit
-        for j in range(qubits_per_qudit):
-            if start + j < len(bitstring) and bitstring[start + j] == "1":
-                seq[i] += 1 << j
-    return seq
 
 
 def run_qaoa(

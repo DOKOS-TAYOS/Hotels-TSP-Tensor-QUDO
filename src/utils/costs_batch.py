@@ -79,3 +79,16 @@ def bit_rows_to_qudit_sequences(
     weights = (1 << np.arange(qubits_per_qudit, dtype=np.int64)).astype(np.float64)
     weights = weights[None, None, :]
     return np.sum(flat * weights, axis=2).astype(np.int64)
+
+
+def bitstring_to_qudit_sequence(
+    bitstring: str,
+    n_qudits: int,
+    qubits_per_qudit: int,
+) -> np.ndarray:
+    """Decode a contiguous ``'0'``/``'1'`` measurement string to qudit indices (little-endian per block).
+
+    Same convention as :func:`bit_rows_to_qudit_sequences` for a single row.
+    """
+    mat = bitstrings_to_binary_matrix([bitstring])
+    return bit_rows_to_qudit_sequences(mat, n_qudits, qubits_per_qudit)[0]

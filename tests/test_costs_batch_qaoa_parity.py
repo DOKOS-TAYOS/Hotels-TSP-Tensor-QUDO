@@ -11,6 +11,7 @@ from utils.costs_batch import (
     batch_qubo_costs,
     batch_tqudo_costs,
     bit_rows_to_qudit_sequences,
+    bitstring_to_qudit_sequence,
     bitstrings_to_binary_matrix,
 )
 
@@ -52,8 +53,6 @@ class TestBitstringDecodeParity:
     """Batch bit decoding matches little-endian qudit blocks."""
 
     def test_bitstrings_to_matrix_and_qudits(self) -> None:
-        from solvers.cudaq_solver.qaoa_circuit_tqudo import bitstring_to_qudit_sequence
-
         rng = np.random.default_rng(0)
         for nq, qb in [(3, 2), (5, 3)]:
             for _ in range(20):
