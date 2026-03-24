@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 DEFAULT_SOLVER_CONFIG_PATH = Path(__file__).with_name("solver_config.yaml")
 
-VALID_SOLVERS = frozenset({"cudaq", "cirq", "simulated_annealing"})
+VALID_SOLVERS = frozenset({"brute_force", "cudaq", "cirq", "simulated_annealing"})
 VALID_FORMULATIONS = frozenset({"qubo", "tqudo", "tqudo_virtual"})
 VALID_OPTIMIZERS = frozenset({"COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"})
 
@@ -124,6 +124,46 @@ def validate_solver_instance_compatibility(
             f"Got n_cities={instance_config.n_cities} (n_cities - 1 = {n_available})."
         )
 
+    if solver == "brute_force":
+        from solvers.brute_force.limits import QUBO_MAX_BINARY_VARS, TQUDO_MAX_N_AVAILABLE
+
+        if formulation not in ("qubo", "tqudo"):
+            raise ValueError(
+                "solver='brute_force' only supports formulation 'qubo' or 'tqudo', "
+                f"got {formulation!r}."
+            )
+        cap_t = int(solver_config.get("brute_force_max_assignments_tqudo", 8**8))
+        cap_q = int(solver_config.get("brute_force_max_assignments_qubo", 2**QUBO_MAX_BINARY_VARS))
+        if formulation == "tqudo":
+            if n_available > TQUDO_MAX_N_AVAILABLE:
+                raise ValueError(
+                    f"brute_force TQUDO requires n_cities - 1 <= {TQUDO_MAX_N_AVAILABLE} "
+                    f"(full space has n^n assignments, max {TQUDO_MAX_N_AVAILABLE}**"
+                    f"{TQUDO_MAX_N_AVAILABLE}); got n_cities={instance_config.n_cities}."
+                )
+            cardinal = n_available**n_available
+            if cardinal > cap_t:
+                raise ValueError(
+                    f"brute_force TQUDO would enumerate {cardinal} assignments "
+                    f"(n_cities={instance_config.n_cities}); exceeds "
+                    f"brute_force_max_assignments_tqudo={cap_t}."
+                )
+        if formulation == "qubo":
+            n_vars = n_available * n_available
+            if n_vars > QUBO_MAX_BINARY_VARS:
+                raise ValueError(
+                    f"brute_force QUBO requires at most {QUBO_MAX_BINARY_VARS} binary variables "
+                    f"(full space 2^n_vars); got n_vars={n_vars} (n_cities={instance_config.n_cities})."
+                )
+            cardinal = 1 << n_vars
+            if cardinal > cap_q:
+                raise ValueError(
+                    f"brute_force QUBO would enumerate {cardinal} assignments; "
+                    f"exceeds brute_force_max_assignments_qubo={cap_q}. "
+                    "Raise the cap only if intended "
+                    f"(n_cities={instance_config.n_cities})."
+                )
+
 
 def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalise a solver configuration mapping.
@@ -206,7 +246,24 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
     if not (0 < sa_alpha < 1):
         raise ValueError("sa_alpha must be between 0 and 1 (exclusive)")
 
-    _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
+    from solvers.brute_force.limits import QUBO_MAX_BINARY_VARS, TQUDO_MAX_N_AVAILABLE
+
+    brute_force_max_assignments_tqudo = _parse_int_setting(
+        data.get(
+            "brute_force_max_assignments_tqudo",
+            TQUDO_MAX_N_AVAILABLE**TQUDO_MAX_N_AVAILABLE,
+        ),
+        "brute_force_max_assignments_tqudo",
+        minimum=1,
+    )
+    brute_force_max_assignments_qubo = _parse_int_setting(
+        data.get("brute_force_max_assignments_qubo", 2**QUBO_MAX_BINARY_VARS),
+        "brute_force_max_assignments_qubo",
+        minimum=1,
+    )
+
+    if solver != "brute_force":
+        _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
 
     from solvers.noise import NoiseConfig, NoiseModelType, VALID_NOISE_TYPES
 
@@ -250,6 +307,8 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
         "sa_t_final": sa_t_final,
         "sa_alpha": sa_alpha,
         "noise_config": noise_config,
+        "brute_force_max_assignments_tqudo": brute_force_max_assignments_tqudo,
+        "brute_force_max_assignments_qubo": brute_force_max_assignments_qubo,
     }
 
 
@@ -307,4 +366,6 @@ def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
         sa_t_initial=config["sa_t_initial"],
         sa_t_final=config["sa_t_final"],
         sa_alpha=config["sa_alpha"],
+        brute_force_max_assignments_tqudo=config["brute_force_max_assignments_tqudo"],
+        brute_force_max_assignments_qubo=config["brute_force_max_assignments_qubo"],
     )

@@ -166,12 +166,13 @@ def normalise_n_cities(value: Any) -> list[int]:
 def experiment_depth_iterations(solver: str, raw: Any) -> list[tuple[int | None, int]]:
     """Pairs ``(depth_for_output_subdir, qaoa_depth_for_solver_config)``.
 
-    For ``simulated_annealing``, the output subdir is ``None`` (no depth level);
-    *raw* may be int or list (first element used as scalar for run config if list).
+    For ``simulated_annealing`` and ``brute_force``, the output subdir is ``None``
+    (no depth level); *raw* may be int or list (first element used as scalar for
+    run config if list).
     For Cirq/CUDA-Q, *raw* is int or non-empty list of positive ints; path and
     run config use the same depth each time.
     """
-    if solver == "simulated_annealing":
+    if solver in ("simulated_annealing", "brute_force"):
         if isinstance(raw, list):
             if not raw:
                 raise ValueError("qaoa_depth list for simulated_annealing must be non-empty")

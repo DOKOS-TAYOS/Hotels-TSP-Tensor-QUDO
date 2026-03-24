@@ -28,6 +28,7 @@ from instance_gen_process.solver_config_loader import (
     parse_solver_config_dict,
 )
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
+from solvers.brute_force import BruteForceSolver
 from solvers.base import SolverProtocol, SolverResult
 from config.settings import Settings, load_settings
 from utils.constraints import validate_instance_constraints
@@ -66,7 +67,12 @@ logger = logging.getLogger(__name__)
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent
 
-FEASIBILITY_CHECK_SOLVERS: tuple[str, ...] = ("cudaq", "cirq", "simulated_annealing")
+FEASIBILITY_CHECK_SOLVERS: tuple[str, ...] = (
+    "brute_force",
+    "cudaq",
+    "cirq",
+    "simulated_annealing",
+)
 
 PRESET_EXPERIMENT_YAMLS: dict[str, list[str]] = {
     "cudaq": [
@@ -81,6 +87,10 @@ PRESET_EXPERIMENT_YAMLS: dict[str, list[str]] = {
         "experiment_sa_n6_tqudo.yaml",
     ],
     "cirq5": ["experiment_cirq_n5_tqudo.yaml"],
+    "brute_force": [
+        "experiment_brute_force_n5_qubo.yaml",
+        "experiment_brute_force_n5_tqudo.yaml",
+    ],
 }
 
 
@@ -155,6 +165,7 @@ def _apply_noise_kill_switch(
 def _get_solver(solver_name: str) -> SolverProtocol:
     """Instantiate the solver class registered for *solver_name*."""
     solvers = {
+        "brute_force": BruteForceSolver,
         "cudaq": CudaqSolver,
         "cirq": CirqSolver,
         "simulated_annealing": SimulatedAnnealingSolver,
@@ -654,6 +665,7 @@ def main() -> None:
             "cudaq",
             "sa",
             "cirq5",
+            "brute_force",
             "experiment",
             "check_feasibility",
         ),

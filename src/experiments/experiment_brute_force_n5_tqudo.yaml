@@ -1,0 +1,5 @@
+# Exact enumeration (full TQUDO assignment space). n_cities=5 => 4^4 assignments.
+n_cities: [5,6,7,8,9]
+n_instances: 100
+solver: brute_force
+formulation: tqudo
