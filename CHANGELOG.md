@@ -10,6 +10,33 @@ Initial research scaffold for Hotel TSP optimization with Tensor-QUDO and QUBO
 formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 6 merged pull requests.
 
+### Calibration and configuration
+
+- `experiments.estimate_lambdas`: grid search with optional `brute_force` ranking by
+  gap to combinatorial minimum real cost; CPU parallel workers respect
+  `cpu_max_parallel_instances` from `solver_config.yaml` (or `HTSP_CPU_MAX_PARALLEL_INSTANCES`).
+- `docs/configuration.md`: documents `qaoa_delta_t`, `qaoa_optimizer_tol`, parallel YAML
+  keys, and parallel-related `HTSP_*` env vars (aligned with `solver_config.yaml`).
+
+### Breaking changes (experiment CLI and data analysis)
+
+- Removed in-memory **legacy** workflow and `run_workflow()`; solution JSON is only
+  produced under `output/raw/solutions/...` from the disk pipeline (`--mode generate`
+  then experiment modes).
+- `python -m experiments.main_experiment_workflow` now **requires `--mode`** (no default).
+- `data_analysis` ingest scans only `raw/solutions/**/*.json` (no `raw/exp_*.json`).
+  Manifest rows no longer include a `legacy_timestamp` column.
+
+### Utilities layout
+
+Shared helpers consolidated under `utils/`: JSON normalisation and experiment
+snapshots (`json_serialize`, `experiment_serialize`), YAML merge and disk path
+conventions (`yaml_tools`, `experiment_paths`), batched cost evaluation
+(`costs_batch`), QAOA measurement histograms (`measurement_histogram_for_json`
+in `qaoa_helpers`). The `utils` package uses lazy exports in `__init__.py` to
+avoid import cycles with `instance_gen_process` / `data_analysis`.
+`data_analysis` imports layout from `utils.output_paths` (no duplicate module).
+
 ### Core formulations
 
 - Tensor-QUDO formulation (`ProblemTQUDO`) with 3D `Etab` and 4D `Ettprimeab`
@@ -64,12 +91,13 @@ formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 
 ### Experiment workflow
 
-- `run_workflow()` orchestrating generation, solving, and JSON output.
-- Incremental per-instance JSON saves to `output/raw/`.
+- Disk workflow: `run_generate_instances`, `run_experiment_from_yaml`, and
+  `run_experiment_batch` in `experiments/main_experiment_workflow.py`.
+- Incremental JSON saves under `output/raw/instances/` and `output/raw/solutions/`.
 - SIGINT handling (graceful interruption after current instance).
 - Error recovery with traceback capture in output records.
 - Progress reporter with single-line display and energy tracking.
-- CLI entry point with `--instance-config`, `--solver-config`, `--output`.
+- CLI entry point with required `--mode`, plus `--instance-config`, `--solver-config`, `--output`.
 
 ### Infrastructure
 
@@ -79,7 +107,7 @@ formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 - `scripts/makefile` with setup, lint, test, app, and clean targets.
 - Settings loaded from `.env` with `HTSP_*` prefix variables.
 - ruff linting (line-length 100, Python 3.11 target; runtime 3.11–3.13).
-- 17 test files with shared fixtures in `conftest.py`.
+- 22 test files with shared fixtures in `conftest.py`.
 - GPU tests auto-skip when no NVIDIA GPU is available.
 - Streamlit UI scaffold.
 

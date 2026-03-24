@@ -40,9 +40,25 @@ def test_iter_raw_json_files(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     (raw / "solutions" / "a").mkdir(parents=True)
     (raw / "solutions" / "a" / "x.json").write_text("{}", encoding="utf-8")
-    (raw / "exp_20200101_120000_inst_0_cudaq_qubo.json").write_text("{}", encoding="utf-8")
     found = sorted(iter_raw_json_files(raw))
-    assert len(found) == 2
+    assert len(found) == 1
+
+
+def test_json_row_solver_output_error(tmp_path: Path) -> None:
+    """Failed solve JSON: parse_ok True, solve_ok False."""
+    out = tmp_path / "output"
+    p = out / "raw" / "solutions" / "cudaq" / "qubo" / "n_5" / "instance_1.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "instance": {"n_cities": 5},
+        "solver_config": {"solver": "cudaq", "formulation": "qubo"},
+        "solver_output": {"solver_name": "cudaq", "error": "boom"},
+    }
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    row = json_row(p, out)
+    assert row["parse_ok"] is True
+    assert row["solve_ok"] is False
+    assert "boom" in (row.get("solver_error") or "")
 
 
 def test_json_row_minimal_disk(tmp_path: Path) -> None:
@@ -62,6 +78,7 @@ def test_json_row_minimal_disk(tmp_path: Path) -> None:
     p.write_text(json.dumps(payload), encoding="utf-8")
     row = json_row(p, out)
     assert row["parse_ok"] is True
+    assert row["solve_ok"] is True
     assert row["solver"] == "simulated_annealing"
     assert row["n_energy_steps"] == 2
     assert row["instance_key"] == 1

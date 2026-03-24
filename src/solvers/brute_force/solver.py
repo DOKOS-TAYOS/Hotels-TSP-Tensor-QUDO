@@ -16,7 +16,13 @@ from utils.constraints import (
     validate_solution_constraints_qubo,
     validate_solution_constraints_tqudo,
 )
-from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
+from utils.costs import calculate_real_cost
+from utils.costs_batch import (
+    batch_qubo_costs,
+    batch_tqudo_costs,
+    unpack_qubo_bitmatrix,
+    unpack_tqudo_sequences,
+)
 
 
 def _default_restriction() -> RestrictionConfig:
@@ -25,6 +31,10 @@ def _default_restriction() -> RestrictionConfig:
 
 def _lex_less_seq(a: list[int], b: list[int]) -> bool:
     return tuple(a) < tuple(b)
+
+
+# Batch size for vectorized cost evaluation (assignments per inner matmul / gather).
+_BRUTE_FORCE_ASSIGNMENT_CHUNK_SIZE = 8192
 
 
 class BruteForceSolver:
@@ -92,26 +102,30 @@ class BruteForceSolver:
         best_feasible_cost = float("inf")
         best_feasible_seq: list[int] | None = None
 
-        seq_arr = np.zeros(n_available, dtype=int)
-        for idx in range(cardinal):
-            x = idx
-            for t in range(n_available):
-                seq_arr[t] = x % n_available
-                x //= n_available
-            seq_list = seq_arr.tolist()
-            cost = calculate_tqudo_cost(problem, seq_arr)
-            if best_seq is None or cost < best_cost or (
-                cost == best_cost and _lex_less_seq(seq_list, best_seq)
-            ):
-                best_cost = cost
-                best_seq = seq_list
-
-            if validate_solution_constraints_tqudo(instance, seq_list):
-                if best_feasible_seq is None or cost < best_feasible_cost or (
-                    cost == best_feasible_cost and _lex_less_seq(seq_list, best_feasible_seq)
+        chunk = min(_BRUTE_FORCE_ASSIGNMENT_CHUNK_SIZE, cardinal)
+        for i0 in range(0, cardinal, chunk):
+            i1 = min(i0 + chunk, cardinal)
+            i_vals = np.arange(i0, i1, dtype=np.int64)
+            seqs = unpack_tqudo_sequences(i_vals, n_available)
+            costs = batch_tqudo_costs(
+                problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale,
+            )
+            for j in range(i1 - i0):
+                seq_list = seqs[j].tolist()
+                cost = float(costs[j])
+                if best_seq is None or cost < best_cost or (
+                    cost == best_cost and _lex_less_seq(seq_list, best_seq)
                 ):
-                    best_feasible_cost = cost
-                    best_feasible_seq = seq_list
+                    best_cost = cost
+                    best_seq = seq_list
+
+                if validate_solution_constraints_tqudo(instance, seq_list):
+                    if best_feasible_seq is None or cost < best_feasible_cost or (
+                        cost == best_feasible_cost
+                        and _lex_less_seq(seq_list, best_feasible_seq)
+                    ):
+                        best_feasible_cost = cost
+                        best_feasible_seq = seq_list
 
         assert best_seq is not None
         feasible = validate_solution_constraints_tqudo(instance, best_seq)
@@ -147,28 +161,33 @@ class BruteForceSolver:
             )
 
         problem = generate_QUBO_from_problem(instance, restriction)
+        q_mat = np.asarray(problem.qubo_matrix, dtype=np.float64)
         x = np.zeros(n_vars, dtype=np.float64)
         best_cost = float("inf")
         best_i: int | None = None
         best_feasible_cost = float("inf")
         best_feasible_i: int | None = None
 
-        for i in range(cardinal):
-            v = i
-            for b in range(n_vars):
-                x[b] = float(v & 1)
-                v >>= 1
-            cost = calculate_qubo_cost(problem, x)
-            if best_i is None or cost < best_cost or (cost == best_cost and i < best_i):
-                best_cost = cost
-                best_i = i
+        chunk = min(_BRUTE_FORCE_ASSIGNMENT_CHUNK_SIZE, cardinal)
+        for i0 in range(0, cardinal, chunk):
+            i1 = min(i0 + chunk, cardinal)
+            i_vals = np.arange(i0, i1, dtype=np.int64)
+            x_batch = unpack_qubo_bitmatrix(i_vals, n_vars)
+            costs = batch_qubo_costs(q_mat, problem.energy_scale, x_batch)
+            for j in range(i1 - i0):
+                i = int(i_vals[j])
+                cost = float(costs[j])
+                if best_i is None or cost < best_cost or (cost == best_cost and i < best_i):
+                    best_cost = cost
+                    best_i = i
 
-            if validate_solution_constraints_qubo(instance, x):
-                if best_feasible_i is None or cost < best_feasible_cost or (
-                    cost == best_feasible_cost and i < best_feasible_i
-                ):
-                    best_feasible_cost = cost
-                    best_feasible_i = i
+                row = x_batch[j]
+                if validate_solution_constraints_qubo(instance, row):
+                    if best_feasible_i is None or cost < best_feasible_cost or (
+                        cost == best_feasible_cost and i < best_feasible_i
+                    ):
+                        best_feasible_cost = cost
+                        best_feasible_i = i
 
         assert best_i is not None
         v = best_i

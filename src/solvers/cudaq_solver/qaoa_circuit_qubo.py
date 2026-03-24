@@ -21,6 +21,7 @@ from solvers.base import OptimizerType
 from solvers.cudaq_solver.noise_model import get_noise_model
 from utils.qaoa_helpers import bitstring_to_binary, tqa_init_params
 from solvers.noise import NoiseConfig
+from utils.costs_batch import batch_qubo_costs, bitstrings_to_binary_matrix
 from utils.optimizer import minimize_options
 from utils.progress import reporter
 
@@ -162,15 +163,14 @@ def evaluate_cost(
     if noise_model is not None:
         sample_kwargs["noise_model"] = noise_model
     samples = cudaq.sample(kernel, gamma, beta, **sample_kwargs)
-    total = 0.0
-    count = 0
-    for bitstring, cnt in samples.items():
-        x = bitstring_to_binary(bitstring).astype(np.float64)
-        total += float(x @ qubo_matrix @ x) * cnt
-        count += cnt
-    if count == 0:
+    pairs = list(samples.items())
+    if not pairs:
         raise RuntimeError("QUBO evaluate_cost received zero samples — sampling failure.")
-    return total / count
+    keys = [p[0] for p in pairs]
+    weights = np.array([p[1] for p in pairs], dtype=np.float64)
+    bits = bitstrings_to_binary_matrix(keys)
+    costs = batch_qubo_costs(qubo_matrix, 1.0, bits)
+    return float(np.dot(costs, weights) / weights.sum())
 
 
 def sample_solution(

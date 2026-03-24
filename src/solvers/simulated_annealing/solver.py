@@ -18,7 +18,11 @@ from utils.constraints import (
     validate_solution_constraints_qubo,
     validate_solution_constraints_tqudo,
 )
-from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
+from utils.costs import (
+    calculate_qubo_cost_from_sequence,
+    calculate_real_cost,
+    calculate_tqudo_cost,
+)
 from utils.progress import reporter
 
 
@@ -46,9 +50,53 @@ def evaluate_cost(
     """
     if formulation == "tqudo":
         return float(calculate_tqudo_cost(problem, sequence))
-    # QUBO: convert sequence to binary first
-    binary = sequence_to_qubo_binary(sequence, n_available)
-    return float(calculate_qubo_cost(problem, binary))
+    assert isinstance(problem, ProblemQUBO)
+    return calculate_qubo_cost_from_sequence(problem, sequence, n_available)
+
+
+def _tqudo_swap_delta(
+    problem: ProblemTQUDO,
+    x: np.ndarray,
+    i: int,
+    j: int,
+) -> float:
+    """Return (cost_after_swap - cost_before) for swapping ``x[i]`` and ``x[j]``.
+
+    Same algebra as :func:`~utils.costs.calculate_tqudo_cost` but only touches
+    Etab edges and Ettprimeab pairs that involve timesteps ``i`` or ``j`` (O(n)
+    terms vs O(n^2) for a full cost).
+    """
+    if i == j:
+        return 0.0
+    if i > j:
+        i, j = j, i
+    Etab = problem.Etab
+    Ett = problem.Ettprimeab
+    es = problem.energy_scale
+    n = int(x.shape[0])
+    x_new = x.copy()
+    x_new[i], x_new[j] = x_new[j], x_new[i]
+
+    delta_etab = 0.0
+    affected_t: set[int] = set()
+    for t in (i - 1, i, j - 1, j):
+        if 0 <= t < n - 1:
+            affected_t.add(t)
+    for t in affected_t:
+        delta_etab += float(
+            Etab[t, x_new[t], x_new[t + 1]] - Etab[t, x[t], x[t + 1]]
+        )
+
+    delta_ett = 0.0
+    for a in range(n):
+        for b in range(a + 1, n):
+            if a not in (i, j) and b not in (i, j):
+                continue
+            delta_ett += float(
+                Ett[a, b, x_new[a], x_new[b]] - Ett[a, b, x[a], x[b]]
+            )
+
+    return (delta_etab + delta_ett) * es
 
 
 def _swap_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -119,7 +167,10 @@ def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndar
     return neighbor
 
 
-def random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+def random_neighbor(
+    sequence: np.ndarray,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, int]:
     """Apply swap, insert, or reverse with uniform probability.
 
     Args:
@@ -127,11 +178,11 @@ def random_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarra
         rng: NumPy random generator.
 
     Returns:
-        Neighbour state from one of the three local moves.
+        Neighbour state and ``op_id`` in ``{0: swap, 1: insert, 2: reverse}``.
     """
     _operators = (_swap_neighbor, _insert_neighbor, _reverse_neighbor)
-    op = _operators[int(rng.integers(0, len(_operators)))]
-    return op(sequence, rng)
+    op_id = int(rng.integers(0, len(_operators)))
+    return _operators[op_id](sequence, rng), op_id
 
 
 class SimulatedAnnealingSolver:
@@ -194,8 +245,23 @@ class SimulatedAnnealingSolver:
             if T <= T_final:
                 break
 
-            neighbor = random_neighbor(current, rng)
-            neighbor_cost = evaluate_cost(formulation, problem, neighbor, n_available)
+            neighbor, op_id = random_neighbor(current, rng)
+            if formulation == "tqudo" and op_id == 0:
+                assert isinstance(problem, ProblemTQUDO)
+                diff = np.flatnonzero(current != neighbor)
+                if diff.size == 2:
+                    i0, j0 = int(diff[0]), int(diff[1])
+                    neighbor_cost = current_cost + _tqudo_swap_delta(
+                        problem, current, i0, j0,
+                    )
+                else:
+                    neighbor_cost = evaluate_cost(
+                        formulation, problem, neighbor, n_available,
+                    )
+            else:
+                neighbor_cost = evaluate_cost(
+                    formulation, problem, neighbor, n_available,
+                )
 
             delta = neighbor_cost - current_cost
             if delta <= 0 or rng.random() < np.exp(-delta / T):

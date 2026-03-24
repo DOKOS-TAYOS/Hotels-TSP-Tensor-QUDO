@@ -31,11 +31,12 @@ def main() -> None:
     """Configure the Streamlit page and show runtime plus instance YAML summaries."""
     st = _load_streamlit()
 
-    st.set_page_config(page_title="Hotel TSP Tensor-QUDO", layout="wide")
-    st.title("Hotel TSP with Tensor-QUDO")
+    st.set_page_config(page_title="Hotel TSP · Tensor-QUDO", layout="wide")
+    st.title("Hotel TSP · Tensor-QUDO y QUBO")
     st.caption(
-        "Travel routing optimization with precedence constraints. "
-        "Scaffold UI for reproducible experiment setup and future solver runs."
+        "Routing con restricciones de precedencia: formulación QUBO (one-hot) frente a Tensor-QUDO "
+        "(qudits). Referencia: arXiv:2508.01958. Configuración local antes de lanzar pipelines "
+        "(`experiments`, `data_analysis`)."
     )
 
     settings = load_settings()
@@ -43,7 +44,7 @@ def main() -> None:
 
     left_col, right_col = st.columns(2)
     with left_col:
-        st.subheader("Runtime settings")
+        st.subheader("Entorno y salida")
         st.json(
             {
                 "quantum_backend": settings.quantum_backend,
@@ -56,7 +57,7 @@ def main() -> None:
         )
 
     with right_col:
-        st.subheader("Instance generation config")
+        st.subheader("Generación de instancias")
         st.json(
             {
                 "n_cities": instance_config.n_cities,
@@ -67,7 +68,11 @@ def main() -> None:
             }
         )
 
-    st.info("Solver backends are scaffolded and ready for algorithm implementation.")
+    st.info(
+        "Los resultados agregados y figuras se exploran en `webpage_results/` "
+        "(servidor HTTP: `make -f scripts/makefile results-web`). "
+        "Backends: CUDA-Q, Cirq, recocido simulado y fuerza bruta según `solver_config.yaml`."
+    )
 
 
 if __name__ == "__main__":

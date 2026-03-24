@@ -6,20 +6,7 @@ from typing import Any, Callable
 
 from instance_gen_process import ProblemInstance
 from solvers._qaoa_base import BaseQAOASolver
-
-
-def _sort_samples(samples: dict[str, int] | None) -> dict[str, int] | None:
-    """Return *samples* sorted by descending count, or None if *samples* is None.
-
-    Args:
-        samples: Histogram from a Cirq run, or None.
-
-    Returns:
-        New dict ordered by count, or None.
-    """
-    if samples is None:
-        return None
-    return dict(sorted(samples.items(), key=lambda kv: kv[1], reverse=True))
+from utils.qaoa_helpers import measurement_histogram_for_json
 
 
 class CirqSolver(BaseQAOASolver):
@@ -43,8 +30,8 @@ class CirqSolver(BaseQAOASolver):
         return run_qaoa
 
     def _serialize_samples(self, samples: Any) -> dict[str, int] | None:
-        """See :func:`_sort_samples`."""
-        return _sort_samples(samples)
+        """See :func:`~utils.qaoa_helpers.measurement_histogram_for_json`."""
+        return measurement_histogram_for_json(samples)
 
     def _noise_qubit_count(
         self, instance: ProblemInstance, formulation: str,

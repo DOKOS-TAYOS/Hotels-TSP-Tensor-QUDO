@@ -19,28 +19,33 @@ Research scaffold for combinatorial optimization of a Hotel TSP (travel routing 
 make -f scripts/makefile lint   # ruff check .
 make -f scripts/makefile test   # pytest
 make -f scripts/makefile app    # streamlit run
+make -f scripts/makefile results-web   # python -m http.server 8765 from repo root → open webpage_results/
 make -f scripts/makefile clean
 
 # Run a single test
 .venv/bin/python -m pytest tests/test_costs.py -v
 .venv/bin/python -m pytest tests/test_costs.py::test_name -v
 
-# Run experiment workflow (default: legacy in-memory batch → timestamped JSON in output/raw/)
-.venv/bin/python -m experiments.main_experiment_workflow
-.venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
-.venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
-.venv/bin/python -m experiments.main_experiment_workflow --output path/to/output
+# Run experiment workflow (--mode is required; see docs/development.md)
+.venv/bin/python -m experiments.main_experiment_workflow --mode generate
+.venv/bin/python -m experiments.main_experiment_workflow --mode cudaq --output path/to/output
+.venv/bin/python -m experiments.main_experiment_workflow --mode experiment --experiment-yaml path/to/exp.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml --mode generate
 
 # Calibration CLIs (output to output/T0sampling/ and output/lambdasSampling/)
 .venv/bin/python -m experiments.estimate_t0 --n-instances 5 --chi0 0.8
 .venv/bin/python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500,1000
-# Modes: --mode generate | cudaq | sa | cirq5 | brute_force | experiment | check_feasibility (see docs/development.md)
+.venv/bin/python -m experiments.estimate_lambdas --solver brute_force --formulation tqudo --lambda-values 100,500  # exact global min + gap vs combinatorial optimum; needs small n_cities for QUBO
+# Workflow modes: --mode generate | cudaq | sa | cirq5 | brute_force | experiment | check_feasibility
 
 # Data analysis (requires pip install -e '.[analysis]'): manifest → paired metrics → figures
 .venv/bin/python -m data_analysis.ingest --output-root output
 .venv/bin/python -m data_analysis.metrics --output-root output
 .venv/bin/python -m data_analysis.plot --output-root output
 # Or full pipeline: .venv/bin/python -m data_analysis.pipeline --output-root output
+
+# Local results dashboard (static HTML; requires HTTP — not file://)
+# After analysis-all: make -f scripts/makefile results-web → http://localhost:8765/webpage_results/index.html
 ```
 
 ## Architecture
@@ -54,9 +59,7 @@ Both formulations normalise their tensors/matrix by `energy_scale = max(|values|
 
 ### Data flow
 
-**Legacy (`--mode legacy`, default):** `config.yaml` + `solver_config.yaml` → generate instances in memory → solver → JSON in `output/raw/` (`exp_<timestamp>_...`).
-
-**Disk workflow:** `src/experiments/instance_generation_config.yaml` + `config.yaml` → JSON instances under `output/raw/instances/n_<n_cities>/instance_<k>.json`. Each `src/experiments/experiment_*.yaml` merges with `solver_config.yaml` and writes solutions to `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<qaoa_depth>/]instance_<k>.json` (no `qaoa_depth` folder for simulated annealing).
+**Disk workflow:** `src/experiments/instance_generation_config.yaml` + `config.yaml` → JSON instances under `output/raw/instances/n_<n_cities>/instance_<k>.json`. Each `src/experiments/experiment_*.yaml` merges with `solver_config.yaml` and writes solutions to `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<qaoa_depth>/]instance_<k>.json` (no `qaoa_depth` folder for simulated annealing). Run `--mode generate` before experiment modes that need on-disk instances.
 
 ### Solver backends (all implement `SolverProtocol`)
 
@@ -79,7 +82,11 @@ Each solver dispatches to formulation-specific QAOA circuit modules (e.g., `qaoa
 - **`solvers/_qaoa_base.py`**: Shared QAOA solver logic (parameter init via TQA, SciPy optimization loop) used by both Cirq and CUDA-Q backends.
 - **`solvers/noise.py`**: `NoiseConfig` — backend-agnostic noise config consumed by both Cirq and CUDA-Q.
 - **`utils/costs.py`**: `calculate_qubo_cost()`, `calculate_tqudo_cost()`, `calculate_real_cost()`.
+- **`utils/costs_batch.py`**: Vectorised QUBO/TQUDO objective for brute-force-scale batches.
+- **`utils/json_serialize.py`** / **`utils/experiment_serialize.py`**: `to_json_friendly`, solver/instance snapshot dicts for experiment JSON.
+- **`utils/yaml_tools.py`** / **`utils/experiment_paths.py`**: YAML merge and on-disk layout under `output/raw/`.
 - **`utils/constraints.py`**: Validation helpers, binary/sequence conversion, cycle detection.
+- **`utils/__init__.py`**: Lazy re-exports so `data_analysis` can import `utils.output_paths` without circular imports.
 - **`config/settings.py`**: `Settings` loaded from `.env` (prefix: `HTSP_*`). Noise kill-switch via `HTSP_ENABLE_NOISE_SIMULATION`.
 - **`experiments/`**: CLI tools — `main_experiment_workflow.py` (full solve pipeline), `estimate_t0.py` (SA initial temperature via Ben-Ameur), `estimate_lambdas.py` (grid search over lambda penalties).
 

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -15,12 +17,12 @@ from experiments.workflow_io import (
     instance_json_path,
     instances_raw_dir,
     load_instance_generation_entries,
-    merge_solver_yaml_dicts,
     normalise_n_cities,
     serialize_problem_instance,
     solutions_raw_dir,
     solutions_solver_root,
 )
+from utils.yaml_tools import merge_solver_yaml_dicts
 from instance_gen_process.models import ProblemInstance
 from instance_gen_process.solver_config_loader import parse_solver_config_dict
 
@@ -170,3 +172,12 @@ def test_run_check_solution_feasibility_missing_dir(tmp_path: Path) -> None:
     from experiments.main_experiment_workflow import run_check_solution_feasibility
 
     assert run_check_solution_feasibility(tmp_path, "simulated_annealing") == 2
+
+
+def test_main_requires_mode() -> None:
+    from experiments import main_experiment_workflow as mew
+
+    with patch.object(sys, "argv", ["main_experiment_workflow"]):
+        with pytest.raises(SystemExit) as exc_info:
+            mew.main()
+    assert exc_info.value.code == 2

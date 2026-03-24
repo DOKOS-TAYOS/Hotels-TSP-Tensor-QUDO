@@ -19,7 +19,7 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
-from utils.costs import calculate_tqudo_cost
+from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences, bitstring_to_qudit_sequence
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -200,30 +200,6 @@ def _param_resolver(
     return cirq.ParamResolver(resolver_dict)
 
 
-def bitstring_to_qudit_sequence(
-    bitstring: str,
-    n_qudits: int,
-    qubits_per_qudit: int,
-) -> np.ndarray:
-    """Decode a contiguous bitstring into ``n_qudits`` integer qudit values.
-
-    Args:
-        bitstring: Concatenated measurement bits in qudit-major order.
-        n_qudits: Number of logical qudits.
-        qubits_per_qudit: Bits encoding each qudit (little-endian within block).
-
-    Returns:
-        Integer array of length ``n_qudits``.
-    """
-    seq = np.zeros(n_qudits, dtype=np.int64)
-    for i in range(n_qudits):
-        start = i * qubits_per_qudit
-        for j in range(qubits_per_qudit):
-            if start + j < len(bitstring) and bitstring[start + j] == "1":
-                seq[i] += 1 << j
-    return seq
-
-
 def evaluate_cost(
     params: np.ndarray,
     circuit_with_measure: cirq.Circuit,
@@ -240,7 +216,7 @@ def evaluate_cost(
     Args:
         params: Flat QAOA parameters.
         circuit_with_measure: Parametrised circuit with measurements.
-        problem: TQUDO tensors for :func:`~utils.costs.calculate_tqudo_cost`.
+        problem: TQUDO tensors for :func:`~utils.costs_batch.batch_tqudo_costs`.
         symbols: Symbol map from :func:`create_qaoa_circuit`.
         depth: QAOA depth p.
         n_qudits: Logical qudit count.
@@ -254,12 +230,9 @@ def evaluate_cost(
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    total = 0.0
-    for row in result.measurements["m"]:
-        bitstring = "".join(str(int(b)) for b in row)
-        seq = bitstring_to_qudit_sequence(bitstring, n_qudits, qubits_per_qudit)
-        total += calculate_tqudo_cost(problem, seq)
-    return total / n_shots
+    rows = np.asarray(result.measurements["m"], dtype=np.float64)
+    seqs = bit_rows_to_qudit_sequences(rows, n_qudits, qubits_per_qudit)
+    return float(np.mean(batch_tqudo_costs(problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale)))
 
 
 def sample_solution(

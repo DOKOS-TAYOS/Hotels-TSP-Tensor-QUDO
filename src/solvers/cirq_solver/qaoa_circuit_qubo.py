@@ -20,6 +20,7 @@ from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
 from utils.qaoa_helpers import bitstring_to_binary, most_probable_key, tqa_init_params
+from utils.costs_batch import batch_qubo_costs
 
 
 def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
@@ -188,11 +189,8 @@ def evaluate_cost(
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    total = 0.0
-    for row in result.measurements["m"]:
-        x = row.astype(np.float64)
-        total += float(x @ qubo_matrix @ x)
-    return total / n_shots
+    x_batch = np.asarray(result.measurements["m"], dtype=np.float64)
+    return float(np.mean(batch_qubo_costs(qubo_matrix, 1.0, x_batch)))
 
 
 def sample_solution(

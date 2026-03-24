@@ -31,31 +31,10 @@ from instance_gen_process import (
     load_instance_config,
     load_solver_config,
 )
-from instance_gen_process.models import InstanceConfig, RestrictionConfig
+from instance_gen_process.models import RestrictionConfig
 from solvers.simulated_annealing import T0EstimationResult, estimate_initial_temperature
 
-
-# ---------------------------------------------------------------------------
-# Serialization helpers
-# ---------------------------------------------------------------------------
-
-
-def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
-    return {
-        "n_cities": config.n_cities,
-        "n_precedences_range": list(config.n_precedences_range),
-        "prices_range_hotels": list(config.prices_range_hotels),
-        "prices_range_travels": list(config.prices_range_travels),
-        "seed": config.seed,
-    }
-
-
-def _serialize_restriction(restriction: RestrictionConfig) -> dict[str, float]:
-    return {
-        "lambda_0": restriction.lambda_0,
-        "lambda_1": restriction.lambda_1,
-        "lambda_2": restriction.lambda_2,
-    }
+from utils.experiment_serialize import serialize_instance_config, serialize_restriction_config
 
 
 def _serialize_result(index: int, seed: int, result: T0EstimationResult) -> dict[str, Any]:
@@ -170,9 +149,9 @@ def run_estimation(
             "n_samples": n_samples,
             "epsilon": epsilon,
             "seed": seed,
-            "restriction": _serialize_restriction(restriction),
+            "restriction": serialize_restriction_config(restriction),
         },
-        "instance_config": _serialize_instance_config(instance_config),
+        "instance_config": serialize_instance_config(instance_config),
         "per_instance_results": per_instance,
     }
 

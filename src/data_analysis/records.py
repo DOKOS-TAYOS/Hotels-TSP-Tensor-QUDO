@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -13,12 +12,12 @@ def manifest_empty_schema_row() -> dict[str, Any]:
         "path": "",
         "layout": "empty",
         "parse_ok": False,
+        "solve_ok": False,
         "solver": None,
         "formulation": None,
         "n_cities": None,
         "instance_key": None,
         "qaoa_depth": None,
-        "legacy_timestamp": None,
         "n_cities_json": None,
         "solver_config_solver": None,
         "solver_config_formulation": None,
@@ -39,11 +38,6 @@ def manifest_empty_schema_row() -> dict[str, Any]:
         "solver_error": None,
         "error_message": None,
     }
-
-
-_LEGACY_EXP = re.compile(
-    r"^exp_(?P<ts>\d{8}_\d{6})_inst_(?P<inst>\d+)_(?P<rest>.+)\.json$"
-)
 
 
 def _parse_solutions_subpath(parts: tuple[str, ...]) -> dict[str, Any] | None:
@@ -101,12 +95,6 @@ def path_context(path: Path, output_root: Path) -> dict[str, Any]:
         if sub is not None:
             ctx["layout"] = "disk"
             ctx.update(sub)
-    elif len(parts) >= 2 and parts[0] == "raw" and _LEGACY_EXP.match(parts[-1]):
-        ctx["layout"] = "legacy"
-        m = _LEGACY_EXP.match(parts[-1])
-        assert m is not None
-        ctx["legacy_timestamp"] = m.group("ts")
-        ctx["instance_key"] = int(m.group("inst")) + 1
     return ctx
 
 
@@ -118,12 +106,19 @@ def _safe_len_history(meta: dict[str, Any]) -> int:
 
 
 def json_row(path: Path, output_root: Path) -> dict[str, Any]:
-    """Load JSON at *path* and return one manifest row (always includes ``parse_ok``)."""
+    """Load JSON at *path* and return one manifest row.
+
+    ``parse_ok`` is True when the file is valid JSON with a top-level object.
+    ``solve_ok`` is True when ``solver_output`` is present and has no ``error``
+    key (a normal solver result). Failed solves stored by the workflow still
+    have ``parse_ok`` True but ``solve_ok`` False.
+    """
     ctx = path_context(path, output_root)
     row: dict[str, Any] = {
         "path": ctx.get("path", str(path)),
         "layout": ctx.get("layout", "unknown"),
         "parse_ok": False,
+        "solve_ok": False,
     }
     for k in (
         "solver",
@@ -131,7 +126,6 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
         "n_cities",
         "instance_key",
         "qaoa_depth",
-        "legacy_timestamp",
     ):
         if k in ctx:
             row[k] = ctx[k]
@@ -141,10 +135,12 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
             data: Any = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         row["error_message"] = str(exc)
+        row["solve_ok"] = False
         return row
 
     if not isinstance(data, dict):
         row["error_message"] = "top-level JSON is not an object"
+        row["solve_ok"] = False
         return row
 
     row["parse_ok"] = True
@@ -203,4 +199,5 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
     if row.get("instance_key") is None and row.get("instance_index") is not None:
         row["instance_key"] = int(row["instance_index"]) + 1
 
+    row["solve_ok"] = True
     return row

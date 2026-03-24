@@ -80,11 +80,10 @@ make -f scripts/makefile analysis-all      # ingest + metrics + plots (default -
 
 ### Running the experiment workflow
 
-Default **legacy** mode matches the old behaviour: load `config.yaml` and `solver_config.yaml`, generate instances in memory, write timestamped JSON files under `output/raw/`. Output root defaults to `HTSP_OUTPUT_DIR` (usually `output/`) when `--output` is omitted.
+**`--mode` is required.** Output root defaults to `HTSP_OUTPUT_DIR` (usually `output/`) when `--output` is omitted.
 
 | `--mode` | What runs |
 |----------|-----------|
-| `legacy` (default) | In-memory generation + solve; filenames `exp_<timestamp>_inst_<i>_...json` |
 | `generate` | From `src/experiments/instance_generation_config.yaml` and ranges/seed in `config.yaml`; writes `raw/instances/n_<n_cities>/instance_<k>.json` |
 | `cudaq` | Preset CUDA-Q experiment YAMLs under `src/experiments/` |
 | `sa` | Preset simulated-annealing experiment YAMLs |
@@ -97,7 +96,7 @@ Experiment modes read instances from `raw/instances/...` and write to `raw/solut
 
 #### CUDA-Q: parallel instances (experiment on-disk mode only)
 
-When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one CUDA-Q context per process. QAOA inside each instance stays sequential; only **different instances** overlap. Other solvers (except Cirq; see below) and `cudaq` with this key unset or set to `1` keep the previous sequential behaviour (with the usual single-line progress).
+When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one CUDA-Q context per process. QAOA inside each instance stays sequential; only **different instances** overlap. CPU backends (`cirq`, `brute_force`, `simulated_annealing`) use a separate setting (`cpu_max_parallel_instances`; see below). With parallel counts unset or set to `1`, solves stay sequential (with the usual single-line progress).
 
 - **YAML**: optional `cudaq_max_parallel_instances` (default `1`), merged like other top-level solver keys.
 - **Environment**: `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
@@ -106,27 +105,35 @@ When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_ins
 - **Interrupt**: Ctrl+C cancels work not yet started; workers already running may continue until they finish.
 - **Reproducibility**: solution JSON includes `cudaq_max_parallel_instances_effective` under `solver_config` for CUDA-Q runs.
 
-#### Cirq: parallel instances (experiment on-disk mode only)
+#### CPU solvers: parallel instances (experiment on-disk mode only)
 
-When `solver: cirq` and the merged experiment YAML sets `cirq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one Cirq solve per process. QAOA inside each instance stays sequential; only **different instances** overlap.
+When `solver` is `cirq`, `brute_force`, or `simulated_annealing` and the merged experiment YAML sets `cpu_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one solve per process. QAOA inside each Cirq instance stays sequential; only **different instances** overlap. The same YAML key and environment variable apply to all three CPU backends.
 
-- **YAML**: optional `cirq_max_parallel_instances` (default `1`), merged like other top-level solver keys.
-- **Environment**: `HTSP_CIRQ_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
-- **UI**: same as CUDA-Q: child processes do not print QAOA step bars; the parent shows only the compact line with prefix `[parallel cirq]`.
-- **CPU / RAM**: each worker runs a full Cirq stack; scale workers to available cores and memory. With `cirq_max_parallel_instances > 1`, set **`OMP_NUM_THREADS=1`** (and similarly limit MKL/OpenBLAS thread pools if applicable) so each process does not spawn many BLAS threads and oversubscribe the CPU.
-- **Reproducibility**: solution JSON includes `cirq_max_parallel_instances_effective` under `solver_config` for Cirq runs.
+- **YAML**: optional `cpu_max_parallel_instances` (default `1`), merged like other top-level solver keys.
+- **Environment**: `HTSP_CPU_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
+- **UI**: same as CUDA-Q: child processes stay quiet for heavy progress bars; the parent shows a compact line with prefix `[parallel <solver>]`.
+- **CPU / RAM**: scale workers to available cores and memory. With `cpu_max_parallel_instances > 1`, set **`OMP_NUM_THREADS=1`** (and similarly limit MKL/OpenBLAS thread pools if applicable) so each process does not oversubscribe the CPU (especially important for Cirq/QAOA).
+- **Reproducibility**: solution JSON includes `cpu_max_parallel_instances_effective` under `solver_config` for these runs.
 
 ```bash
-.venv/bin/python -m experiments.main_experiment_workflow
 .venv/bin/python -m experiments.main_experiment_workflow --mode generate
 .venv/bin/python -m experiments.main_experiment_workflow --mode sa --output path/to/output
 .venv/bin/python -m experiments.main_experiment_workflow --mode experiment --experiment-yaml path/to/exp.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --mode check_feasibility --check-solver cudaq
 .venv/bin/python -m experiments.main_experiment_workflow --mode brute_force
-.venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
-.venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
-.venv/bin/python -m experiments.main_experiment_workflow --output path/to/output
+.venv/bin/python -m experiments.main_experiment_workflow --mode generate --instance-config path/to/config.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --mode cudaq --solver-config path/to/solver_config.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --mode cudaq --output path/to/output
 ```
+
+### Calibration CLIs
+
+| Command | Purpose | Default output |
+|---------|---------|----------------|
+| `python -m experiments.estimate_t0` | Ben–Ameur estimate of SA initial temperature `sa_t_initial` (`chi0`, `n-samples`, …) | `output/T0sampling/` |
+| `python -m experiments.estimate_lambdas` | Grid search over shared λ values for QUBO/TQUDO; heuristic solvers ranked by feasibility and mean real cost, `brute_force` by gap to combinatorial minimum | `output/lambdasSampling/` |
+
+Both read `config.yaml` and `solver_config.yaml` by default (`--instance-config`, `--solver-config`). For `estimate_lambdas`, optional `cpu_max_parallel_instances` in `solver_config.yaml` (or `HTSP_CPU_MAX_PARALLEL_INSTANCES`) speeds CPU backends across instances; CUDA-Q runs sequentially in this tool.
 
 ### Post-processing and figures (`data_analysis`)
 
@@ -198,6 +205,8 @@ configuration, data ingest, and imports.
 | `test_streamlit_app.py`       | Lazy import of Streamlit                                                   |
 | `test_brute_force_solver.py`  | Exhaustive QUBO/TQUDO enumeration, config caps                             |
 | `test_data_analysis.py`       | Manifest path parsing, ingest smoke tests                                |
+| `test_estimate_lambdas.py`  | Reference cost helper, brute-force λ ranking, parallel combo smoke, JSON payload |
+| `test_cudaq_parallel.py`    | CUDA-Q / CPU parallel batch helpers and workflow integration               |
 
 ### Shared fixtures (`conftest.py`)
 

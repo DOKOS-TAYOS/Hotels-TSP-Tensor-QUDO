@@ -176,7 +176,7 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]
 Loads and validates `solver_config.yaml`. Returns a dict with all solver
 parameters. Validates:
 - `n_instances >= 1`.
-- `solver` in `{cudaq, cirq, simulated_annealing}`.
+- `solver` in `{brute_force, cudaq, cirq, simulated_annealing}`.
 - `formulation` in `{qubo, tqudo, tqudo_virtual}`.
 - `optimizer` in `{COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead}`.
 - COBYLA budget: `qaoa_max_iter >= 2 * qaoa_depth + 2`.
@@ -364,6 +364,11 @@ outside `solvers/brute_force/limits.py` / `run_config` caps.
 
 ## utils
 
+The `utils` package re-exports common helpers from `utils/__init__.py` using
+**lazy** loading (`__getattr__`), so `from utils.output_paths import …` (and
+similar submodule imports) do not eagerly import `utils.constraints` and
+avoid circular-import issues with `instance_gen_process` and `data_analysis`.
+
 ### Costs (`utils/costs.py`)
 
 #### calculate_qubo_cost
@@ -395,6 +400,24 @@ length `n_available`. Travel includes depot-to-first, inter-city segments, and
 last-to-depot legs.
 
 Raises `ValueError` if `len(sequence) != n_available`.
+
+---
+
+### Batch costs (`utils/costs_batch.py`)
+
+Vectorised objective evaluation (same algebra as `calculate_qubo_cost` /
+`calculate_tqudo_cost`). Used by brute-force enumeration and available for
+other batch tooling.
+
+#### unpack_qubo_bitmatrix / batch_qubo_costs
+
+Decode integer indices to bit rows `(B, n_vars)` and compute per-row
+`x @ Q @ x * energy_scale`.
+
+#### unpack_tqudo_sequences / batch_tqudo_costs
+
+Mixed-radix expansion of assignment indices to city sequences `(B, n_available)`
+and batched TQUDO energy from `Etab` and `Ettprimeab`.
 
 ---
 
@@ -476,6 +499,55 @@ Encodes city sequence as one-hot binary vector of shape `(n_available^2,)`.
 
 ---
 
+### JSON (`utils/json_serialize.py`)
+
+#### to_json_friendly
+
+```python
+def to_json_friendly(obj: Any) -> Any
+```
+
+Recursively normalises values for JSON: non-finite floats → `None`, lists,
+dicts, NumPy `.tolist()`, dataclasses via `dataclasses.asdict()`.
+
+---
+
+### Experiment snapshots (`utils/experiment_serialize.py`)
+
+Serialisers for CLI outputs shared by `experiments/main_experiment_workflow.py`,
+`experiments/cudaq_parallel.py`, `estimate_lambdas.py`, and `estimate_t0.py`.
+
+- `serialize_instance_config(config: InstanceConfig) -> dict[str, Any]`
+- `serialize_restriction_config(restriction: RestrictionConfig) -> dict[str, float]`
+- `serialize_solver_result(result: SolverResult) -> dict[str, Any]`
+- `solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str, Any]` —
+  expands the loaded YAML’s `restriction` dataclass and runs `to_json_friendly`.
+
+---
+
+### YAML (`utils/yaml_tools.py`)
+
+- `load_yaml_mapping(path: Path | str) -> dict[str, Any]` — safe load; empty file → `{}`.
+- `merge_solver_yaml_dicts(base, override) -> dict[str, Any]` — deep merge with
+  nested `restriction` and `noise` dict merging.
+
+---
+
+### Experiment disk paths (`utils/experiment_paths.py`)
+
+Path helpers for the on-disk workflow layout:
+
+- `instances_raw_dir(output_root, n_cities)`
+- `solutions_solver_root(output_root, solver)`
+- `solutions_raw_dir(output_root, solver, formulation, n_cities, qaoa_depth)`
+- `instance_json_path(output_root, n_cities, index_one_based)`
+
+`experiments/workflow_io.py` imports these (and YAML helpers) and adds instance
+JSON load/save, `load_instance_generation_entries`, `experiment_depth_iterations`,
+etc.
+
+---
+
 ### QAOA helpers (`utils/qaoa_helpers.py`)
 
 #### tqa_init_params
@@ -504,6 +576,17 @@ def most_probable_key(counts: dict[str, int], fallback: str) -> str
 
 Returns the key with the highest count. Returns `fallback` if `counts` is
 empty.
+
+#### measurement_histogram_for_json
+
+```python
+def measurement_histogram_for_json(
+    samples: Mapping[str, Any] | None,
+) -> dict[str, int] | None
+```
+
+Normalises backend shot histograms (Cirq, CUDA-Q) to string keys, integer
+counts, sorted by descending count. Returns `None` when `samples` is `None`.
 
 #### is_power_of_two
 
@@ -644,10 +727,11 @@ Raises `ValueError` for unsupported backend names or non-integer seed values.
 
 ### Workflow (`experiments/main_experiment_workflow.py`)
 
-#### run_workflow
+#### run_experiment_from_yaml
 
 ```python
-def run_workflow(
+def run_experiment_from_yaml(
+    experiment_yaml_path: Path | str,
     instance_config_path: Path | str | None = None,
     solver_config_path: Path | str | None = None,
     output_root: Path | str | None = None,
@@ -655,9 +739,35 @@ def run_workflow(
 ) -> None
 ```
 
-Full pipeline: load configs, generate instances, validate, solve each, save
-JSON results incrementally. Handles SIGINT gracefully (finishes current
-instance). Applies environment noise kill-switch when `settings` is provided.
+Merges experiment YAML with `solver_config.yaml`, loads instances from disk
+(`raw/instances/`), solves, writes `raw/solutions/...`. Applies noise kill-switch
+when `settings` is provided.
+
+#### run_experiment_batch
+
+```python
+def run_experiment_batch(
+    experiment_yaml_paths: list[Path],
+    instance_config_path: Path | str | None = None,
+    solver_config_path: Path | str | None = None,
+    output_root: Path | str | None = None,
+    settings: Settings | None = None,
+) -> None
+```
+
+Runs `run_experiment_from_yaml` for each path in order.
+
+#### run_generate_instances
+
+```python
+def run_generate_instances(
+    instance_config_path: Path | str | None = None,
+    instance_generation_config_path: Path | str | None = None,
+    output_root: Path | str | None = None,
+) -> None
+```
+
+Writes `raw/instances/n_<n_cities>/instance_<k>.json` from the generation config.
 
 #### main
 
@@ -665,9 +775,26 @@ instance). Applies environment noise kill-switch when `settings` is provided.
 def main() -> None
 ```
 
-CLI entry point with `--instance-config`, `--solver-config`, `--output`,
-`--mode`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
-`Settings` from `.env` and passes them to `run_workflow()` where applicable.
+CLI entry point with required `--mode`, plus `--instance-config`, `--solver-config`,
+`--output`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
+`Settings` from `.env` and passes them to experiment runs where applicable.
+
+### Calibration (`experiments/estimate_t0.py`, `experiments/estimate_lambdas.py`)
+
+- **`estimate_t0`**: `run_estimation(...)` — samples random instances, runs Ben–Ameur
+  `estimate_initial_temperature`, prints a recommended median `T₀`, writes JSON
+  under `--output` (default `output/T0sampling`).
+- **`estimate_lambdas`**: `run_lambda_sampling(...)` — grid search over λ triples
+  (`--lambda-values`), ranks by feasibility and mean real cost (heuristic solvers)
+  or mean gap to combinatorial optimum (`brute_force`). Merges parallel-instance
+  YAML keys (`cpu_max_parallel_instances`, `cudaq_max_parallel_instances`) from the
+  solver file for `resolve_cpu_max_parallel_instances` (CUDA-Q stays sequential).
+
+### Workflow I/O (`experiments/workflow_io.py`)
+
+YAML merge, instance JSON round-trip, and re-exports of
+`utils.yaml_tools` / `utils.experiment_paths` helpers for experiment CLIs and
+tests. See **YAML** and **Experiment disk paths** under `utils` above.
 
 ---
 
@@ -691,7 +818,13 @@ CLI: `python -m data_analysis.pipeline --output-root output [--format parquet|cs
 ### Ingest (`data_analysis/ingest.py`)
 
 CLI: `python -m data_analysis.ingest --output-root output` — builds
-`processed/manifest.parquet` or `.csv` from disk workflow and legacy `exp_*.json` paths.
+`processed/manifest.parquet` or `.csv` from JSON under `raw/solutions/**/*.json`.
+
+Manifest rows (`data_analysis/records.py`): `parse_ok` means the file is valid JSON
+with a top-level object; `solve_ok` means `solver_output` is a normal result (no
+`error` key). Failed solves stored by the workflow have `parse_ok` True and
+`solve_ok` False. Metrics aggregate successful runs using `parse_ok & solve_ok`;
+older manifests without `solve_ok` infer it from a null `solver_error`.
 
 ### Metrics (`data_analysis/metrics.py`)
 
@@ -702,4 +835,4 @@ paired metrics, summaries, optional Wilcoxon / energy-curve aggregates.
 
 CLI: `python -m data_analysis.plot --output-root output` — PNGs under `images/`.
 
-Supporting modules: `scan.py`, `records.py`, `output_paths.py` (layout helpers).
+Supporting modules: `scan.py`, `records.py`; layout via `utils.output_paths`.

@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from data_analysis.output_paths import build_output_layout
+from utils.output_paths import build_output_layout
 
 
 def _require_pandas() -> None:
@@ -36,6 +36,31 @@ def _coerce_parse_ok(df: Any) -> Any:
     return out
 
 
+def _coerce_solve_ok(df: Any) -> Any:
+    """Normalize ``solve_ok``; infer from ``solver_error`` for old manifests."""
+
+    def _as_bool(x: object) -> bool:
+        if x is True:
+            return True
+        if x is False:
+            return False
+        return str(x).lower() == "true"
+
+    out = df.copy()
+    if "solve_ok" in out.columns:
+        out["solve_ok"] = out["solve_ok"].map(_as_bool)
+        return out
+    if "parse_ok" not in out.columns:
+        out["solve_ok"] = False
+        return out
+    parse_ok_series = out["parse_ok"].map(_as_bool)
+    if "solver_error" in out.columns:
+        out["solve_ok"] = parse_ok_series & out["solver_error"].isna()
+    else:
+        out["solve_ok"] = parse_ok_series
+    return out
+
+
 def _load_manifest(processed: Path) -> Any:
     import pandas as pd
 
@@ -47,13 +72,13 @@ def _load_manifest(processed: Path) -> Any:
         df = pd.read_csv(csv)
     else:
         raise FileNotFoundError(f"No manifest.parquet or manifest.csv in {processed}")
-    return _coerce_parse_ok(df)
+    return _coerce_solve_ok(_coerce_parse_ok(df))
 
 
 def _reference_bruteforce(df: Any) -> Any:
     import pandas as pd
 
-    bf = df[df["parse_ok"] & (df["solver"] == "brute_force")].copy()
+    bf = df[df["parse_ok"] & df["solve_ok"] & (df["solver"] == "brute_force")].copy()
     if bf.empty:
         return pd.DataFrame(
             columns=[
@@ -116,7 +141,7 @@ def build_paired_metrics(df: Any) -> Any:
 def build_summary_by_config(df: Any) -> Any:
     import pandas as pd
 
-    ok = df[df["parse_ok"]].copy()
+    ok = df[df["parse_ok"] & df["solve_ok"]].copy()
     if ok.empty:
         return pd.DataFrame()
 
@@ -163,7 +188,7 @@ def _read_energy_history(json_path: Path) -> list[float] | None:
 def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) -> Any:
     import pandas as pd
 
-    ok = df[df["parse_ok"] & (df["n_energy_steps"] > 0)]
+    ok = df[df["parse_ok"] & df["solve_ok"] & (df["n_energy_steps"] > 0)]
     if ok.empty:
         return pd.DataFrame()
 
@@ -241,10 +266,12 @@ def _histogram_feasible_fraction(samples: dict[str, int], instance: dict[str, An
 
 def enrich_sample_quality(df: Any, output_root: Path) -> Any:
     out = df.copy()
+    if "solve_ok" not in out.columns:
+        out = _coerce_solve_ok(out)
     fracs: list[float | None] = []
     for _, row in out.iterrows():
         frac: float | None = None
-        if row.get("parse_ok") and row.get("has_final_samples"):
+        if row.get("parse_ok") and row.get("solve_ok") and row.get("has_final_samples"):
             p = output_root / str(row["path"])
             try:
                 with open(p, encoding="utf-8") as f:
@@ -267,7 +294,7 @@ def wilcoxon_sa_qubo_vs_tqudo(df: Any) -> dict[str, Any] | None:
     except ImportError:
         return None
 
-    sa = df[df["parse_ok"] & (df["solver"] == "simulated_annealing")]
+    sa = df[df["parse_ok"] & df["solve_ok"] & (df["solver"] == "simulated_annealing")]
     if sa.empty or "real_cost" not in sa.columns:
         return None
     piv = sa.pivot_table(
@@ -311,6 +338,7 @@ def run_metrics(output_root: Path, sample_quality: bool) -> None:
     curves = aggregate_energy_curves(paired, output_root)
     if not curves.empty:
         curves.to_parquet(layout.processed / "energy_curves_agg.parquet", index=False)
+        curves.to_csv(layout.processed / "energy_curves_agg.csv", index=False)
 
     wc = wilcoxon_sa_qubo_vs_tqudo(paired)
     if wc is not None:

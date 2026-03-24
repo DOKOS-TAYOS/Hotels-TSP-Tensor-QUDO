@@ -10,28 +10,33 @@ import logging
 import signal
 import sys
 import traceback
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from instance_gen_process import (
     generate_random_set_instances,
     load_instance_config,
-    load_solver_config,
     solver_config_to_run_config,
     validate_solver_instance_compatibility,
 )
 from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
-from instance_gen_process.models import InstanceConfig, ProblemInstance
+from instance_gen_process.models import ProblemInstance
 from instance_gen_process.solver_config_loader import (
     DEFAULT_SOLVER_CONFIG_PATH,
     parse_solver_config_dict,
 )
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
 from solvers.brute_force import BruteForceSolver
-from solvers.base import SolverProtocol, SolverResult
+from solvers.base import SolverProtocol
 from config.settings import Settings, load_settings
 from utils.constraints import validate_instance_constraints
+from utils.experiment_serialize import (
+    build_solution_record,
+    serialize_instance_config,
+    serialize_solver_result,
+    solver_config_payload_dict,
+)
+from utils.yaml_tools import load_yaml_mapping, merge_solver_yaml_dicts
 from utils.cooperative_stop import (
     SolverStopRequested,
     clear_solver_stop_request,
@@ -40,13 +45,11 @@ from utils.cooperative_stop import (
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
 
-from experiments.cudaq_parallel import (
-    CudaqParallelJob,
-    CudaqParallelJobSpec,
-    resolve_brute_force_max_parallel_instances,
-    resolve_cirq_max_parallel_instances,
+from experiments.parallel_solve_batch import (
+    ParallelSolveJob,
+    resolve_cpu_max_parallel_instances,
     resolve_cudaq_max_parallel_instances,
-    run_cudaq_parallel_batch,
+    run_parallel_solve_batch,
 )
 from experiments.workflow_io import (
     DEFAULT_INSTANCE_GENERATION_CONFIG_PATH,
@@ -56,8 +59,6 @@ from experiments.workflow_io import (
     instances_raw_dir,
     load_instance_generation_entries,
     load_problem_instance_json,
-    load_yaml_mapping,
-    merge_solver_yaml_dicts,
     normalise_n_cities,
     serialize_problem_instance,
     solutions_raw_dir,
@@ -70,8 +71,9 @@ EXPERIMENTS_DIR = Path(__file__).resolve().parent
 
 _PARALLEL_INSTANCES_EFF_KEY: dict[str, str] = {
     "cudaq": "cudaq_max_parallel_instances_effective",
-    "cirq": "cirq_max_parallel_instances_effective",
-    "brute_force": "brute_force_max_parallel_instances_effective",
+    "cirq": "cpu_max_parallel_instances_effective",
+    "brute_force": "cpu_max_parallel_instances_effective",
+    "simulated_annealing": "cpu_max_parallel_instances_effective",
 }
 
 FEASIBILITY_CHECK_SOLVERS: tuple[str, ...] = (
@@ -104,57 +106,6 @@ PRESET_EXPERIMENT_YAMLS: dict[str, list[str]] = {
 def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
     """Convert a :class:`~instance_gen_process.models.ProblemInstance` to plain dicts/lists."""
     return serialize_problem_instance(instance)
-
-
-def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
-    """Convert :class:`~instance_gen_process.models.InstanceConfig` to JSON-friendly dict."""
-    return {
-        "n_cities": config.n_cities,
-        "n_precedences_range": list(config.n_precedences_range),
-        "prices_range_hotels": list(config.prices_range_hotels),
-        "prices_range_travels": list(config.prices_range_travels),
-        "seed": config.seed,
-    }
-
-
-def _to_json_serializable(obj: Any) -> Any:
-    """Recursively normalise *obj* for JSON encoding."""
-    if isinstance(obj, (int, float, str, bool, type(None))):
-        return obj
-    if isinstance(obj, list):
-        return [_to_json_serializable(x) for x in obj]
-    if isinstance(obj, dict):
-        return {str(k): _to_json_serializable(v) for k, v in obj.items()}
-    if hasattr(obj, "tolist"):
-        return obj.tolist()
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return _to_json_serializable(dataclasses.asdict(obj))
-    return obj
-
-
-def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
-    """Convert :class:`~solvers.base.SolverResult` to a JSON-friendly dict."""
-    return {
-        "solver_name": result.solver_name,
-        "objective_value": result.objective_value,
-        "feasible": result.feasible,
-        "runtime_seconds": result.runtime_seconds,
-        "metadata": _to_json_serializable(result.metadata),
-    }
-
-
-def _solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str, Any]:
-    """Build JSON-safe solver config snapshot (expand restriction dataclass)."""
-    restriction = solver_config_dict["restriction"]
-    serializable: dict[str, Any] = {
-        k: v for k, v in solver_config_dict.items() if k != "restriction"
-    }
-    serializable["restriction"] = {
-        "lambda_0": restriction.lambda_0,
-        "lambda_1": restriction.lambda_1,
-        "lambda_2": restriction.lambda_2,
-    }
-    return _to_json_serializable(serializable)
 
 
 def _apply_noise_kill_switch(
@@ -207,103 +158,6 @@ def _install_sigint_handler() -> tuple[Callable[[], bool], Callable[[], None]]:
         signal.signal(signal.SIGINT, previous)
 
     return _is_interrupted, _restore
-
-
-def run_workflow(
-    instance_config_path: Path | str | None = None,
-    solver_config_path: Path | str | None = None,
-    output_root: Path | str | None = None,
-    settings: Settings | None = None,
-) -> None:
-    """Run the legacy experiment workflow (generate in memory, timestamped JSON names)."""
-    instance_config = load_instance_config(instance_config_path)
-    solver_config_dict = load_solver_config(solver_config_path)
-    validate_solver_instance_compatibility(instance_config, solver_config_dict)
-
-    n_instances = solver_config_dict["n_instances"]
-    instances = generate_random_set_instances(
-        instance_config,
-        n_instances,
-        seed=instance_config.seed,
-    )
-
-    run_config = solver_config_to_run_config(solver_config_dict)
-    run_config = _apply_noise_kill_switch(run_config, settings)
-
-    solver = _get_solver(solver_config_dict["solver"])
-
-    output_root_path = Path(output_root) if output_root else Path("output")
-    layout = build_output_layout(output_root_path)
-    layout.raw.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    solver_name = solver_config_dict["solver"]
-    formulation = solver_config_dict["formulation"]
-
-    reporter.configure(n_instances=n_instances)
-
-    is_interrupted, restore_sigint = _install_sigint_handler()
-
-    last_completed = -1
-    n_failed = 0
-    try:
-        for i, instance in enumerate(instances):
-            if is_interrupted():
-                break
-            reporter.instance_start(i)
-
-            if not validate_instance_constraints(instance):
-                logger.warning("Instance %d failed validation — skipping.", i)
-                n_failed += 1
-                continue
-
-            solver_config_serializable = _solver_config_payload_dict(solver_config_dict)
-
-            try:
-                result = solver.solve(instance, run_config)
-                payload: dict[str, Any] = {
-                    "instance": _serialize_instance(instance),
-                    "instance_config": _serialize_instance_config(instance_config),
-                    "instance_index": i,
-                    "solver_config": solver_config_serializable,
-                    "solver_output": _serialize_solver_result(result),
-                }
-            except SolverStopRequested:
-                break
-            except Exception:
-                logger.exception("Instance %d solver failed — saving error record.", i)
-                n_failed += 1
-                payload = {
-                    "instance": _serialize_instance(instance),
-                    "instance_config": _serialize_instance_config(instance_config),
-                    "instance_index": i,
-                    "solver_config": solver_config_serializable,
-                    "solver_output": {
-                        "solver_name": solver_name,
-                        "error": traceback.format_exc(),
-                    },
-                }
-
-            filename = f"exp_{timestamp}_inst_{i}_{solver_name}_{formulation}.json"
-            out_path = layout.raw / filename
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-
-            reporter.instance_done(i, str(out_path))
-            last_completed = i
-            gc.collect()
-    finally:
-        restore_sigint()
-
-    if is_interrupted():
-        print(
-            f"[interrupted] completed {last_completed + 1} of {n_instances} instances",
-            flush=True,
-        )
-        sys.exit(130)
-
-    if n_failed:
-        logger.warning("%d of %d instances failed.", n_failed, n_instances)
 
 
 def run_generate_instances(
@@ -395,13 +249,15 @@ def run_experiment_from_yaml(
                 formulation = validated["formulation"]
                 if inner_solver == "cudaq":
                     parallel_w = resolve_cudaq_max_parallel_instances(cfg_dict)
-                elif inner_solver == "cirq":
-                    parallel_w = resolve_cirq_max_parallel_instances(cfg_dict)
-                elif inner_solver == "brute_force":
-                    parallel_w = resolve_brute_force_max_parallel_instances(cfg_dict)
+                elif inner_solver in (
+                    "cirq",
+                    "brute_force",
+                    "simulated_annealing",
+                ):
+                    parallel_w = resolve_cpu_max_parallel_instances(cfg_dict)
                 else:
                     parallel_w = 1
-                solver_config_serializable = _solver_config_payload_dict(validated)
+                solver_config_serializable = solver_config_payload_dict(validated)
                 if inner_solver in _PARALLEL_INSTANCES_EFF_KEY:
                     solver_config_serializable[_PARALLEL_INSTANCES_EFF_KEY[inner_solver]] = (
                         parallel_w
@@ -435,14 +291,14 @@ def run_experiment_from_yaml(
 
                 if use_parallel_instances:
                     specs = [
-                        CudaqParallelJobSpec(
+                        ParallelSolveJob(
                             k=k,
                             instance_json_path=str(src),
                             status_label=(
                                 f"n_cities={n_cities} depth={path_depth} inst={k}"
                             ),
                             run_config=run_config,
-                            instance_config_dict=_serialize_instance_config(icfg),
+                            instance_config_dict=serialize_instance_config(icfg),
                             solver_config_serializable=solver_config_serializable,
                             solver_name=inner_solver,
                             formulation=formulation,
@@ -465,7 +321,7 @@ def run_experiment_from_yaml(
                     print(f"[parallel {inner_solver}] {_par_msg}", flush=True)
 
                     def _write_parallel_solution(
-                        job: CudaqParallelJob, payload: dict[str, Any]
+                        job: ParallelSolveJob, payload: dict[str, Any]
                     ) -> Path:
                         out_dir = solutions_raw_dir(
                             output_root_path,
@@ -480,7 +336,7 @@ def run_experiment_from_yaml(
                             json.dump(payload, f, indent=2)
                         return out_path
 
-                    batch_result = run_cudaq_parallel_batch(
+                    batch_result = run_parallel_solve_batch(
                         specs,
                         min(parallel_w, len(specs)),
                         solutions_write_fn=_write_parallel_solution,
@@ -516,31 +372,31 @@ def run_experiment_from_yaml(
                         reporter.instance_start(flat_i)
                         try:
                             result = solver.solve(instance, run_config)
-                            payload = {
-                                "instance": _serialize_instance(instance),
-                                "instance_config": _serialize_instance_config(icfg),
-                                "instance_index": k - 1,
-                                "instance_source": str(src),
-                                "solver_config": solver_config_serializable,
-                                "solver_output": _serialize_solver_result(result),
-                            }
+                            payload = build_solution_record(
+                                instance=_serialize_instance(instance),
+                                instance_config=serialize_instance_config(icfg),
+                                instance_index=k - 1,
+                                solver_config=solver_config_serializable,
+                                solver_output=serialize_solver_result(result),
+                                instance_source=str(src),
+                            )
                         except SolverStopRequested:
                             stop_solve = True
                             break
                         except Exception:
                             logger.exception("Solver failed for %s — saving error record.", src)
                             n_failed += 1
-                            payload = {
-                                "instance": _serialize_instance(instance),
-                                "instance_config": _serialize_instance_config(icfg),
-                                "instance_index": k - 1,
-                                "instance_source": str(src),
-                                "solver_config": solver_config_serializable,
-                                "solver_output": {
+                            payload = build_solution_record(
+                                instance=_serialize_instance(instance),
+                                instance_config=serialize_instance_config(icfg),
+                                instance_index=k - 1,
+                                solver_config=solver_config_serializable,
+                                solver_output={
                                     "solver_name": inner_solver,
                                     "error": traceback.format_exc(),
                                 },
-                            }
+                                instance_source=str(src),
+                            )
 
                         out_dir = solutions_raw_dir(
                             output_root_path,
@@ -650,14 +506,14 @@ def main() -> None:
     """Parse CLI arguments and dispatch workflow mode."""
     parser = argparse.ArgumentParser(
         description=(
-            "Hotel TSP experiment workflow: legacy, instance generation, batched experiments, "
-            "or feasibility audit of on-disk solutions."
+            "Hotel TSP experiment workflow: generate on-disk instances, run batched experiments, "
+            "or audit feasibility of solution JSON under raw/solutions/."
         )
     )
     parser.add_argument(
         "--mode",
+        required=True,
         choices=(
-            "legacy",
             "generate",
             "cudaq",
             "sa",
@@ -666,8 +522,10 @@ def main() -> None:
             "experiment",
             "check_feasibility",
         ),
-        default="legacy",
-        help="Workflow mode (default: legacy — same as before this refactor).",
+        help=(
+            "Required. generate: write raw/instances/...; cudaq/sa/cirq5/brute_force: preset "
+            "experiment YAMLs; experiment: --experiment-yaml; check_feasibility: scan solutions."
+        ),
     )
     parser.add_argument(
         "--check-solver",
@@ -711,15 +569,6 @@ def main() -> None:
     settings = load_settings()
     instance_config_path = args.instance_config or settings.instance_config_path
     output_root = args.output if args.output is not None else settings.output_dir
-
-    if args.mode == "legacy":
-        run_workflow(
-            instance_config_path=instance_config_path,
-            solver_config_path=args.solver_config,
-            output_root=output_root,
-            settings=settings,
-        )
-        return
 
     if args.mode == "generate":
         gen_cfg = args.instance_generation_config or DEFAULT_INSTANCE_GENERATION_CONFIG_PATH
