@@ -6,12 +6,15 @@ cudaq_max_parallel_instances: 15
 # Optional (Cirq, on-disk experiment mode only): run N instances in parallel CPU processes (default 1).
 # Override with env HTSP_CIRQ_MAX_PARALLEL_INSTANCES.
 cirq_max_parallel_instances: 15
+# Optional (brute_force, on-disk experiment mode only): run N instances in parallel CPU processes (default 1).
+# Override with env HTSP_BRUTE_FORCE_MAX_PARALLEL_INSTANCES.
+brute_force_max_parallel_instances: 15
 solver: cudaq  # cudaq | cirq | simulated_annealing
 formulation: tqudo_virtual  # qubo | tqudo (native qudits, Cirq/SA only) | tqudo_virtual (qubit emulation, Cirq/CUDA-Q)
 optimizer: Powell  # COBYLA | Powell | L-BFGS-B | SLSQP | Nelder-Mead
 restriction: # python -m experiments.estimate_lambdas --formulation qubo --solver simulated_annealing --lambda-values 10,20,30,40,50,60,70,80,90,100,200,300,400,500,600,700,800,900,1000
-  lambda_0: 10
-  lambda_1: 10 # could be 20,30,40,50
+  lambda_0: 1000
+  lambda_1: 1000 # could be 20,30,40,50
   lambda_2: 700
 qaoa_depth: 1
 qaoa_max_iter: 1000

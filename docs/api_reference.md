@@ -204,7 +204,9 @@ def validate_solver_instance_compatibility(
 Cross-validates instance and solver configurations. Raises `ValueError` for:
 - QUBO on quantum backends with > 30 qubits.
 - Native `tqudo` on CUDA-Q (unsupported).
-- `tqudo_virtual` on SA (unsupported).
+- `tqudo_virtual` on SA or brute force (unsupported).
+- `brute_force` with formulation other than `qubo` or `tqudo`, or instance size
+  above brute-force limits / optional assignment caps.
 - `tqudo_virtual` when `n_available` is not a power of two.
 
 ---
@@ -235,10 +237,13 @@ class SolverRunConfig:
     seed: int | None = None                  # Random seed
     optimizer: OptimizerType = "COBYLA"      # scipy optimizer method
     delta_t: float = 0.55                    # TQA parameter scheduling scale
+    optimizer_tol: float = 1e-6              # QAOA classical optimizer tolerance
     noise_config: NoiseConfig = NoiseConfig()  # Noise simulation settings
     sa_t_initial: float = 1000.0             # SA initial temperature
     sa_t_final: float = 1e-6                 # SA final temperature
     sa_alpha: float = 0.995                  # SA geometric cooling factor
+    brute_force_max_assignments_tqudo: int = 8**8   # brute_force: max n^n
+    brute_force_max_assignments_qubo: int = 2**30   # brute_force: max 2^n_vars
 ```
 
 #### SolverResult
@@ -246,7 +251,7 @@ class SolverRunConfig:
 ```python
 @dataclass(frozen=True, slots=True)
 class SolverResult:
-    solver_name: str           # e.g. "cirq", "cudaq", "simulated_annealing"
+    solver_name: str           # e.g. "cirq", "cudaq", "simulated_annealing", "brute_force"
     objective_value: float     # Raw objective in original problem units
     feasible: bool             # Whether solution satisfies all constraints
     runtime_seconds: float     # Wall-clock time for solve()
@@ -337,6 +342,23 @@ class BaseQAOASolver(ABC):
 - Returning `None` from a runner signals that the formulation is not supported.
 - `solve()` dispatches to `_solve_tqudo()` or `_solve_qubo()`, handles timing,
   feasibility validation, and metadata construction.
+
+---
+
+### Brute force (`solvers/brute_force/solver.py`)
+
+#### BruteForceSolver
+
+```python
+class BruteForceSolver:
+    solver_name: str  # "brute_force"
+
+    def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult: ...
+```
+
+Exhaustive search over the full QUBO or TQUDO assignment space (not tour
+permutations only). Raises `ValueError` for unsupported formulations or sizes
+outside `solvers/brute_force/limits.py` / `run_config` caps.
 
 ---
 
@@ -643,5 +665,41 @@ instance). Applies environment noise kill-switch when `settings` is provided.
 def main() -> None
 ```
 
-CLI entry point with `--instance-config`, `--solver-config`, and `--output`
-arguments. Loads `Settings` from `.env` and passes them to `run_workflow()`.
+CLI entry point with `--instance-config`, `--solver-config`, `--output`,
+`--mode`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
+`Settings` from `.env` and passes them to `run_workflow()` where applicable.
+
+---
+
+## data_analysis
+
+Post-processing package (optional `analysis` extra: pandas, pyarrow, matplotlib).
+Reads JSON under `output/raw/` and writes tables to `output/processed/` and
+figures to `output/images/`.
+
+### Package entry (`data_analysis/__init__.py`)
+
+Lazy exports: `process_raw_results`, `run_pipeline` (from `data_analysis.pipeline`).
+
+### Pipeline (`data_analysis/pipeline.py`)
+
+- `run_pipeline(output_root, manifest_format=..., sample_quality=..., skip_plots=...)`
+- `process_raw_results(raw_dir, processed_dir)` — requires `processed_dir.name == "processed"`.
+
+CLI: `python -m data_analysis.pipeline --output-root output [--format parquet|csv] [--sample-quality] [--skip-plots]`
+
+### Ingest (`data_analysis/ingest.py`)
+
+CLI: `python -m data_analysis.ingest --output-root output` — builds
+`processed/manifest.parquet` or `.csv` from disk workflow and legacy `exp_*.json` paths.
+
+### Metrics (`data_analysis/metrics.py`)
+
+CLI: `python -m data_analysis.metrics --output-root output [--sample-quality]` —
+paired metrics, summaries, optional Wilcoxon / energy-curve aggregates.
+
+### Plots (`data_analysis/plot.py`)
+
+CLI: `python -m data_analysis.plot --output-root output` — PNGs under `images/`.
+
+Supporting modules: `scan.py`, `records.py`, `output_paths.py` (layout helpers).

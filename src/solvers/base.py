@@ -41,6 +41,10 @@ class SolverRunConfig:
         sa_t_initial: Simulated annealing start temperature.
         sa_t_final: Simulated annealing end temperature.
         sa_alpha: Multiplicative cooling factor per SA step.
+        brute_force_max_assignments_tqudo: Max TQUDO assignments (full space is ``n^n``,
+            with ``n = n_cities - 1`` capped at 8).
+        brute_force_max_assignments_qubo: Max QUBO assignments (full space is ``2^(n^2)``,
+            with ``n^2`` binary vars capped at 30).
     """
 
     max_iterations: int = 1_000
@@ -64,6 +68,9 @@ class SolverRunConfig:
     sa_t_initial: float = 1000.0    # Initial temperature
     sa_t_final: float = 1e-6        # Final (minimum) temperature
     sa_alpha: float = 0.995         # Geometric cooling factor (T *= alpha each step)
+    # Brute-force enumeration caps (solver ``brute_force`` only; defaults = full allowed spaces)
+    brute_force_max_assignments_tqudo: int = 8**8
+    brute_force_max_assignments_qubo: int = 2**30
 
 
 @dataclass(frozen=True, slots=True)

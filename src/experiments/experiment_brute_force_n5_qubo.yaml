@@ -1,0 +1,5 @@
+# Exact enumeration (full QUBO hypercube). n_cities=5 => 2^16 assignments.
+n_cities: 5
+n_instances: 100
+solver: brute_force
+formulation: qubo

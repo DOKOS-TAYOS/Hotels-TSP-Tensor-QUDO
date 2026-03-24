@@ -21,10 +21,11 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 **Version**: 0.1.0 (alpha, unreleased)
 
 - Two mathematical formulations: Tensor-QUDO (native qudits) and QUBO (binary one-hot).
-- Three solver backends: Cirq (native qudits + qubit emulation), CUDA-Q (GPU-accelerated), Simulated Annealing.
+- Four solver backends: Cirq (native qudits + qubit emulation), CUDA-Q (GPU-accelerated), Simulated Annealing, and **brute force** (exact enumeration over the full QUBO / TQUDO assignment space within documented size limits).
 - Noise simulation framework with 5 noise types and per-gate overrides.
-- Experiment workflow with incremental JSON output and SIGINT handling.
-- 17 test files covering models, formulations, solvers, and constraints.
+- Experiment workflow with incremental JSON output and SIGINT handling; disk layout under `output/raw/solutions/<solver>/...`.
+- **Data analysis** pipeline (`src/data_analysis/`): ingest raw JSON → `output/processed/` (manifest, paired metrics, summaries) → figures in `output/images/` (optional extra `analysis`: pandas, pyarrow, matplotlib, scipy).
+- Test suite covering models, formulations, solvers, constraints, brute force, and data ingest.
 - Streamlit UI scaffold.
 
 ## Maintainers
@@ -40,7 +41,8 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 
 Setup script creates `.venv`, installs editable project dependencies, and defaults to
 the `dev,ui,cudaq` extras. For the Cirq backend instead, run
-`./install.sh dev,ui,cirq`. Installer validates `git` and `Python 3.11–3.13`
+`./install.sh dev,ui,cirq`. For the post-processing CLI (`data_analysis`), add
+`analysis` (e.g. `./install.sh dev,ui,cudaq,analysis`). Installer validates `git` and `Python 3.11–3.13`
 before running setup. The `cudaq` extra installs both CUDA-Q and SciPy.
 
 ## CUDA-Q backend contract
@@ -56,6 +58,8 @@ make -f scripts/makefile lint
 make -f scripts/makefile test
 make -f scripts/makefile app
 make -f scripts/makefile clean
+# After `pip install -e '.[analysis]'`:
+make -f scripts/makefile analysis-all    # ingest + metrics + plots → processed/ + images/
 ```
 
 ## Project layout
@@ -68,15 +72,15 @@ output/             Local results (ignored in git except placeholders)
 scripts/            Task runner (makefile)
 src/
   config/           Runtime settings and environment loading (.env)
-  data_analysis/    Raw -> processed analysis pipeline (scaffold)
+  data_analysis/    Ingest manifest, paired metrics vs brute_force ref, plots
   experiments/      Main experiment workflow (generate, solve, save)
   instance_gen_process/
                     Instance configuration, loading, generation, formulation builders
   math_utils/       QUBO-to-Ising conversion
-  solvers/          Solver protocol + Cirq, CUDA-Q, and SA backends
+  solvers/          Solver protocol + Cirq, CUDA-Q, SA, and brute_force
   streamlit_app/    Streamlit UI shell
   utils/            Costs, constraints, QAOA helpers, progress, output paths, logging
-tests/              17 test files: smoke, contract, and unit tests
+tests/              Pytest suite: smoke, contracts, unit tests, brute_force, data_analysis
 ```
 
 ## Documentation
@@ -85,7 +89,7 @@ tests/              17 test files: smoke, contract, and unit tests
 |----------|-------------|
 | [docs/architecture.md](docs/architecture.md) | Deep technical architecture: module map, data flow, solver matrix, QAOA circuits, noise system, cost pipeline |
 | [docs/formulations.md](docs/formulations.md) | Mathematical formulations (Tensor-QUDO and QUBO) with LaTeX equations, Cirq qudit gate documentation |
-| [docs/api_reference.md](docs/api_reference.md) | Comprehensive API reference for all public modules: models, generators, solvers, utils, config |
+| [docs/api_reference.md](docs/api_reference.md) | API reference: models, generators, solvers (incl. brute force), utils, config, experiments, data_analysis |
 | [docs/configuration.md](docs/configuration.md) | All configuration surfaces: `.env`, `config.yaml`, `solver_config.yaml`, compatibility rules, tuning guidance |
 | [docs/development.md](docs/development.md) | Development guide: setup, testing, linting, conventions, branching |
 | [CHANGELOG.md](CHANGELOG.md) | Project history and release notes |
@@ -101,8 +105,8 @@ See [docs/configuration.md](docs/configuration.md) for full reference.
 
 ## Output policy
 
-- `output/raw`: intermediate experiment dumps (JSON per instance).
-- `output/processed`: curated benchmark datasets (scaffold).
-- `output/images`: figures for the paper (scaffold).
+- `output/raw/`: experiment JSON (legacy `exp_*.json` and/or `raw/solutions/<solver>/<formulation>/n_<n>/...`).
+- `output/processed/`: tables produced by `data_analysis` (`manifest.parquet`, `paired_metrics.parquet`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`, `wilcoxon_sa_qubo_tqudo.json`).
+- `output/images/`: PNG figures from `data_analysis.plot` (e.g. feasibility bars, energy curves, approximation-ratio violin).
 
-These folders remain in the repo as placeholders, but generated contents are ignored.
+Placeholders may be committed; bulk generated files are typically gitignored.

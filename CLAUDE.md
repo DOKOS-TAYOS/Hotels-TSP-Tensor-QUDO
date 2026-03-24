@@ -34,7 +34,13 @@ make -f scripts/makefile clean
 # Calibration CLIs (output to output/T0sampling/ and output/lambdasSampling/)
 .venv/bin/python -m experiments.estimate_t0 --n-instances 5 --chi0 0.8
 .venv/bin/python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500,1000
-# Modes: --mode generate | cudaq | sa | cirq5 | experiment | check_feasibility (see docs/development.md)
+# Modes: --mode generate | cudaq | sa | cirq5 | brute_force | experiment | check_feasibility (see docs/development.md)
+
+# Data analysis (requires pip install -e '.[analysis]'): manifest → paired metrics → figures
+.venv/bin/python -m data_analysis.ingest --output-root output
+.venv/bin/python -m data_analysis.metrics --output-root output
+.venv/bin/python -m data_analysis.plot --output-root output
+# Or full pipeline: .venv/bin/python -m data_analysis.pipeline --output-root output
 ```
 
 ## Architecture
@@ -59,6 +65,7 @@ Both formulations normalise their tensors/matrix by `energy_scale = max(|values|
 | **Cirq** | `solvers/cirq_solver/` | `qubo`, `tqudo` (native qudits), `tqudo_virtual` (qubit emulation) | `cirq` extra |
 | **CUDA-Q** | `solvers/cudaq_solver/` | `qubo`, `tqudo_virtual` | `cudaq` extra + NVIDIA GPU |
 | **Simulated Annealing** | `solvers/simulated_annealing/` | `qubo`, `tqudo` | no extra deps |
+| **Brute force** | `solvers/brute_force/` | `qubo` (all `2^(n-1)^2` bitstrings, max 30 binary vars), `tqudo` (all `n^n` sequences, max `n=n_cities-1=8`) | no extra deps |
 
 Three formulation values exist in `solver_config.yaml`: `qubo`, `tqudo` (native qudits — Cirq and SA only), `tqudo_virtual` (qubit emulation — Cirq and CUDA-Q). Incompatible combos are rejected by `validate_solver_instance_compatibility()`.
 

@@ -1,4 +1,4 @@
-.PHONY: setup lint test app clean
+.PHONY: setup lint test app clean analysis-ingest analysis-metrics analysis-plots analysis-all
 
 EXTRAS ?= dev,ui,cudaq
 PYTHON := .venv/bin/python
@@ -15,6 +15,18 @@ test:
 
 app:
 	$(STREAMLIT) run src/streamlit_app/app.py
+
+analysis-ingest:
+	$(PYTHON) -m data_analysis.ingest --output-root output
+
+analysis-metrics:
+	$(PYTHON) -m data_analysis.metrics --output-root output
+
+analysis-plots:
+	$(PYTHON) -m data_analysis.plot --output-root output
+
+analysis-all:
+	$(PYTHON) -m data_analysis.pipeline --output-root output
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage htmlcov .tmp tests/.tmp
