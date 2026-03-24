@@ -1,0 +1,74 @@
+Third-party software notices
+============================
+
+This file summarizes licenses for third-party packages that may be installed
+when you use Hotels-TSP-Tensor-QUDO. This project’s own license is MIT; see the
+file `LICENSE` in this repository.
+
+The lists below are based on declared dependencies in `pyproject.toml` and
+typical metadata from PyPI. Transitive dependencies are not enumerated here in
+full. To generate an exact list for your environment (including versions), run:
+
+  .venv/bin/pip install pip-licenses
+  .venv/bin/pip-licenses --from=mixed
+
+SPDX identifiers and full license texts for common open-source licenses:
+  https://spdx.org/licenses/
+
+
+Runtime (core) dependencies
+-----------------------------
+
+  PyYAML       MIT
+  NumPy        BSD-3-Clause (and bundled third-party code under compatible terms;
+               see NumPy’s LICENSE.txt in the installed package)
+
+
+Development
+-----------
+
+  pytest       MIT
+  ruff         MIT
+
+
+Optional: Cirq backend (`pip install -e '.[cirq]'`)
+---------------------------------------------------
+
+  cirq / cirq-core / related cirq-* packages   Apache-2.0
+  SciPy                                        BSD-3-Clause
+
+
+Optional: CUDA-Q backend (`pip install -e '.[cudaq]'`)
+------------------------------------------------------
+
+  cuda-quantum / cudaq                         Apache-2.0 (see package metadata)
+
+  NVIDIA CUDA and related wheels pulled in by the CUDA-Q / GPU stack may be
+  subject to **NVIDIA proprietary** or **other non-open-source** terms (for
+  example `nvidia-*-cu12`, `custatevec-cu12`, `cutensor-cu12`, and similar).
+  Review the license files shipped with those packages in your environment
+  before redistribution or commercial use.
+
+
+Optional: Streamlit UI (`pip install -e '.[ui]'`)
+-------------------------------------------------
+
+  Streamlit    Apache-2.0
+  (transitive UI stack: various MIT, BSD, Apache-2.0, MPL-2.0, etc.)
+
+
+Optional: Data analysis (`pip install -e '.[analysis]'`)
+--------------------------------------------------------
+
+  pandas       BSD-3-Clause
+  pyarrow      Apache-2.0
+  matplotlib   PSF-based (see project license files)
+  SciPy        BSD-3-Clause
+
+
+Disclaimer
+----------
+
+This notice is provided for convenience and may not be complete or up to date.
+Always consult the license metadata and files bundled with each installed
+package if you need legally binding terms.
