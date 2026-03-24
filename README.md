@@ -106,7 +106,7 @@ See [docs/configuration.md](docs/configuration.md) for full reference.
 
 ## Output policy
 
-- `output/raw/`: experiment JSON (legacy `exp_*.json` and/or `raw/solutions/<solver>/<formulation>/n_<n>/...`).
+- `output/raw/`: instance JSON under `raw/instances/...` and solution JSON under `raw/solutions/<solver>/<formulation>/n_<n>/...`.
 - `output/processed/`: tables produced by `data_analysis` (`manifest.parquet`, `paired_metrics.parquet`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`/`.csv`, `wilcoxon_sa_qubo_tqudo.json`).
 - `output/images/`: PNG figures from `data_analysis.plot` (e.g. feasibility bars, energy curves, approximation-ratio violin).
 

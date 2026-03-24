@@ -10,6 +10,15 @@ Initial research scaffold for Hotel TSP optimization with Tensor-QUDO and QUBO
 formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 6 merged pull requests.
 
+### Breaking changes (experiment CLI and data analysis)
+
+- Removed in-memory **legacy** workflow and `run_workflow()`; solution JSON is only
+  produced under `output/raw/solutions/...` from the disk pipeline (`--mode generate`
+  then experiment modes).
+- `python -m experiments.main_experiment_workflow` now **requires `--mode`** (no default).
+- `data_analysis` ingest scans only `raw/solutions/**/*.json` (no `raw/exp_*.json`).
+  Manifest rows no longer include a `legacy_timestamp` column.
+
 ### Utilities layout
 
 Shared helpers consolidated under `utils/`: JSON normalisation and experiment
@@ -74,12 +83,13 @@ avoid import cycles with `instance_gen_process` / `data_analysis`.
 
 ### Experiment workflow
 
-- `run_workflow()` orchestrating generation, solving, and JSON output.
-- Incremental per-instance JSON saves to `output/raw/`.
+- Disk workflow: `run_generate_instances`, `run_experiment_from_yaml`, and
+  `run_experiment_batch` in `experiments/main_experiment_workflow.py`.
+- Incremental JSON saves under `output/raw/instances/` and `output/raw/solutions/`.
 - SIGINT handling (graceful interruption after current instance).
 - Error recovery with traceback capture in output records.
 - Progress reporter with single-line display and energy tracking.
-- CLI entry point with `--instance-config`, `--solver-config`, `--output`.
+- CLI entry point with required `--mode`, plus `--instance-config`, `--solver-config`, `--output`.
 
 ### Infrastructure
 

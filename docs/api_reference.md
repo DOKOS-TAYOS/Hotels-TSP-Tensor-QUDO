@@ -727,10 +727,11 @@ Raises `ValueError` for unsupported backend names or non-integer seed values.
 
 ### Workflow (`experiments/main_experiment_workflow.py`)
 
-#### run_workflow
+#### run_experiment_from_yaml
 
 ```python
-def run_workflow(
+def run_experiment_from_yaml(
+    experiment_yaml_path: Path | str,
     instance_config_path: Path | str | None = None,
     solver_config_path: Path | str | None = None,
     output_root: Path | str | None = None,
@@ -738,9 +739,35 @@ def run_workflow(
 ) -> None
 ```
 
-Full pipeline: load configs, generate instances, validate, solve each, save
-JSON results incrementally. Handles SIGINT gracefully (finishes current
-instance). Applies environment noise kill-switch when `settings` is provided.
+Merges experiment YAML with `solver_config.yaml`, loads instances from disk
+(`raw/instances/`), solves, writes `raw/solutions/...`. Applies noise kill-switch
+when `settings` is provided.
+
+#### run_experiment_batch
+
+```python
+def run_experiment_batch(
+    experiment_yaml_paths: list[Path],
+    instance_config_path: Path | str | None = None,
+    solver_config_path: Path | str | None = None,
+    output_root: Path | str | None = None,
+    settings: Settings | None = None,
+) -> None
+```
+
+Runs `run_experiment_from_yaml` for each path in order.
+
+#### run_generate_instances
+
+```python
+def run_generate_instances(
+    instance_config_path: Path | str | None = None,
+    instance_generation_config_path: Path | str | None = None,
+    output_root: Path | str | None = None,
+) -> None
+```
+
+Writes `raw/instances/n_<n_cities>/instance_<k>.json` from the generation config.
 
 #### main
 
@@ -748,9 +775,9 @@ instance). Applies environment noise kill-switch when `settings` is provided.
 def main() -> None
 ```
 
-CLI entry point with `--instance-config`, `--solver-config`, `--output`,
-`--mode`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
-`Settings` from `.env` and passes them to `run_workflow()` where applicable.
+CLI entry point with required `--mode`, plus `--instance-config`, `--solver-config`,
+`--output`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
+`Settings` from `.env` and passes them to experiment runs where applicable.
 
 ### Workflow I/O (`experiments/workflow_io.py`)
 
@@ -780,7 +807,7 @@ CLI: `python -m data_analysis.pipeline --output-root output [--format parquet|cs
 ### Ingest (`data_analysis/ingest.py`)
 
 CLI: `python -m data_analysis.ingest --output-root output` — builds
-`processed/manifest.parquet` or `.csv` from disk workflow and legacy `exp_*.json` paths.
+`processed/manifest.parquet` or `.csv` from JSON under `raw/solutions/**/*.json`.
 
 Manifest rows (`data_analysis/records.py`): `parse_ok` means the file is valid JSON
 with a top-level object; `solve_ok` means `solver_output` is a normal result (no

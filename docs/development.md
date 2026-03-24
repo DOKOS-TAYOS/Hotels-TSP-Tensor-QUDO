@@ -80,11 +80,10 @@ make -f scripts/makefile analysis-all      # ingest + metrics + plots (default -
 
 ### Running the experiment workflow
 
-Default **legacy** mode matches the old behaviour: load `config.yaml` and `solver_config.yaml`, generate instances in memory, write timestamped JSON files under `output/raw/`. Output root defaults to `HTSP_OUTPUT_DIR` (usually `output/`) when `--output` is omitted.
+**`--mode` is required.** Output root defaults to `HTSP_OUTPUT_DIR` (usually `output/`) when `--output` is omitted.
 
 | `--mode` | What runs |
 |----------|-----------|
-| `legacy` (default) | In-memory generation + solve; filenames `exp_<timestamp>_inst_<i>_...json` |
 | `generate` | From `src/experiments/instance_generation_config.yaml` and ranges/seed in `config.yaml`; writes `raw/instances/n_<n_cities>/instance_<k>.json` |
 | `cudaq` | Preset CUDA-Q experiment YAMLs under `src/experiments/` |
 | `sa` | Preset simulated-annealing experiment YAMLs |
@@ -117,15 +116,14 @@ When `solver` is `cirq`, `brute_force`, or `simulated_annealing` and the merged 
 - **Reproducibility**: solution JSON includes `cpu_max_parallel_instances_effective` under `solver_config` for these runs.
 
 ```bash
-.venv/bin/python -m experiments.main_experiment_workflow
 .venv/bin/python -m experiments.main_experiment_workflow --mode generate
 .venv/bin/python -m experiments.main_experiment_workflow --mode sa --output path/to/output
 .venv/bin/python -m experiments.main_experiment_workflow --mode experiment --experiment-yaml path/to/exp.yaml
 .venv/bin/python -m experiments.main_experiment_workflow --mode check_feasibility --check-solver cudaq
 .venv/bin/python -m experiments.main_experiment_workflow --mode brute_force
-.venv/bin/python -m experiments.main_experiment_workflow --instance-config path/to/config.yaml
-.venv/bin/python -m experiments.main_experiment_workflow --solver-config path/to/solver_config.yaml
-.venv/bin/python -m experiments.main_experiment_workflow --output path/to/output
+.venv/bin/python -m experiments.main_experiment_workflow --mode generate --instance-config path/to/config.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --mode cudaq --solver-config path/to/solver_config.yaml
+.venv/bin/python -m experiments.main_experiment_workflow --mode cudaq --output path/to/output
 ```
 
 ### Post-processing and figures (`data_analysis`)

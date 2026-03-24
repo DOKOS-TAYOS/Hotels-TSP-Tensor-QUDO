@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,6 @@ def manifest_empty_schema_row() -> dict[str, Any]:
         "n_cities": None,
         "instance_key": None,
         "qaoa_depth": None,
-        "legacy_timestamp": None,
         "n_cities_json": None,
         "solver_config_solver": None,
         "solver_config_formulation": None,
@@ -40,11 +38,6 @@ def manifest_empty_schema_row() -> dict[str, Any]:
         "solver_error": None,
         "error_message": None,
     }
-
-
-_LEGACY_EXP = re.compile(
-    r"^exp_(?P<ts>\d{8}_\d{6})_inst_(?P<inst>\d+)_(?P<rest>.+)\.json$"
-)
 
 
 def _parse_solutions_subpath(parts: tuple[str, ...]) -> dict[str, Any] | None:
@@ -102,12 +95,6 @@ def path_context(path: Path, output_root: Path) -> dict[str, Any]:
         if sub is not None:
             ctx["layout"] = "disk"
             ctx.update(sub)
-    elif len(parts) >= 2 and parts[0] == "raw" and _LEGACY_EXP.match(parts[-1]):
-        ctx["layout"] = "legacy"
-        m = _LEGACY_EXP.match(parts[-1])
-        assert m is not None
-        ctx["legacy_timestamp"] = m.group("ts")
-        ctx["instance_key"] = int(m.group("inst")) + 1
     return ctx
 
 
@@ -139,7 +126,6 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
         "n_cities",
         "instance_key",
         "qaoa_depth",
-        "legacy_timestamp",
     ):
         if k in ctx:
             row[k] = ctx[k]

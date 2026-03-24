@@ -10,14 +10,12 @@ import logging
 import signal
 import sys
 import traceback
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from instance_gen_process import (
     generate_random_set_instances,
     load_instance_config,
-    load_solver_config,
     solver_config_to_run_config,
     validate_solver_instance_compatibility,
 )
@@ -160,103 +158,6 @@ def _install_sigint_handler() -> tuple[Callable[[], bool], Callable[[], None]]:
         signal.signal(signal.SIGINT, previous)
 
     return _is_interrupted, _restore
-
-
-def run_workflow(
-    instance_config_path: Path | str | None = None,
-    solver_config_path: Path | str | None = None,
-    output_root: Path | str | None = None,
-    settings: Settings | None = None,
-) -> None:
-    """Run the legacy experiment workflow (generate in memory, timestamped JSON names)."""
-    instance_config = load_instance_config(instance_config_path)
-    solver_config_dict = load_solver_config(solver_config_path)
-    validate_solver_instance_compatibility(instance_config, solver_config_dict)
-
-    n_instances = solver_config_dict["n_instances"]
-    instances = generate_random_set_instances(
-        instance_config,
-        n_instances,
-        seed=instance_config.seed,
-    )
-
-    run_config = solver_config_to_run_config(solver_config_dict)
-    run_config = _apply_noise_kill_switch(run_config, settings)
-
-    solver = _get_solver(solver_config_dict["solver"])
-
-    output_root_path = Path(output_root) if output_root else Path("output")
-    layout = build_output_layout(output_root_path)
-    layout.raw.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    solver_name = solver_config_dict["solver"]
-    formulation = solver_config_dict["formulation"]
-
-    reporter.configure(n_instances=n_instances)
-
-    is_interrupted, restore_sigint = _install_sigint_handler()
-
-    last_completed = -1
-    n_failed = 0
-    try:
-        for i, instance in enumerate(instances):
-            if is_interrupted():
-                break
-            reporter.instance_start(i)
-
-            if not validate_instance_constraints(instance):
-                logger.warning("Instance %d failed validation — skipping.", i)
-                n_failed += 1
-                continue
-
-            solver_config_serializable = solver_config_payload_dict(solver_config_dict)
-
-            try:
-                result = solver.solve(instance, run_config)
-                payload = build_solution_record(
-                    instance=_serialize_instance(instance),
-                    instance_config=serialize_instance_config(instance_config),
-                    instance_index=i,
-                    solver_config=solver_config_serializable,
-                    solver_output=serialize_solver_result(result),
-                )
-            except SolverStopRequested:
-                break
-            except Exception:
-                logger.exception("Instance %d solver failed — saving error record.", i)
-                n_failed += 1
-                payload = build_solution_record(
-                    instance=_serialize_instance(instance),
-                    instance_config=serialize_instance_config(instance_config),
-                    instance_index=i,
-                    solver_config=solver_config_serializable,
-                    solver_output={
-                        "solver_name": solver_name,
-                        "error": traceback.format_exc(),
-                    },
-                )
-
-            filename = f"exp_{timestamp}_inst_{i}_{solver_name}_{formulation}.json"
-            out_path = layout.raw / filename
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-
-            reporter.instance_done(i, str(out_path))
-            last_completed = i
-            gc.collect()
-    finally:
-        restore_sigint()
-
-    if is_interrupted():
-        print(
-            f"[interrupted] completed {last_completed + 1} of {n_instances} instances",
-            flush=True,
-        )
-        sys.exit(130)
-
-    if n_failed:
-        logger.warning("%d of %d instances failed.", n_failed, n_instances)
 
 
 def run_generate_instances(
@@ -605,14 +506,14 @@ def main() -> None:
     """Parse CLI arguments and dispatch workflow mode."""
     parser = argparse.ArgumentParser(
         description=(
-            "Hotel TSP experiment workflow: legacy, instance generation, batched experiments, "
-            "or feasibility audit of on-disk solutions."
+            "Hotel TSP experiment workflow: generate on-disk instances, run batched experiments, "
+            "or audit feasibility of solution JSON under raw/solutions/."
         )
     )
     parser.add_argument(
         "--mode",
+        required=True,
         choices=(
-            "legacy",
             "generate",
             "cudaq",
             "sa",
@@ -621,8 +522,10 @@ def main() -> None:
             "experiment",
             "check_feasibility",
         ),
-        default="legacy",
-        help="Workflow mode (default: legacy — same as before this refactor).",
+        help=(
+            "Required. generate: write raw/instances/...; cudaq/sa/cirq5/brute_force: preset "
+            "experiment YAMLs; experiment: --experiment-yaml; check_feasibility: scan solutions."
+        ),
     )
     parser.add_argument(
         "--check-solver",
@@ -666,15 +569,6 @@ def main() -> None:
     settings = load_settings()
     instance_config_path = args.instance_config or settings.instance_config_path
     output_root = args.output if args.output is not None else settings.output_dir
-
-    if args.mode == "legacy":
-        run_workflow(
-            instance_config_path=instance_config_path,
-            solver_config_path=args.solver_config,
-            output_root=output_root,
-            settings=settings,
-        )
-        return
 
     if args.mode == "generate":
         gen_cfg = args.instance_generation_config or DEFAULT_INSTANCE_GENERATION_CONFIG_PATH

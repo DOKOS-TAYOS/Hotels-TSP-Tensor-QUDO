@@ -40,9 +40,8 @@ def test_iter_raw_json_files(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     (raw / "solutions" / "a").mkdir(parents=True)
     (raw / "solutions" / "a" / "x.json").write_text("{}", encoding="utf-8")
-    (raw / "exp_20200101_120000_inst_0_cudaq_qubo.json").write_text("{}", encoding="utf-8")
     found = sorted(iter_raw_json_files(raw))
-    assert len(found) == 2
+    assert len(found) == 1
 
 
 def test_json_row_solver_output_error(tmp_path: Path) -> None:

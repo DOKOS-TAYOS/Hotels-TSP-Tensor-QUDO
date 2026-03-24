@@ -142,9 +142,10 @@ flowchart LR
    - Runs the optimisation (QAOA, SA, or brute-force enumeration).
    - Returns a `SolverResult` with objective value, feasibility flag, runtime,
      and metadata (best sequence, energy history, optimal angles, samples).
-7. Results are saved incrementally as JSON files in `output/raw/`, one per
-   instance, with the naming pattern
-   `exp_{timestamp}_inst_{i}_{solver}_{formulation}.json`.
+7. On the disk workflow, instances are written under
+   `output/raw/instances/n_<n_cities>/instance_<k>.json`, and each solve writes
+   `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`
+   (see `experiments/main_experiment_workflow.py` and `experiments/workflow_io.py`).
 
 ---
 
@@ -460,20 +461,20 @@ Each JSON file in `output/raw/` contains:
 
 ## Experiment workflow
 
-The `run_workflow()` function in `experiments/main_experiment_workflow.py`
-orchestrates the full pipeline:
+`experiments/main_experiment_workflow.py` implements the disk-based pipeline:
 
-1. Load instance and solver configs.
-2. Validate formulation-backend compatibility.
-3. Generate `n_instances` random problem instances.
-4. Apply environment noise kill-switch if needed.
-5. Solve each instance, saving JSON results incrementally.
-6. Handle SIGINT gracefully (finish current instance, then stop).
-7. Log warnings for failed instances.
+1. **`--mode generate`** — `run_generate_instances()` writes instance JSON from
+   `instance_generation_config.yaml` and `config.yaml`.
+2. **`--mode experiment`** or a preset (`cudaq`, `sa`, `cirq5`, `brute_force`) —
+   `run_experiment_from_yaml()` / `run_experiment_batch()` merge each experiment
+   YAML with `solver_config.yaml`, load instances from `raw/instances/`, solve,
+   and write under `raw/solutions/...`.
+3. **`--mode check_feasibility`** — scans `raw/solutions/<solver>/` for feasibility.
 
-CLI entry point: `python -m experiments.main_experiment_workflow`
+`--mode` is required. SIGINT is handled cooperatively; failed solves still emit JSON
+records with errors.
 
-Options: `--instance-config`, `--solver-config`, `--output`, `--mode` (see
+CLI: `python -m experiments.main_experiment_workflow --mode <mode> ...` (see
 [development.md](development.md)).
 
 ### Post-processing
