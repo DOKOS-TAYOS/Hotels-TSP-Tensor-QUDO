@@ -43,11 +43,11 @@ from utils.progress import reporter
 from experiments.cudaq_parallel import (
     CudaqParallelJob,
     CudaqParallelJobSpec,
-    resolve_brute_force_max_parallel_instances,
-    resolve_cirq_max_parallel_instances,
+    resolve_cpu_max_parallel_instances,
     resolve_cudaq_max_parallel_instances,
     run_cudaq_parallel_batch,
 )
+from experiments.json_serialize import to_json_friendly
 from experiments.workflow_io import (
     DEFAULT_INSTANCE_GENERATION_CONFIG_PATH,
     experiment_depth_iterations,
@@ -70,8 +70,9 @@ EXPERIMENTS_DIR = Path(__file__).resolve().parent
 
 _PARALLEL_INSTANCES_EFF_KEY: dict[str, str] = {
     "cudaq": "cudaq_max_parallel_instances_effective",
-    "cirq": "cirq_max_parallel_instances_effective",
-    "brute_force": "brute_force_max_parallel_instances_effective",
+    "cirq": "cpu_max_parallel_instances_effective",
+    "brute_force": "cpu_max_parallel_instances_effective",
+    "simulated_annealing": "cpu_max_parallel_instances_effective",
 }
 
 FEASIBILITY_CHECK_SOLVERS: tuple[str, ...] = (
@@ -117,21 +118,6 @@ def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
     }
 
 
-def _to_json_serializable(obj: Any) -> Any:
-    """Recursively normalise *obj* for JSON encoding."""
-    if isinstance(obj, (int, float, str, bool, type(None))):
-        return obj
-    if isinstance(obj, list):
-        return [_to_json_serializable(x) for x in obj]
-    if isinstance(obj, dict):
-        return {str(k): _to_json_serializable(v) for k, v in obj.items()}
-    if hasattr(obj, "tolist"):
-        return obj.tolist()
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return _to_json_serializable(dataclasses.asdict(obj))
-    return obj
-
-
 def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
     """Convert :class:`~solvers.base.SolverResult` to a JSON-friendly dict."""
     return {
@@ -139,7 +125,7 @@ def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
         "objective_value": result.objective_value,
         "feasible": result.feasible,
         "runtime_seconds": result.runtime_seconds,
-        "metadata": _to_json_serializable(result.metadata),
+        "metadata": to_json_friendly(result.metadata),
     }
 
 
@@ -154,7 +140,7 @@ def _solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str,
         "lambda_1": restriction.lambda_1,
         "lambda_2": restriction.lambda_2,
     }
-    return _to_json_serializable(serializable)
+    return to_json_friendly(serializable)
 
 
 def _apply_noise_kill_switch(
@@ -395,10 +381,12 @@ def run_experiment_from_yaml(
                 formulation = validated["formulation"]
                 if inner_solver == "cudaq":
                     parallel_w = resolve_cudaq_max_parallel_instances(cfg_dict)
-                elif inner_solver == "cirq":
-                    parallel_w = resolve_cirq_max_parallel_instances(cfg_dict)
-                elif inner_solver == "brute_force":
-                    parallel_w = resolve_brute_force_max_parallel_instances(cfg_dict)
+                elif inner_solver in (
+                    "cirq",
+                    "brute_force",
+                    "simulated_annealing",
+                ):
+                    parallel_w = resolve_cpu_max_parallel_instances(cfg_dict)
                 else:
                     parallel_w = 1
                 solver_config_serializable = _solver_config_payload_dict(validated)

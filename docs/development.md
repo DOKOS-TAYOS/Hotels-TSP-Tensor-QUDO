@@ -97,7 +97,7 @@ Experiment modes read instances from `raw/instances/...` and write to `raw/solut
 
 #### CUDA-Q: parallel instances (experiment on-disk mode only)
 
-When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one CUDA-Q context per process. QAOA inside each instance stays sequential; only **different instances** overlap. Other solvers (except Cirq; see below) and `cudaq` with this key unset or set to `1` keep the previous sequential behaviour (with the usual single-line progress).
+When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one CUDA-Q context per process. QAOA inside each instance stays sequential; only **different instances** overlap. CPU backends (`cirq`, `brute_force`, `simulated_annealing`) use a separate setting (`cpu_max_parallel_instances`; see below). With parallel counts unset or set to `1`, solves stay sequential (with the usual single-line progress).
 
 - **YAML**: optional `cudaq_max_parallel_instances` (default `1`), merged like other top-level solver keys.
 - **Environment**: `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
@@ -106,15 +106,15 @@ When `solver: cudaq` and the merged experiment YAML sets `cudaq_max_parallel_ins
 - **Interrupt**: Ctrl+C cancels work not yet started; workers already running may continue until they finish.
 - **Reproducibility**: solution JSON includes `cudaq_max_parallel_instances_effective` under `solver_config` for CUDA-Q runs.
 
-#### Cirq: parallel instances (experiment on-disk mode only)
+#### CPU solvers: parallel instances (experiment on-disk mode only)
 
-When `solver: cirq` and the merged experiment YAML sets `cirq_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one Cirq solve per process. QAOA inside each instance stays sequential; only **different instances** overlap.
+When `solver` is `cirq`, `brute_force`, or `simulated_annealing` and the merged experiment YAML sets `cpu_max_parallel_instances` to an integer **greater than 1**, each batch of on-disk instances for a fixed `(n_cities, qaoa_depth)` is solved with multiple **processes** (`multiprocessing` **spawn**), one solve per process. QAOA inside each Cirq instance stays sequential; only **different instances** overlap. The same YAML key and environment variable apply to all three CPU backends.
 
-- **YAML**: optional `cirq_max_parallel_instances` (default `1`), merged like other top-level solver keys.
-- **Environment**: `HTSP_CIRQ_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
-- **UI**: same as CUDA-Q: child processes do not print QAOA step bars; the parent shows only the compact line with prefix `[parallel cirq]`.
-- **CPU / RAM**: each worker runs a full Cirq stack; scale workers to available cores and memory. With `cirq_max_parallel_instances > 1`, set **`OMP_NUM_THREADS=1`** (and similarly limit MKL/OpenBLAS thread pools if applicable) so each process does not spawn many BLAS threads and oversubscribe the CPU.
-- **Reproducibility**: solution JSON includes `cirq_max_parallel_instances_effective` under `solver_config` for Cirq runs.
+- **YAML**: optional `cpu_max_parallel_instances` (default `1`), merged like other top-level solver keys.
+- **Environment**: `HTSP_CPU_MAX_PARALLEL_INSTANCES` overrides the YAML value when set (non-empty string).
+- **UI**: same as CUDA-Q: child processes stay quiet for heavy progress bars; the parent shows a compact line with prefix `[parallel <solver>]`.
+- **CPU / RAM**: scale workers to available cores and memory. With `cpu_max_parallel_instances > 1`, set **`OMP_NUM_THREADS=1`** (and similarly limit MKL/OpenBLAS thread pools if applicable) so each process does not oversubscribe the CPU (especially important for Cirq/QAOA).
+- **Reproducibility**: solution JSON includes `cpu_max_parallel_instances_effective` under `solver_config` for these runs.
 
 ```bash
 .venv/bin/python -m experiments.main_experiment_workflow

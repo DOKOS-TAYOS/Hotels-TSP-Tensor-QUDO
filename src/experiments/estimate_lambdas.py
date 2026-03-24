@@ -43,6 +43,8 @@ from instance_gen_process.models import InstanceConfig, ProblemInstance, Restric
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverProtocol, SolverRunConfig
 
+from experiments.json_serialize import to_json_friendly
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,23 +69,6 @@ def _serialize_restriction(restriction: RestrictionConfig) -> dict[str, float]:
         "lambda_1": restriction.lambda_1,
         "lambda_2": restriction.lambda_2,
     }
-
-
-def _to_json_serializable(obj: Any) -> Any:
-    """Recursively normalise *obj* for JSON encoding."""
-    if isinstance(obj, float) and (obj != obj or obj == float("inf") or obj == float("-inf")):
-        return None
-    if isinstance(obj, (int, float, str, bool, type(None))):
-        return obj
-    if isinstance(obj, list):
-        return [_to_json_serializable(x) for x in obj]
-    if isinstance(obj, dict):
-        return {str(k): _to_json_serializable(v) for k, v in obj.items()}
-    if hasattr(obj, "tolist"):
-        return obj.tolist()
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return _to_json_serializable(dataclasses.asdict(obj))
-    return obj
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +130,7 @@ def _evaluate_lambda_combo(
                 "feasible": result.feasible,
                 "objective_value": result.objective_value,
                 "runtime_seconds": result.runtime_seconds,
-                "best_sequence": _to_json_serializable(
+                "best_sequence": to_json_friendly(
                     result.metadata.get("best_sequence")
                 ),
                 "real_cost": result.metadata.get("real_cost"),
@@ -335,7 +320,7 @@ def run_lambda_sampling(
             "restriction_from_config": _serialize_restriction(original_restriction),
         },
         "instance_config": _serialize_instance_config(instance_config),
-        "ranked_results": _to_json_serializable(ranked),
+        "ranked_results": to_json_friendly(ranked),
     }
 
     with open(out_path, "w", encoding="utf-8") as f:
