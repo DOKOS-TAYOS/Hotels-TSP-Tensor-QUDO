@@ -45,7 +45,7 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
-from utils.costs import calculate_tqudo_cost
+from utils.costs_batch import batch_tqudo_costs
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -457,7 +457,7 @@ def evaluate_cost(
     Args:
         params: Flat QAOA parameters ``[gamma…, beta…]``.
         circuit_with_measure: Parametrised circuit including measurements.
-        problem: TQUDO problem for :func:`~utils.costs.calculate_tqudo_cost`.
+        problem: TQUDO problem tensors for :func:`~utils.costs_batch.batch_tqudo_costs`.
         symbols: Symbol map from :func:`create_qaoa_circuit`.
         depth: QAOA depth p.
         n_qudits: Number of route qudits.
@@ -470,11 +470,8 @@ def evaluate_cost(
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    total = 0.0
-    for row in result.measurements["m"]:
-        seq = measurement_to_qudit_sequence(row, n_qudits)
-        total += calculate_tqudo_cost(problem, seq)
-    return total / n_shots
+    seqs = np.asarray(result.measurements["m"], dtype=np.int64)[:, :n_qudits]
+    return float(np.mean(batch_tqudo_costs(problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale)))
 
 
 # ---------------------------------------------------------------------------

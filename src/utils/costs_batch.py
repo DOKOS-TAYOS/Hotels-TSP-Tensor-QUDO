@@ -18,6 +18,20 @@ def batch_qubo_costs(qubo_matrix: np.ndarray, energy_scale: float, x_bits: np.nd
     return np.sum((x_bits @ q) * x_bits, axis=1) * energy_scale
 
 
+def bitstrings_to_binary_matrix(bitstrings: list[str]) -> np.ndarray:
+    """Decode ``'0'``/``'1'`` strings to rows of floats; shape ``(len(bitstrings), n_bits)``.
+
+    All strings must have equal length (CUDA-Q / emulation histogram keys).
+    """
+    if not bitstrings:
+        return np.zeros((0, 0), dtype=np.float64)
+    n_bits = len(bitstrings[0])
+    out = np.empty((len(bitstrings), n_bits), dtype=np.float64)
+    for i, s in enumerate(bitstrings):
+        out[i] = np.frombuffer(s.encode("ascii"), dtype=np.uint8).astype(np.float64) - 48.0
+    return out
+
+
 def unpack_tqudo_sequences(i_vals: np.ndarray, n_available: int) -> np.ndarray:
     """Mixed-radix digits; shape ``(len(i_vals), n_available)`` int64."""
     rem = np.asarray(i_vals, dtype=np.int64).copy()
@@ -41,8 +55,27 @@ def batch_tqudo_costs(
     for t in range(n - 1):
         costs += etab[t, sequences[:, t], sequences[:, t + 1]]
     t_left, t_right = np.triu_indices(n, k=1)
-    for k in range(t_left.size):
-        tl = int(t_left[k])
-        tr = int(t_right[k])
-        costs += ettprimeab[tl, tr, sequences[:, tl], sequences[:, tr]]
+    costs += np.sum(
+        ettprimeab[t_left, t_right, sequences[:, t_left], sequences[:, t_right]],
+        axis=1,
+    )
     return costs * energy_scale
+
+
+def bit_rows_to_qudit_sequences(
+    bits: np.ndarray,
+    n_qudits: int,
+    qubits_per_qudit: int,
+) -> np.ndarray:
+    """Decode measured bit rows (``0``/``1``) to qudit city indices; shape ``(B, n_qudits)``."""
+    bits = np.asarray(bits, dtype=np.float64)
+    b, n_bits = bits.shape
+    expected = n_qudits * qubits_per_qudit
+    if n_bits != expected:
+        raise ValueError(
+            f"bit row length {n_bits} != n_qudits * qubits_per_qudit = {expected}"
+        )
+    flat = bits.reshape(b, n_qudits, qubits_per_qudit)
+    weights = (1 << np.arange(qubits_per_qudit, dtype=np.int64)).astype(np.float64)
+    weights = weights[None, None, :]
+    return np.sum(flat * weights, axis=2).astype(np.int64)

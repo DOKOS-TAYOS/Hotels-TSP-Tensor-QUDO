@@ -14,7 +14,7 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
-from utils.costs import calculate_tqudo_cost
+from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences, bitstrings_to_binary_matrix
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -249,13 +249,15 @@ def evaluate_cost(
     samples = cudaq.sample(kernel, gamma, beta, **sample_kwargs)
     n_qudits = problem.Etab.shape[0]
     qubits_per_qudit = max(1, int(math.ceil(math.log2(problem.Etab.shape[1]))))
-    total = 0.0
-    count = 0
-    for bitstring, cnt in samples.items():
-        seq = bitstring_to_qudit_sequence(bitstring, n_qudits, qubits_per_qudit)
-        total += calculate_tqudo_cost(problem, seq) * cnt
-        count += cnt
-    return total / count if count > 0 else 0.0
+    pairs = list(samples.items())
+    if not pairs:
+        return 0.0
+    keys = [p[0] for p in pairs]
+    weights = np.array([p[1] for p in pairs], dtype=np.float64)
+    bits = bitstrings_to_binary_matrix(keys)
+    seqs = bit_rows_to_qudit_sequences(bits, n_qudits, qubits_per_qudit)
+    costs = batch_tqudo_costs(problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale)
+    return float(np.dot(costs, weights) / weights.sum())
 
 
 def sample_solution(

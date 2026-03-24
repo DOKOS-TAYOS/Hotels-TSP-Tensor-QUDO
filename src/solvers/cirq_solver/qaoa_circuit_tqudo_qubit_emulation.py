@@ -19,7 +19,7 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
-from utils.costs import calculate_tqudo_cost
+from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -240,7 +240,7 @@ def evaluate_cost(
     Args:
         params: Flat QAOA parameters.
         circuit_with_measure: Parametrised circuit with measurements.
-        problem: TQUDO tensors for :func:`~utils.costs.calculate_tqudo_cost`.
+        problem: TQUDO tensors for :func:`~utils.costs_batch.batch_tqudo_costs`.
         symbols: Symbol map from :func:`create_qaoa_circuit`.
         depth: QAOA depth p.
         n_qudits: Logical qudit count.
@@ -254,12 +254,9 @@ def evaluate_cost(
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
 
-    total = 0.0
-    for row in result.measurements["m"]:
-        bitstring = "".join(str(int(b)) for b in row)
-        seq = bitstring_to_qudit_sequence(bitstring, n_qudits, qubits_per_qudit)
-        total += calculate_tqudo_cost(problem, seq)
-    return total / n_shots
+    rows = np.asarray(result.measurements["m"], dtype=np.float64)
+    seqs = bit_rows_to_qudit_sequences(rows, n_qudits, qubits_per_qudit)
+    return float(np.mean(batch_tqudo_costs(problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale)))
 
 
 def sample_solution(
