@@ -159,6 +159,89 @@ def test_run_parallel_batch_rejects_mixed_solvers(tmp_path: Path) -> None:
         )
 
 
+class _ExecutorFutureRaises:
+    """Submit returns a Future that raises on ``result()`` (simulated worker crash)."""
+
+    def __init__(self, max_workers: int = 1, mp_context: Any = None) -> None:
+        pass
+
+    def submit(self, fn: Callable[..., Any], *args: Any) -> Future[Any]:
+        fut: Future[Any] = Future()
+        fut.set_exception(RuntimeError("simulated worker crash"))
+        return fut
+
+    def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+        pass
+
+
+def test_run_cudaq_parallel_batch_future_failure_writes_error_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When ``fut.result()`` raises, still write a JSON error record (regression)."""
+    import experiments.cudaq_parallel as cqp
+
+    monkeypatch.setattr(cqp, "ProcessPoolExecutor", _ExecutorFutureRaises)
+
+    inst = make_problem_instance(n_cities=5)
+    inst_path = tmp_path / "raw" / "instances" / "n_5" / "instance_1.json"
+    inst_path.parent.mkdir(parents=True)
+    inst_path.write_text(json.dumps(serialize_problem_instance(inst)), encoding="utf-8")
+
+    base_cfg = {
+        "n_instances": 1,
+        "solver": "cirq",
+        "formulation": "qubo",
+        "optimizer": "COBYLA",
+        "restriction": {"lambda_0": 100.0, "lambda_1": 100.0, "lambda_2": 100.0},
+        "qaoa_depth": 1,
+        "qaoa_max_iter": 8,
+        "qaoa_delta_t": 0.55,
+        "qaoa_optimizer_tol": 1.0e-6,
+        "qaoa_shots": 32,
+        "qaoa_sample_shots": 32,
+        "seed": 0,
+        "max_iterations": 100,
+        "timeout_seconds": None,
+        "sa_t_initial": 1000.0,
+        "sa_t_final": 1.0e-6,
+        "sa_alpha": 0.995,
+        "noise": {"enabled": False},
+    }
+    validated = parse_solver_config_dict(base_cfg)
+    run_config = solver_config_to_run_config(validated)
+    serializable = {"solver": "cirq", "formulation": "qubo"}
+    spec = CudaqParallelJobSpec(
+        k=1,
+        instance_json_path=str(inst_path),
+        status_label="n_cities=5 inst=1",
+        run_config=run_config,
+        instance_config_dict={"n_cities": 5},
+        solver_config_serializable=serializable,
+        solver_name="cirq",
+        formulation="qubo",
+        n_cities=5,
+        path_depth=1,
+        output_root=str(tmp_path.resolve()),
+    )
+    written: list[dict[str, Any]] = []
+
+    def _write(_job: object, payload: dict[str, Any]) -> Path:
+        written.append(payload)
+        return tmp_path / "out.json"
+
+    batch = run_cudaq_parallel_batch(
+        [spec],
+        max_workers=1,
+        solutions_write_fn=_write,
+        is_interrupted=lambda: False,
+    )
+    assert batch.n_completed == 1
+    assert batch.n_failed == 1
+    assert len(written) == 1
+    assert "error" in written[0]["solver_output"]
+    assert "RuntimeError" in written[0]["solver_output"]["error"]
+
+
 class _InlineProcessPoolExecutor:
     """Runs submitted callables in-process (for testing without subprocess spawn)."""
 

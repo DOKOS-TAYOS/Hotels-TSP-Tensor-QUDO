@@ -22,16 +22,21 @@ from instance_gen_process import (
     validate_solver_instance_compatibility,
 )
 from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
-from instance_gen_process.models import InstanceConfig, ProblemInstance
+from instance_gen_process.models import ProblemInstance
 from instance_gen_process.solver_config_loader import (
     DEFAULT_SOLVER_CONFIG_PATH,
     parse_solver_config_dict,
 )
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
 from solvers.brute_force import BruteForceSolver
-from solvers.base import SolverProtocol, SolverResult
+from solvers.base import SolverProtocol
 from config.settings import Settings, load_settings
 from utils.constraints import validate_instance_constraints
+from utils.experiment_serialize import (
+    serialize_instance_config,
+    serialize_solver_result,
+    solver_config_payload_dict,
+)
 from utils.cooperative_stop import (
     SolverStopRequested,
     clear_solver_stop_request,
@@ -47,7 +52,6 @@ from experiments.cudaq_parallel import (
     resolve_cudaq_max_parallel_instances,
     run_cudaq_parallel_batch,
 )
-from experiments.json_serialize import to_json_friendly
 from experiments.workflow_io import (
     DEFAULT_INSTANCE_GENERATION_CONFIG_PATH,
     experiment_depth_iterations,
@@ -105,42 +109,6 @@ PRESET_EXPERIMENT_YAMLS: dict[str, list[str]] = {
 def _serialize_instance(instance: ProblemInstance) -> dict[str, Any]:
     """Convert a :class:`~instance_gen_process.models.ProblemInstance` to plain dicts/lists."""
     return serialize_problem_instance(instance)
-
-
-def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
-    """Convert :class:`~instance_gen_process.models.InstanceConfig` to JSON-friendly dict."""
-    return {
-        "n_cities": config.n_cities,
-        "n_precedences_range": list(config.n_precedences_range),
-        "prices_range_hotels": list(config.prices_range_hotels),
-        "prices_range_travels": list(config.prices_range_travels),
-        "seed": config.seed,
-    }
-
-
-def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
-    """Convert :class:`~solvers.base.SolverResult` to a JSON-friendly dict."""
-    return {
-        "solver_name": result.solver_name,
-        "objective_value": result.objective_value,
-        "feasible": result.feasible,
-        "runtime_seconds": result.runtime_seconds,
-        "metadata": to_json_friendly(result.metadata),
-    }
-
-
-def _solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str, Any]:
-    """Build JSON-safe solver config snapshot (expand restriction dataclass)."""
-    restriction = solver_config_dict["restriction"]
-    serializable: dict[str, Any] = {
-        k: v for k, v in solver_config_dict.items() if k != "restriction"
-    }
-    serializable["restriction"] = {
-        "lambda_0": restriction.lambda_0,
-        "lambda_1": restriction.lambda_1,
-        "lambda_2": restriction.lambda_2,
-    }
-    return to_json_friendly(serializable)
 
 
 def _apply_noise_kill_switch(
@@ -243,16 +211,16 @@ def run_workflow(
                 n_failed += 1
                 continue
 
-            solver_config_serializable = _solver_config_payload_dict(solver_config_dict)
+            solver_config_serializable = solver_config_payload_dict(solver_config_dict)
 
             try:
                 result = solver.solve(instance, run_config)
                 payload: dict[str, Any] = {
                     "instance": _serialize_instance(instance),
-                    "instance_config": _serialize_instance_config(instance_config),
+                    "instance_config": serialize_instance_config(instance_config),
                     "instance_index": i,
                     "solver_config": solver_config_serializable,
-                    "solver_output": _serialize_solver_result(result),
+                    "solver_output": serialize_solver_result(result),
                 }
             except SolverStopRequested:
                 break
@@ -261,7 +229,7 @@ def run_workflow(
                 n_failed += 1
                 payload = {
                     "instance": _serialize_instance(instance),
-                    "instance_config": _serialize_instance_config(instance_config),
+                    "instance_config": serialize_instance_config(instance_config),
                     "instance_index": i,
                     "solver_config": solver_config_serializable,
                     "solver_output": {
@@ -389,7 +357,7 @@ def run_experiment_from_yaml(
                     parallel_w = resolve_cpu_max_parallel_instances(cfg_dict)
                 else:
                     parallel_w = 1
-                solver_config_serializable = _solver_config_payload_dict(validated)
+                solver_config_serializable = solver_config_payload_dict(validated)
                 if inner_solver in _PARALLEL_INSTANCES_EFF_KEY:
                     solver_config_serializable[_PARALLEL_INSTANCES_EFF_KEY[inner_solver]] = (
                         parallel_w
@@ -430,7 +398,7 @@ def run_experiment_from_yaml(
                                 f"n_cities={n_cities} depth={path_depth} inst={k}"
                             ),
                             run_config=run_config,
-                            instance_config_dict=_serialize_instance_config(icfg),
+                            instance_config_dict=serialize_instance_config(icfg),
                             solver_config_serializable=solver_config_serializable,
                             solver_name=inner_solver,
                             formulation=formulation,
@@ -506,11 +474,11 @@ def run_experiment_from_yaml(
                             result = solver.solve(instance, run_config)
                             payload = {
                                 "instance": _serialize_instance(instance),
-                                "instance_config": _serialize_instance_config(icfg),
+                                "instance_config": serialize_instance_config(icfg),
                                 "instance_index": k - 1,
                                 "instance_source": str(src),
                                 "solver_config": solver_config_serializable,
-                                "solver_output": _serialize_solver_result(result),
+                                "solver_output": serialize_solver_result(result),
                             }
                         except SolverStopRequested:
                             stop_solve = True
@@ -520,7 +488,7 @@ def run_experiment_from_yaml(
                             n_failed += 1
                             payload = {
                                 "instance": _serialize_instance(instance),
-                                "instance_config": _serialize_instance_config(icfg),
+                                "instance_config": serialize_instance_config(icfg),
                                 "instance_index": k - 1,
                                 "instance_source": str(src),
                                 "solver_config": solver_config_serializable,

@@ -3,51 +3,22 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import yaml
 
 from instance_gen_process.models import InstanceConfig, ProblemInstance
 
+from utils.experiment_paths import (
+    instance_json_path,
+    instances_raw_dir,
+    solutions_raw_dir,
+    solutions_solver_root,
+)
+from utils.yaml_tools import load_yaml_mapping, merge_solver_yaml_dicts
+
 DEFAULT_INSTANCE_GENERATION_CONFIG_PATH = Path(__file__).with_name("instance_generation_config.yaml")
-
-
-def load_yaml_mapping(path: Path | str) -> dict[str, Any]:
-    """Load a YAML file and return a mapping (empty dict if file is empty)."""
-    p = Path(path)
-    with open(p, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected YAML mapping at {p}, got {type(data).__name__}")
-    return data
-
-
-def merge_solver_yaml_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Deep-merge solver-related YAML dicts; *override* wins.
-
-    Merges nested ``restriction`` and ``noise`` mappings; other keys are
-    replaced by *override* when present.
-    """
-    result: dict[str, Any] = deepcopy(base)
-    for key, value in override.items():
-        if key == "restriction" and isinstance(value, dict):
-            base_r = result.get("restriction") or {}
-            if not isinstance(base_r, dict):
-                base_r = {}
-            result["restriction"] = {**base_r, **value}
-        elif key == "noise" and isinstance(value, dict):
-            base_n = result.get("noise") or {}
-            if not isinstance(base_n, dict):
-                base_n = {}
-            result["noise"] = {**base_n, **value}
-        else:
-            result[key] = deepcopy(value)
-    return result
 
 
 def load_instance_generation_entries(path: Path | str | None = None) -> list[tuple[int, int]]:
@@ -72,38 +43,6 @@ def load_instance_generation_entries(path: Path | str | None = None) -> list[tup
         pairs.append((n_c, n_i))
     pairs.sort(key=lambda t: t[0])
     return pairs
-
-
-def instances_raw_dir(output_root: Path, n_cities: int) -> Path:
-    """Directory for JSON instances: ``{output}/raw/instances/n_{n_cities}``."""
-    return output_root / "raw" / "instances" / f"n_{n_cities}"
-
-
-def solutions_solver_root(output_root: Path, solver: str) -> Path:
-    """Root for all solution trees of one backend: ``{output}/raw/solutions/{solver}``."""
-    return output_root / "raw" / "solutions" / solver
-
-
-def solutions_raw_dir(
-    output_root: Path,
-    solver: str,
-    formulation: str,
-    n_cities: int,
-    qaoa_depth: int | None,
-) -> Path:
-    """Directory for solution JSON under ``raw/solutions/``.
-
-    If *qaoa_depth* is not None (Cirq/CUDA-Q), append ``/<depth>``.
-    """
-    base = solutions_solver_root(output_root, solver) / formulation / f"n_{n_cities}"
-    if qaoa_depth is not None:
-        return base / str(qaoa_depth)
-    return base
-
-
-def instance_json_path(output_root: Path, n_cities: int, index_one_based: int) -> Path:
-    """Path ``.../raw/instances/n_{n}/instance_{k}.json`` for 1-based *index_one_based*."""
-    return instances_raw_dir(output_root, n_cities) / f"instance_{index_one_based}.json"
 
 
 def serialize_problem_instance(instance: ProblemInstance) -> dict[str, Any]:
@@ -199,3 +138,21 @@ def experiment_depth_iterations(solver: str, raw: Any) -> list[tuple[int | None,
     if d < 1:
         raise ValueError(f"qaoa_depth must be >= 1, got {d}")
     return [(d, d)]
+
+
+__all__ = [
+    "DEFAULT_INSTANCE_GENERATION_CONFIG_PATH",
+    "deserialize_problem_instance",
+    "experiment_depth_iterations",
+    "instance_config_for_n_cities",
+    "instance_json_path",
+    "instances_raw_dir",
+    "load_instance_generation_entries",
+    "load_problem_instance_json",
+    "load_yaml_mapping",
+    "merge_solver_yaml_dicts",
+    "normalise_n_cities",
+    "serialize_problem_instance",
+    "solutions_raw_dir",
+    "solutions_solver_root",
+]

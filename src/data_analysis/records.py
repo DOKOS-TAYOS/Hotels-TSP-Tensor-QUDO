@@ -13,6 +13,7 @@ def manifest_empty_schema_row() -> dict[str, Any]:
         "path": "",
         "layout": "empty",
         "parse_ok": False,
+        "solve_ok": False,
         "solver": None,
         "formulation": None,
         "n_cities": None,
@@ -118,12 +119,19 @@ def _safe_len_history(meta: dict[str, Any]) -> int:
 
 
 def json_row(path: Path, output_root: Path) -> dict[str, Any]:
-    """Load JSON at *path* and return one manifest row (always includes ``parse_ok``)."""
+    """Load JSON at *path* and return one manifest row.
+
+    ``parse_ok`` is True when the file is valid JSON with a top-level object.
+    ``solve_ok`` is True when ``solver_output`` is present and has no ``error``
+    key (a normal solver result). Failed solves stored by the workflow still
+    have ``parse_ok`` True but ``solve_ok`` False.
+    """
     ctx = path_context(path, output_root)
     row: dict[str, Any] = {
         "path": ctx.get("path", str(path)),
         "layout": ctx.get("layout", "unknown"),
         "parse_ok": False,
+        "solve_ok": False,
     }
     for k in (
         "solver",
@@ -141,10 +149,12 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
             data: Any = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         row["error_message"] = str(exc)
+        row["solve_ok"] = False
         return row
 
     if not isinstance(data, dict):
         row["error_message"] = "top-level JSON is not an object"
+        row["solve_ok"] = False
         return row
 
     row["parse_ok"] = True
@@ -203,4 +213,5 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
     if row.get("instance_key") is None and row.get("instance_index") is not None:
         row["instance_key"] = int(row["instance_index"]) + 1
 
+    row["solve_ok"] = True
     return row

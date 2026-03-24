@@ -39,36 +39,17 @@ from instance_gen_process import (
     solver_config_to_run_config,
     validate_solver_instance_compatibility,
 )
-from instance_gen_process.models import InstanceConfig, ProblemInstance, RestrictionConfig
+from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverProtocol, SolverRunConfig
 
-from experiments.json_serialize import to_json_friendly
+from utils.experiment_serialize import (
+    serialize_instance_config,
+    serialize_restriction_config,
+)
+from utils.json_serialize import to_json_friendly
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Serialization helpers
-# ---------------------------------------------------------------------------
-
-
-def _serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
-    return {
-        "n_cities": config.n_cities,
-        "n_precedences_range": list(config.n_precedences_range),
-        "prices_range_hotels": list(config.prices_range_hotels),
-        "prices_range_travels": list(config.prices_range_travels),
-        "seed": config.seed,
-    }
-
-
-def _serialize_restriction(restriction: RestrictionConfig) -> dict[str, float]:
-    return {
-        "lambda_0": restriction.lambda_0,
-        "lambda_1": restriction.lambda_1,
-        "lambda_2": restriction.lambda_2,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +120,7 @@ def _evaluate_lambda_combo(
             logger.warning(
                 "Solver failed for instance %d with restriction %s",
                 idx,
-                _serialize_restriction(restriction),
+                serialize_restriction_config(restriction),
                 exc_info=True,
             )
             entry = {
@@ -317,9 +298,9 @@ def run_lambda_sampling(
             "lambda_values": lambda_values,
             "n_instances": n_instances,
             "seed": seed,
-            "restriction_from_config": _serialize_restriction(original_restriction),
+            "restriction_from_config": serialize_restriction_config(original_restriction),
         },
-        "instance_config": _serialize_instance_config(instance_config),
+        "instance_config": serialize_instance_config(instance_config),
         "ranked_results": to_json_friendly(ranked),
     }
 

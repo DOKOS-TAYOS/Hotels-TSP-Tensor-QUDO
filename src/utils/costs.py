@@ -7,6 +7,35 @@ import numpy as np
 from instance_gen_process.models import ProblemInstance, ProblemQUBO, ProblemTQUDO
 
 
+def calculate_qubo_cost_from_sequence(
+    problem: ProblemQUBO,
+    sequence: np.ndarray,
+    n_available: int,
+) -> float:
+    """QUBO cost (x^T Q x) for a route in one-hot encoding without building *x*.
+
+    For each timestep *t* exactly one variable is 1 at index ``t * n_available +
+    sequence[t]``. So ``x^T Q x = sum_{t,t'} Q[idx[t], idx[t']]`` with
+    ``idx[t] = t * n_available + sequence[t]``, which is O(n_available^2) in
+    the matrix size (``n_available``) rather than O(n_available^4) in the vector
+    dimension (``n_available``^2).
+
+    Args:
+        problem: QUBO problem with ``qubo_matrix`` and ``energy_scale``.
+        sequence: Route ``sequence[t]`` = city index at timestep ``t``.
+        n_available: Number of non-depot cities (``n_cities - 1``).
+
+    Returns:
+        The QUBO objective in original problem units (same as
+        :func:`calculate_qubo_cost` for the equivalent binary vector).
+    """
+    seq = np.asarray(sequence, dtype=np.int64).reshape(-1)
+    t = np.arange(n_available, dtype=np.int64)
+    idx = t * n_available + seq
+    q = np.asarray(problem.qubo_matrix, dtype=np.float64)
+    return float(np.sum(q[np.ix_(idx, idx)])) * problem.energy_scale
+
+
 def calculate_qubo_cost(problem: ProblemQUBO, solution: np.ndarray) -> float:
     """Calculate the QUBO cost of a solution (x^T Q x) in original problem units.
 

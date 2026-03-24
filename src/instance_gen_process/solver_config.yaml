@@ -2,7 +2,7 @@
 n_instances: 1
 # Optional (CUDA-Q, on-disk experiment mode only): run N instances in parallel processes (default 1).
 # Override with env HTSP_CUDAQ_MAX_PARALLEL_INSTANCES.
-cudaq_max_parallel_instances: 15
+cudaq_max_parallel_instances: 10
 # Optional (Cirq, brute_force, simulated_annealing — on-disk experiment mode only): run N instances
 # in parallel CPU processes (default 1). Override with env HTSP_CPU_MAX_PARALLEL_INSTANCES.
 cpu_max_parallel_instances: 15

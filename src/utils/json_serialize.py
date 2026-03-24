@@ -1,4 +1,4 @@
-"""Shared JSON-friendly normalization for experiment outputs and metadata."""
+"""Recursive JSON-friendly normalization (NaN/inf, numpy, dataclasses)."""
 
 from __future__ import annotations
 

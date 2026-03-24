@@ -84,7 +84,7 @@ def _collect_uphill_transitions(
     attempts = 0
 
     while len(e_min_list) < n_samples and attempts < max_attempts:
-        neighbor = random_neighbor(current, rng)
+        neighbor, _ = random_neighbor(current, rng)
         neighbor_cost = evaluate_cost(formulation, problem, neighbor, n_available)
         delta = neighbor_cost - current_cost
 

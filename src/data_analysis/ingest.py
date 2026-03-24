@@ -8,7 +8,7 @@ from pathlib import Path
 
 from data_analysis.records import json_row, manifest_empty_schema_row
 from data_analysis.scan import iter_raw_json_files
-from data_analysis.output_paths import build_output_layout
+from utils.output_paths import build_output_layout
 
 
 def _require_pandas() -> None:

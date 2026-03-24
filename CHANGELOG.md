@@ -10,6 +10,16 @@ Initial research scaffold for Hotel TSP optimization with Tensor-QUDO and QUBO
 formulations. Development period: March 7 -- March 21, 2026. 65 commits across
 6 merged pull requests.
 
+### Utilities layout
+
+Shared helpers consolidated under `utils/`: JSON normalisation and experiment
+snapshots (`json_serialize`, `experiment_serialize`), YAML merge and disk path
+conventions (`yaml_tools`, `experiment_paths`), batched cost evaluation
+(`costs_batch`), QAOA measurement histograms (`measurement_histogram_for_json`
+in `qaoa_helpers`). The `utils` package uses lazy exports in `__init__.py` to
+avoid import cycles with `instance_gen_process` / `data_analysis`.
+`data_analysis` imports layout from `utils.output_paths` (no duplicate module).
+
 ### Core formulations
 
 - Tensor-QUDO formulation (`ProblemTQUDO`) with 3D `Etab` and 4D `Ettprimeab`

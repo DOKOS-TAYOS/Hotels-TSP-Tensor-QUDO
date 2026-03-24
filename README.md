@@ -79,7 +79,8 @@ src/
   math_utils/       QUBO-to-Ising conversion
   solvers/          Solver protocol + Cirq, CUDA-Q, SA, and brute_force
   streamlit_app/    Streamlit UI shell
-  utils/            Costs, constraints, QAOA helpers, progress, output paths, logging
+  utils/            Costs (incl. batch), constraints, JSON/experiment serialisation,
+                    YAML + disk path helpers, QAOA helpers, progress, output paths, logging
 tests/              Pytest suite: smoke, contracts, unit tests, brute_force, data_analysis
 ```
 

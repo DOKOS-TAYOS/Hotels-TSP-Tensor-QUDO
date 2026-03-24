@@ -5,7 +5,14 @@ import pytest
 
 from conftest import make_problem_instance as _minimal_instance
 from instance_gen_process.models import ProblemInstance, ProblemQUBO, ProblemTQUDO
-from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
+from utils.constraints import sequence_to_qubo_binary
+from solvers.simulated_annealing.solver import _tqudo_swap_delta
+from utils.costs import (
+    calculate_qubo_cost,
+    calculate_qubo_cost_from_sequence,
+    calculate_real_cost,
+    calculate_tqudo_cost,
+)
 
 
 class TestCalculateQuboCost:
@@ -35,6 +42,21 @@ class TestCalculateQuboCost:
         cost = calculate_qubo_cost(problem, x)
         assert cost == 1.0
 
+    def test_from_sequence_matches_binary_vector(self) -> None:
+        """Route-based QUBO cost matches full binary x^T Q x."""
+        rng = np.random.default_rng(0)
+        n_available = 8
+        n_vars = n_available * n_available
+        q = rng.standard_normal((n_vars, n_vars))
+        q = (q + q.T) / 2.0
+        energy_scale = 1.25
+        problem = ProblemQUBO(qubo_matrix=q, energy_scale=energy_scale)
+        seq = rng.permutation(n_available).astype(np.int64)
+        x = sequence_to_qubo_binary(seq, n_available)
+        c1 = calculate_qubo_cost(problem, x)
+        c2 = calculate_qubo_cost_from_sequence(problem, seq, n_available)
+        assert c1 == pytest.approx(c2)
+
 
 class TestCalculateTqudoCost:
     """Tests for calculate_tqudo_cost."""
@@ -56,6 +78,24 @@ class TestCalculateTqudoCost:
         # t=0: origin=0, dest=1 -> Etab[0,0,1]=5
         # t=1: origin=1, dest=2 -> Etab[1,1,2]=0
         assert cost == 5.0
+
+    def test_swap_delta_matches_full_tqudo_cost(self) -> None:
+        """Incremental TQUDO swap delta matches full objective difference."""
+        rng = np.random.default_rng(2)
+        n_available = 7
+        Etab = rng.standard_normal((n_available, n_available, n_available))
+        Ett = rng.standard_normal(
+            (n_available, n_available, n_available, n_available),
+        )
+        problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ett, energy_scale=1.1)
+        x = rng.permutation(n_available).astype(np.int64)
+        i, j = 2, 5
+        x_swapped = x.copy()
+        x_swapped[i], x_swapped[j] = x_swapped[j], x_swapped[i]
+        delta = _tqudo_swap_delta(problem, x, i, j)
+        c0 = calculate_tqudo_cost(problem, x)
+        c1 = calculate_tqudo_cost(problem, x_swapped)
+        assert c0 + delta == pytest.approx(c1)
 
 
 class TestCalculateRealCost:

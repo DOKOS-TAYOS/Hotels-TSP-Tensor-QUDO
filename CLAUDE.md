@@ -79,7 +79,11 @@ Each solver dispatches to formulation-specific QAOA circuit modules (e.g., `qaoa
 - **`solvers/_qaoa_base.py`**: Shared QAOA solver logic (parameter init via TQA, SciPy optimization loop) used by both Cirq and CUDA-Q backends.
 - **`solvers/noise.py`**: `NoiseConfig` — backend-agnostic noise config consumed by both Cirq and CUDA-Q.
 - **`utils/costs.py`**: `calculate_qubo_cost()`, `calculate_tqudo_cost()`, `calculate_real_cost()`.
+- **`utils/costs_batch.py`**: Vectorised QUBO/TQUDO objective for brute-force-scale batches.
+- **`utils/json_serialize.py`** / **`utils/experiment_serialize.py`**: `to_json_friendly`, solver/instance snapshot dicts for experiment JSON.
+- **`utils/yaml_tools.py`** / **`utils/experiment_paths.py`**: YAML merge and on-disk layout under `output/raw/`.
 - **`utils/constraints.py`**: Validation helpers, binary/sequence conversion, cycle detection.
+- **`utils/__init__.py`**: Lazy re-exports so `data_analysis` can import `utils.output_paths` without circular imports.
 - **`config/settings.py`**: `Settings` loaded from `.env` (prefix: `HTSP_*`). Noise kill-switch via `HTSP_ENABLE_NOISE_SIMULATION`.
 - **`experiments/`**: CLI tools — `main_experiment_workflow.py` (full solve pipeline), `estimate_t0.py` (SA initial temperature via Ben-Ameur), `estimate_lambdas.py` (grid search over lambda penalties).
 

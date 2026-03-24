@@ -364,6 +364,11 @@ outside `solvers/brute_force/limits.py` / `run_config` caps.
 
 ## utils
 
+The `utils` package re-exports common helpers from `utils/__init__.py` using
+**lazy** loading (`__getattr__`), so `from utils.output_paths import …` (and
+similar submodule imports) do not eagerly import `utils.constraints` and
+avoid circular-import issues with `instance_gen_process` and `data_analysis`.
+
 ### Costs (`utils/costs.py`)
 
 #### calculate_qubo_cost
@@ -395,6 +400,24 @@ length `n_available`. Travel includes depot-to-first, inter-city segments, and
 last-to-depot legs.
 
 Raises `ValueError` if `len(sequence) != n_available`.
+
+---
+
+### Batch costs (`utils/costs_batch.py`)
+
+Vectorised objective evaluation (same algebra as `calculate_qubo_cost` /
+`calculate_tqudo_cost`). Used by brute-force enumeration and available for
+other batch tooling.
+
+#### unpack_qubo_bitmatrix / batch_qubo_costs
+
+Decode integer indices to bit rows `(B, n_vars)` and compute per-row
+`x @ Q @ x * energy_scale`.
+
+#### unpack_tqudo_sequences / batch_tqudo_costs
+
+Mixed-radix expansion of assignment indices to city sequences `(B, n_available)`
+and batched TQUDO energy from `Etab` and `Ettprimeab`.
 
 ---
 
@@ -476,6 +499,55 @@ Encodes city sequence as one-hot binary vector of shape `(n_available^2,)`.
 
 ---
 
+### JSON (`utils/json_serialize.py`)
+
+#### to_json_friendly
+
+```python
+def to_json_friendly(obj: Any) -> Any
+```
+
+Recursively normalises values for JSON: non-finite floats → `None`, lists,
+dicts, NumPy `.tolist()`, dataclasses via `dataclasses.asdict()`.
+
+---
+
+### Experiment snapshots (`utils/experiment_serialize.py`)
+
+Serialisers for CLI outputs shared by `experiments/main_experiment_workflow.py`,
+`experiments/cudaq_parallel.py`, `estimate_lambdas.py`, and `estimate_t0.py`.
+
+- `serialize_instance_config(config: InstanceConfig) -> dict[str, Any]`
+- `serialize_restriction_config(restriction: RestrictionConfig) -> dict[str, float]`
+- `serialize_solver_result(result: SolverResult) -> dict[str, Any]`
+- `solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str, Any]` —
+  expands the loaded YAML’s `restriction` dataclass and runs `to_json_friendly`.
+
+---
+
+### YAML (`utils/yaml_tools.py`)
+
+- `load_yaml_mapping(path: Path | str) -> dict[str, Any]` — safe load; empty file → `{}`.
+- `merge_solver_yaml_dicts(base, override) -> dict[str, Any]` — deep merge with
+  nested `restriction` and `noise` dict merging.
+
+---
+
+### Experiment disk paths (`utils/experiment_paths.py`)
+
+Path helpers for the on-disk workflow layout:
+
+- `instances_raw_dir(output_root, n_cities)`
+- `solutions_solver_root(output_root, solver)`
+- `solutions_raw_dir(output_root, solver, formulation, n_cities, qaoa_depth)`
+- `instance_json_path(output_root, n_cities, index_one_based)`
+
+`experiments/workflow_io.py` imports these (and YAML helpers) and adds instance
+JSON load/save, `load_instance_generation_entries`, `experiment_depth_iterations`,
+etc.
+
+---
+
 ### QAOA helpers (`utils/qaoa_helpers.py`)
 
 #### tqa_init_params
@@ -504,6 +576,17 @@ def most_probable_key(counts: dict[str, int], fallback: str) -> str
 
 Returns the key with the highest count. Returns `fallback` if `counts` is
 empty.
+
+#### measurement_histogram_for_json
+
+```python
+def measurement_histogram_for_json(
+    samples: Mapping[str, Any] | None,
+) -> dict[str, int] | None
+```
+
+Normalises backend shot histograms (Cirq, CUDA-Q) to string keys, integer
+counts, sorted by descending count. Returns `None` when `samples` is `None`.
 
 #### is_power_of_two
 
@@ -669,6 +752,12 @@ CLI entry point with `--instance-config`, `--solver-config`, `--output`,
 `--mode`, `--experiment-yaml`, `--check-solver`, and related flags. Loads
 `Settings` from `.env` and passes them to `run_workflow()` where applicable.
 
+### Workflow I/O (`experiments/workflow_io.py`)
+
+YAML merge, instance JSON round-trip, and re-exports of
+`utils.yaml_tools` / `utils.experiment_paths` helpers for experiment CLIs and
+tests. See **YAML** and **Experiment disk paths** under `utils` above.
+
 ---
 
 ## data_analysis
@@ -693,6 +782,12 @@ CLI: `python -m data_analysis.pipeline --output-root output [--format parquet|cs
 CLI: `python -m data_analysis.ingest --output-root output` — builds
 `processed/manifest.parquet` or `.csv` from disk workflow and legacy `exp_*.json` paths.
 
+Manifest rows (`data_analysis/records.py`): `parse_ok` means the file is valid JSON
+with a top-level object; `solve_ok` means `solver_output` is a normal result (no
+`error` key). Failed solves stored by the workflow have `parse_ok` True and
+`solve_ok` False. Metrics aggregate successful runs using `parse_ok & solve_ok`;
+older manifests without `solve_ok` infer it from a null `solver_error`.
+
 ### Metrics (`data_analysis/metrics.py`)
 
 CLI: `python -m data_analysis.metrics --output-root output [--sample-quality]` —
@@ -702,4 +797,4 @@ paired metrics, summaries, optional Wilcoxon / energy-curve aggregates.
 
 CLI: `python -m data_analysis.plot --output-root output` — PNGs under `images/`.
 
-Supporting modules: `scan.py`, `records.py`, `output_paths.py` (layout helpers).
+Supporting modules: `scan.py`, `records.py`; layout via `utils.output_paths`.

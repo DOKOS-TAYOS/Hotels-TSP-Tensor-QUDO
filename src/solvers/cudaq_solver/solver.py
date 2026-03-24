@@ -7,21 +7,7 @@ from typing import Any, Callable
 
 from instance_gen_process import ProblemInstance
 from solvers._qaoa_base import BaseQAOASolver
-
-
-def _serialize_samples(samples: Any) -> dict[str, int] | None:
-    """Convert CUDA-Q sample results to a sorted histogram dict.
-
-    Args:
-        samples: CUDA-Q sample object (mapping-like) or None.
-
-    Returns:
-        ``{bitstring: count}`` sorted by descending count, or None.
-    """
-    if samples is None:
-        return None
-    counts: dict[str, int] = {bs: int(cnt) for bs, cnt in samples.items()}
-    return dict(sorted(counts.items(), key=lambda kv: kv[1], reverse=True))
+from utils.qaoa_helpers import measurement_histogram_for_json
 
 
 class CudaqSolver(BaseQAOASolver):
@@ -44,8 +30,8 @@ class CudaqSolver(BaseQAOASolver):
         return run_qaoa
 
     def _serialize_samples(self, samples: Any) -> dict[str, int] | None:
-        """Delegate to module-level :func:`_serialize_samples`."""
-        return _serialize_samples(samples)
+        """Delegate to :func:`~utils.qaoa_helpers.measurement_histogram_for_json`."""
+        return measurement_histogram_for_json(samples)
 
     def _noise_qubit_count(
         self, instance: ProblemInstance, formulation: str,

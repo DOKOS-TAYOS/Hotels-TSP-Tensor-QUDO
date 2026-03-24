@@ -23,9 +23,9 @@ from pathlib import Path
 from queue import Empty
 from typing import Any, Callable
 
-from solvers.base import SolverResult, SolverRunConfig
+from solvers.base import SolverRunConfig
 
-from experiments.json_serialize import to_json_friendly
+from utils.experiment_serialize import serialize_solver_result
 from experiments.workflow_io import load_problem_instance_json, serialize_problem_instance
 
 logger = logging.getLogger(__name__)
@@ -109,17 +109,6 @@ def resolve_cpu_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
     return max(1, w)
 
 
-def _serialize_solver_result(result: SolverResult) -> dict[str, Any]:
-    """Convert :class:`~solvers.base.SolverResult` to a JSON-friendly dict."""
-    return {
-        "solver_name": result.solver_name,
-        "objective_value": result.objective_value,
-        "feasible": result.feasible,
-        "runtime_seconds": result.runtime_seconds,
-        "metadata": to_json_friendly(result.metadata),
-    }
-
-
 @dataclass(frozen=True, slots=True)
 class CudaqParallelJobSpec:
     """Picklable description of one solve; queue is attached in the parent."""
@@ -177,7 +166,7 @@ def _parallel_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, An
             "instance_index": job.k - 1,
             "instance_source": str(src),
             "solver_config": job.solver_config_serializable,
-            "solver_output": _serialize_solver_result(result),
+            "solver_output": serialize_solver_result(result),
         }
         return job.k, payload
     except Exception:
@@ -201,6 +190,27 @@ def _parallel_solve_one_worker(job: CudaqParallelJob) -> tuple[int, dict[str, An
         return job.k, payload
     finally:
         q.put(("done", job.status_label))
+
+
+def _payload_from_future_failure(job: CudaqParallelJob, exc_tb: str) -> dict[str, Any]:
+    """JSON payload when the worker exits before returning (crash, unpickling, etc.)."""
+    inst_dict: dict[str, Any] = {}
+    try:
+        instance = load_problem_instance_json(Path(job.instance_json_path))
+        inst_dict = serialize_problem_instance(instance)
+    except Exception:
+        pass
+    return {
+        "instance": inst_dict,
+        "instance_config": job.instance_config_dict,
+        "instance_index": job.k - 1,
+        "instance_source": str(job.instance_json_path),
+        "solver_config": job.solver_config_serializable,
+        "solver_output": {
+            "solver_name": job.solver_name,
+            "error": exc_tb,
+        },
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,11 +344,7 @@ def run_cudaq_parallel_batch(
                         logger.exception(
                             "Worker future failed for instance %s", job.instance_json_path
                         )
-                        with lock:
-                            n_finished += 1
-                        n_failed += 1
-                        n_completed += 1
-                        continue
+                        payload = _payload_from_future_failure(job, traceback.format_exc())
 
                     if "error" in payload.get("solver_output", {}):
                         n_failed += 1

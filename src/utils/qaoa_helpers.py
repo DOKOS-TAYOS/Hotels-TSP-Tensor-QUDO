@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 import numpy as np
 
 
@@ -35,6 +38,23 @@ def bitstring_to_binary(bitstring: str) -> np.ndarray:
         Integer array with ``x_i = 0`` for ``|0⟩`` and ``x_i = 1`` for ``|1⟩``.
     """
     return np.array([int(b) for b in bitstring], dtype=np.int64)
+
+
+def measurement_histogram_for_json(
+    samples: Mapping[str, Any] | None,
+) -> dict[str, int] | None:
+    """Convert backend shot histogram to JSON-friendly dict sorted by descending count.
+
+    Args:
+        samples: Mapping from measurement key to count, or None.
+
+    Returns:
+        ``{key: int(count)}`` sorted by count descending, or None when *samples* is None.
+    """
+    if samples is None:
+        return None
+    counts: dict[str, int] = {str(k): int(v) for k, v in samples.items()}
+    return dict(sorted(counts.items(), key=lambda kv: kv[1], reverse=True))
 
 
 def most_probable_key(counts: dict[str, int], fallback: str) -> str:

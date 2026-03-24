@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from data_analysis.output_paths import build_output_layout
+from utils.output_paths import build_output_layout
 
 
 def _require_plot_deps() -> None:
@@ -67,8 +67,14 @@ def run_plots(output_root: Path) -> None:
             and "parse_ok" in p.columns
             and "solver" in p.columns
         ):
+            if "solve_ok" in p.columns:
+                ok = p["parse_ok"] & p["solve_ok"]
+            elif "solver_error" in p.columns:
+                ok = p["parse_ok"] & p["solver_error"].isna()
+            else:
+                ok = p["parse_ok"]
             sub = p[
-                p["parse_ok"]
+                ok
                 & (p["solver"] != "brute_force")
                 & p["approx_ratio_real"].notna()
             ]

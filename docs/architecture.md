@@ -43,7 +43,9 @@ src/
 ├── experiments/             Experiment workflow (generate, solve, save)
 ├── data_analysis/           Ingest raw JSON → manifest, paired metrics, plots
 ├── streamlit_app/           Streamlit UI shell
-└── utils/                   Costs, constraints, QAOA helpers, progress, output paths
+└── utils/                   Costs (scalar + batch), constraints, JSON/experiment I/O,
+                             YAML + experiment path helpers, QAOA helpers, progress,
+                             output paths (lazy package exports avoid import cycles)
 ```
 
 ### Module dependency graph
