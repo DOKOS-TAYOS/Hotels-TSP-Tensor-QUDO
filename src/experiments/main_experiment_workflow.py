@@ -10,6 +10,7 @@ import logging
 import signal
 import sys
 import traceback
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Callable
 
@@ -41,6 +42,11 @@ from utils.cooperative_stop import (
     SolverStopRequested,
     clear_solver_stop_request,
     request_solver_stop,
+)
+from utils.native_stderr import (
+    redirect_native_stderr_to_file,
+    resolve_native_stderr_log_path,
+    silence_native_stderr_requested,
 )
 from utils.output_paths import build_output_layout
 from utils.progress import reporter
@@ -231,6 +237,19 @@ def run_experiment_from_yaml(
     flat_i = 0
     n_failed = 0
     stop_solve = False
+    _native_stderr_cuda_announced = False
+
+    def _cuda_native_stderr_cm(solver: str) -> Any:
+        """Redirect fd 2 for CUDA-Q solves only (native CUDA chatter)."""
+        nonlocal _native_stderr_cuda_announced
+        if solver != "cudaq" or not silence_native_stderr_requested():
+            return nullcontext()
+        if not _native_stderr_cuda_announced:
+            _log = resolve_native_stderr_log_path(output_root_path)
+            print(f"[stderr] Native stderr (CUDA, etc.) -> {_log}", flush=True)
+            _native_stderr_cuda_announced = True
+        return redirect_native_stderr_to_file(resolve_native_stderr_log_path(output_root_path))
+
     try:
         for n_cities in n_cities_list:
             if stop_solve or is_interrupted():
@@ -319,6 +338,14 @@ def run_experiment_from_yaml(
                     )
                     logger.info("%s.", _par_msg)
                     print(f"[parallel {inner_solver}] {_par_msg}", flush=True)
+                    if (
+                        inner_solver == "cudaq"
+                        and silence_native_stderr_requested()
+                        and not _native_stderr_cuda_announced
+                    ):
+                        _lg = resolve_native_stderr_log_path(output_root_path)
+                        print(f"[stderr] Native stderr (CUDA, etc.) -> {_lg}", flush=True)
+                        _native_stderr_cuda_announced = True
 
                     def _write_parallel_solution(
                         job: ParallelSolveJob, payload: dict[str, Any]
@@ -366,53 +393,56 @@ def run_experiment_from_yaml(
                             )
                         logger.info("%s.", _seq_msg)
                         print(f"[parallel {inner_solver}] {_seq_msg}", flush=True)
-                    for k, src, instance in instance_rows:
-                        if stop_solve or is_interrupted():
-                            break
-                        reporter.instance_start(flat_i)
-                        try:
-                            result = solver.solve(instance, run_config)
-                            payload = build_solution_record(
-                                instance=_serialize_instance(instance),
-                                instance_config=serialize_instance_config(icfg),
-                                instance_index=k - 1,
-                                solver_config=solver_config_serializable,
-                                solver_output=serialize_solver_result(result),
-                                instance_source=str(src),
-                            )
-                        except SolverStopRequested:
-                            stop_solve = True
-                            break
-                        except Exception:
-                            logger.exception("Solver failed for %s — saving error record.", src)
-                            n_failed += 1
-                            payload = build_solution_record(
-                                instance=_serialize_instance(instance),
-                                instance_config=serialize_instance_config(icfg),
-                                instance_index=k - 1,
-                                solver_config=solver_config_serializable,
-                                solver_output={
-                                    "solver_name": inner_solver,
-                                    "error": traceback.format_exc(),
-                                },
-                                instance_source=str(src),
-                            )
+                    with _cuda_native_stderr_cm(inner_solver):
+                        for k, src, instance in instance_rows:
+                            if stop_solve or is_interrupted():
+                                break
+                            reporter.instance_start(flat_i)
+                            try:
+                                result = solver.solve(instance, run_config)
+                                payload = build_solution_record(
+                                    instance=_serialize_instance(instance),
+                                    instance_config=serialize_instance_config(icfg),
+                                    instance_index=k - 1,
+                                    solver_config=solver_config_serializable,
+                                    solver_output=serialize_solver_result(result),
+                                    instance_source=str(src),
+                                )
+                            except SolverStopRequested:
+                                stop_solve = True
+                                break
+                            except Exception:
+                                logger.exception(
+                                    "Solver failed for %s — saving error record.", src
+                                )
+                                n_failed += 1
+                                payload = build_solution_record(
+                                    instance=_serialize_instance(instance),
+                                    instance_config=serialize_instance_config(icfg),
+                                    instance_index=k - 1,
+                                    solver_config=solver_config_serializable,
+                                    solver_output={
+                                        "solver_name": inner_solver,
+                                        "error": traceback.format_exc(),
+                                    },
+                                    instance_source=str(src),
+                                )
 
-                        out_dir = solutions_raw_dir(
-                            output_root_path,
-                            inner_solver,
-                            formulation,
-                            n_cities,
-                            path_depth,
-                        )
-                        out_dir.mkdir(parents=True, exist_ok=True)
-                        out_path = out_dir / f"instance_{k}.json"
-                        with open(out_path, "w", encoding="utf-8") as f:
-                            json.dump(payload, f, indent=2)
+                            out_dir = solutions_raw_dir(
+                                output_root_path,
+                                inner_solver,
+                                formulation,
+                                n_cities,
+                                path_depth,
+                            )
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            out_path = out_dir / f"instance_{k}.json"
+                            with open(out_path, "w", encoding="utf-8") as f:
+                                json.dump(payload, f, indent=2)
 
-                        reporter.instance_done(flat_i, str(out_path))
-                        flat_i += 1
-                        gc.collect()
+                            reporter.instance_done(flat_i, str(out_path))
+                            flat_i += 1
+                            gc.collect()
 
                 if is_interrupted() or stop_solve:
                     break

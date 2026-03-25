@@ -23,6 +23,7 @@ import shutil
 import threading
 import traceback
 from concurrent.futures import FIRST_COMPLETED, CancelledError, Future, wait
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
 from queue import Empty
@@ -31,6 +32,11 @@ from typing import Any, Callable
 from solvers.base import SolverRunConfig
 
 from utils.experiment_serialize import build_solution_record, serialize_solver_result
+from utils.native_stderr import (
+    redirect_native_stderr_to_file,
+    resolve_native_stderr_log_path,
+    silence_native_stderr_requested,
+)
 from experiments.workflow_io import load_problem_instance_json, serialize_problem_instance
 
 logger = logging.getLogger(__name__)
@@ -151,39 +157,45 @@ def _parallel_solve_one_worker(job: ParallelSolveJob) -> tuple[int, dict[str, An
         raise RuntimeError("parallel worker job missing status_queue")
     q.put(("start", job.status_label))
     src = Path(job.instance_json_path)
-    try:
-        instance = load_problem_instance_json(src)
-        result = solver_cls().solve(instance, job.run_config)
-        payload = build_solution_record(
-            instance=serialize_problem_instance(instance),
-            instance_config=job.instance_config_dict,
-            instance_index=job.k - 1,
-            solver_config=job.solver_config_serializable,
-            solver_output=serialize_solver_result(result),
-            instance_source=str(src),
+    _stderr_cm = nullcontext()
+    if job.solver_name == "cudaq" and silence_native_stderr_requested():
+        _stderr_cm = redirect_native_stderr_to_file(
+            resolve_native_stderr_log_path(Path(job.output_root))
         )
-        return job.k, payload
-    except Exception:
-        logger.exception("%s worker failed for %s", job.solver_name, src)
+    with _stderr_cm:
         try:
             instance = load_problem_instance_json(src)
-            inst_dict = serialize_problem_instance(instance)
+            result = solver_cls().solve(instance, job.run_config)
+            payload = build_solution_record(
+                instance=serialize_problem_instance(instance),
+                instance_config=job.instance_config_dict,
+                instance_index=job.k - 1,
+                solver_config=job.solver_config_serializable,
+                solver_output=serialize_solver_result(result),
+                instance_source=str(src),
+            )
+            return job.k, payload
         except Exception:
-            inst_dict = {}
-        payload = build_solution_record(
-            instance=inst_dict,
-            instance_config=job.instance_config_dict,
-            instance_index=job.k - 1,
-            solver_config=job.solver_config_serializable,
-            solver_output={
-                "solver_name": job.solver_name,
-                "error": traceback.format_exc(),
-            },
-            instance_source=str(src),
-        )
-        return job.k, payload
-    finally:
-        q.put(("done", job.status_label))
+            logger.exception("%s worker failed for %s", job.solver_name, src)
+            try:
+                instance = load_problem_instance_json(src)
+                inst_dict = serialize_problem_instance(instance)
+            except Exception:
+                inst_dict = {}
+            payload = build_solution_record(
+                instance=inst_dict,
+                instance_config=job.instance_config_dict,
+                instance_index=job.k - 1,
+                solver_config=job.solver_config_serializable,
+                solver_output={
+                    "solver_name": job.solver_name,
+                    "error": traceback.format_exc(),
+                },
+                instance_source=str(src),
+            )
+            return job.k, payload
+        finally:
+            q.put(("done", job.status_label))
 
 
 def _payload_from_future_failure(job: ParallelSolveJob, exc_tb: str) -> dict[str, Any]:
