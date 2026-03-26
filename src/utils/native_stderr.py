@@ -1,7 +1,7 @@
-"""Redirect OS-level stderr (fd 2) for native libraries (CUDA, cuQuantum, etc.).
+r"""Redirect OS-level stderr (fd 2) for native libraries (CUDA, cuQuantum, etc.).
 
 Python's :mod:`warnings` and even :data:`sys.stderr` assignment do not stop C/C++
-runtimes from writing to file descriptor 2. Experiment progress uses ``\\r`` on
+runtimes from writing to file descriptor 2. Experiment progress uses ``\r`` on
 stdout; interleaved native stderr breaks TTY progress lines.
 
 Enable during on-disk experiment solves with::
@@ -28,7 +28,6 @@ def silence_native_stderr_requested() -> bool:
     Truthy: ``1``, ``true``, ``yes``, ``on`` (case-insensitive).
     Falsy or unset: no redirection.
     """
-
     raw = os.environ.get("HTSP_SILENCE_NATIVE_STDERR")
     if raw is None or str(raw).strip() == "":
         return False
@@ -37,7 +36,6 @@ def silence_native_stderr_requested() -> bool:
 
 def resolve_native_stderr_log_path(output_root: Path) -> Path:
     """Resolve log path: ``HTSP_NATIVE_STDERR_LOG`` or *output_root* / ``native_stderr.log``."""
-
     explicit = os.environ.get("HTSP_NATIVE_STDERR_LOG", "").strip()
     if explicit:
         return Path(explicit).expanduser().resolve()
@@ -53,8 +51,8 @@ def redirect_native_stderr_to_file(log_path: Path) -> Generator[None, None, None
 
     Args:
         log_path: Append destination for all stderr (native and Python).
-    """
 
+    """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     stderr_fd = 2
     saved_fd = os.dup(stderr_fd)

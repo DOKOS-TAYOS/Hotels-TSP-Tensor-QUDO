@@ -73,6 +73,7 @@ def _make_channel(noise_type: str, probability: float) -> cudaq.KrausChannel:
 
     Raises:
         ValueError: If ``noise_type`` is not recognized.
+
     """
     if noise_type == "depolarizing":
         return cudaq.DepolarizationChannel(probability)
@@ -98,6 +99,7 @@ def _two_qubit_depolarizing_channel(probability: float) -> cudaq.KrausChannel | 
 
     Returns:
         Channel object, or None if ``Depolarization2`` is missing.
+
     """
     factory = getattr(cudaq, "Depolarization2", None)
     if factory is None:
@@ -114,6 +116,7 @@ def build_noise_model(config: NoiseConfig) -> cudaq.NoiseModel:
     Returns:
         A ``cudaq.NoiseModel`` ready to be passed as
         ``cudaq.sample(kernel, …, noise_model=noise)``.
+
     """
     noise = cudaq.NoiseModel()
 
@@ -181,6 +184,7 @@ def get_noise_model(
 
     Returns:
         Built ``cudaq.NoiseModel``, or None.
+
     """
     if config is None or not config.enabled:
         return None

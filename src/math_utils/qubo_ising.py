@@ -27,6 +27,7 @@ def qubo_to_ising(qubo_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, floa
 
     Raises:
         ValueError: If ``qubo_matrix`` is not square or symmetric.
+
     """
     n = qubo_matrix.shape[0]
     if qubo_matrix.shape[1] != n:

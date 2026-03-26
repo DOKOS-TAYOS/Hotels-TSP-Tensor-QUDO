@@ -16,6 +16,7 @@ def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
 
     Returns:
         Frozen run configuration for :meth:`~solvers.base.SolverProtocol.solve`.
+
     """
     from solvers.base import SolverRunConfig
     from solvers.noise import NoiseConfig

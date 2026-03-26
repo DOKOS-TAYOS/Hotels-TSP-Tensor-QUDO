@@ -299,7 +299,7 @@ def _plot_comparison_opt_steps_bars(
     label_right: str,
     x_axis_label: str,
 ) -> Any:
-    """Grouped bars: mean steps to trace min energy (paired rows optimal on both sides)."""
+    """Plot grouped bars of mean steps to trace minimum energy (paired rows, optimal on both sides)."""
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(8.5, 4.8))

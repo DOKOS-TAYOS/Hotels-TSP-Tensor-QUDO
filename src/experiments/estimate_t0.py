@@ -14,6 +14,7 @@ Usage::
     python -m experiments.estimate_t0
     python -m experiments.estimate_t0 --n-instances 3 --chi0 0.8 --n-samples 100
     python -m experiments.estimate_t0 --instance-config path/to/config.yaml
+
 """
 
 from __future__ import annotations

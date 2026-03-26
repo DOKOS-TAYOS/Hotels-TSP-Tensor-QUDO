@@ -68,6 +68,7 @@ class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
 
     Args:
         config: Global noise type, default probability, and per-gate overrides.
+
     """
 
     def __init__(self, config: NoiseConfig) -> None:
@@ -81,6 +82,7 @@ class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
 
         Returns:
             Probability in ``[0, 1]`` from ``gate_noise`` or ``config.probability``.
+
         """
         if gate is not None:
             key = _CIRQ_GATE_NAME_TO_KEY.get(type(gate).__name__)
@@ -99,6 +101,7 @@ class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
 
         Raises:
             ValueError: If ``noise_type`` is not supported for qubits.
+
         """
         if isinstance(op.gate, cirq.MeasurementGate) or op.gate is None:
             return op
@@ -134,6 +137,7 @@ def build_noise_model(
 
     Raises:
         ValueError: If ``config.noise_type`` is unknown.
+
     """
     if qudit_dimension > 2:
         from solvers.cirq_solver.qudit_noise_channels import build_qudit_noise_model
@@ -171,6 +175,7 @@ def get_simulator(
     Returns:
         ``(simulator, noise_model)`` — *noise_model* is ``None`` when noise
         is off.
+
     """
     if config is None or not config.enabled:
         return cirq.Simulator(seed=seed), None

@@ -22,6 +22,7 @@ class Settings:
         instance_config_path: Default YAML path for instance generation.
         enable_noise_simulation: When False, workflows may force noise off.
         random_seed: Default RNG seed for scripts that consume settings.
+
     """
 
     quantum_backend: BackendName
@@ -45,6 +46,7 @@ def _read_env_file(path: Path) -> dict[str, str]:
 
     Returns:
         Mapping of variable names to unquoted string values.
+
     """
     if not path.exists():
         return {}
@@ -88,8 +90,8 @@ def load_settings(env_file: Path | str | None = None, project_root: Path | None 
 
     Raises:
         ValueError: If HTSP_QUANTUM_BACKEND is unsupported.
-    """
 
+    """
     resolved_root = project_root or _project_root()
     resolved_env_file = Path(env_file) if env_file else resolved_root / ".env"
     env_values = _read_env_file(resolved_env_file)

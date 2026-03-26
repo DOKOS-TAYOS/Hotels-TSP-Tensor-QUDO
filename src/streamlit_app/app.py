@@ -16,6 +16,7 @@ def _load_streamlit() -> ModuleType:
 
     Raises:
         ModuleNotFoundError: If Streamlit is not installed (hint to use ``[ui]``).
+
     """
     try:
         import streamlit as st

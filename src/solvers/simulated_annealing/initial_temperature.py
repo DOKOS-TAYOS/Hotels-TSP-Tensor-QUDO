@@ -45,6 +45,7 @@ class T0EstimationResult:
         iterations: Number of iterative refinement steps taken.
         n_samples: Number of uphill transitions used.
         converged: Whether the algorithm converged within tolerance.
+
     """
 
     t0: float
@@ -133,7 +134,7 @@ def _refine_temperature(
     p_initial: float,
     max_iter: int,
 ) -> tuple[float, float, int, bool]:
-    """Iteratively refine *t_initial* until χ̂(T) ≈ χ₀.
+    """Refine *t_initial* iteratively until χ̂(T) ≈ χ₀.
 
     Returns ``(temperature, chi_achieved, iterations, converged)``.
     """
@@ -213,6 +214,7 @@ def estimate_initial_temperature(
     Raises:
         ValueError: If *formulation* is not ``"tqudo"`` or ``"qubo"``,
             or if *chi_0* is not in ``(0, 1)``.
+
     """
     if formulation not in ("tqudo", "qubo"):
         raise ValueError(

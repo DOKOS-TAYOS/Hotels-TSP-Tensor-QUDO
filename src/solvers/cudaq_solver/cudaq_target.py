@@ -39,6 +39,7 @@ def _gpu_supports_noise() -> bool:
 
     Returns:
         True if GPU trajectory noise works; False if probe fails or no GPU.
+
     """
     global _gpu_noise_support
     if _gpu_noise_support is not None:
@@ -111,6 +112,7 @@ def ensure_cudaq_target(noise_config: NoiseConfig | None = None) -> str:
     Raises:
         RuntimeError: If no NVIDIA GPU is available (noiseless mode) or the
             required target is missing in this CUDA-Q build.
+
     """
     global _current_target
 

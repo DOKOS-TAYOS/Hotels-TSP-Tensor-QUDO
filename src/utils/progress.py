@@ -1,4 +1,4 @@
-"""Single-line progress reporter for experiment runs.
+r"""Single-line progress reporter for experiment runs.
 
 Usage (from solvers and workflow):
 
@@ -39,6 +39,7 @@ class ProgressReporter:
 
         Args:
             n_instances: Upper bound shown in progress text.
+
         """
         self._n_instances = n_instances
 
@@ -47,6 +48,7 @@ class ProgressReporter:
 
         Args:
             i: Instance index in the batch.
+
         """
         # Subprocess pool workers (parallel CUDA-Q / Cirq) must not print; parent owns the TTY line.
         if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
@@ -56,15 +58,16 @@ class ProgressReporter:
         self._emit(msg, newline=True)
 
     def opt_step(self, step: int, max_steps: int, energy: float) -> None:
-        """Report one optimizer evaluation or simulated-annealing step.
+        r"""Report one optimizer evaluation or simulated-annealing step.
 
-        On a TTY, rewrites one line with ``\\r``; otherwise prints sparse
+        On a TTY, rewrites one line with ``\r``; otherwise prints sparse
         checkpoints (roughly deciles and the last step).
 
         Args:
             step: Current step index (1-based display uses internal formatting).
             max_steps: Budget for the bar denominator.
             energy: Current objective value to display.
+
         """
         if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
             return
@@ -91,6 +94,7 @@ class ProgressReporter:
         Args:
             i: Instance index.
             path: Filesystem path written for this instance.
+
         """
         if os.environ.get("HTSP_EXPERIMENT_CUDA_WORKER") == "1":
             return

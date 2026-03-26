@@ -47,6 +47,7 @@ def _multi_controlled_phase(
 
     Returns:
         A Cirq operation implementing the multi-controlled phase.
+
     """
     exponent = phase / np.pi
     if not controls:
@@ -75,6 +76,7 @@ def create_qaoa_circuit(
 
     Raises:
         ValueError: If ``d`` is not a power of two.
+
     """
     n_qudits = Etab.shape[0]
     dimension_qudits = Etab.shape[1]
@@ -192,6 +194,7 @@ def _param_resolver(
 
     Returns:
         ``cirq.ParamResolver`` for the parametrized circuit.
+
     """
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
@@ -226,6 +229,7 @@ def evaluate_cost(
 
     Returns:
         Mean TQUDO objective over shots.
+
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -255,6 +259,7 @@ def sample_solution(
 
     Returns:
         Histogram of bitstrings to counts.
+
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -297,6 +302,7 @@ def optimize_qaoa(
     Returns:
         ``(best_energy, best_params, initial_samples, final_samples,
         initial_energy, energy_history)``.
+
     """
     circuit, symbols, qubits, n_qudits, qubits_per_qudit = create_qaoa_circuit(
         depth, Etab, Ettprimeab
@@ -386,6 +392,7 @@ def run_qaoa(
     Returns:
         Dict with energies, ``params``, sample dicts, ``best_bitstring``,
         ``best_sequence`` (numpy), and ``energy_history``.
+
     """
     n_qudits = Etab.shape[0]
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))

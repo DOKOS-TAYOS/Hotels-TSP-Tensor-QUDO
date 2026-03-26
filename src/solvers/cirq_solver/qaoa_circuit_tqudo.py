@@ -66,6 +66,7 @@ class QuditHadamardGate(cirq.Gate):
 
     Args:
         dimension: Qudit dimension d.
+
     """
 
     def __init__(self, dimension: int) -> None:
@@ -109,6 +110,7 @@ class QuditDiagonalCostGate(cirq.Gate):
         gamma: QAOA variational parameter γ (may be symbolic for Cirq).
         cost_matrix: d×d real matrix of cost coefficients (e.g. Etab[t] or
             Ettprimeab[t, t']).
+
     """
 
     def __init__(
@@ -195,6 +197,7 @@ class QuditRingMixerGate(cirq.Gate):
     Args:
         dimension: Qudit dimension d.
         angle: QAOA mixer angle β; unitary is exp(−i·β·M_d) (may be symbolic).
+
     """
 
     def __init__(self, dimension: int, angle: float | sympy.Expr) -> None:
@@ -286,6 +289,7 @@ def create_qaoa_circuit(
         Tuple ``(circuit, symbols, qudits, n_qudits, dimension)`` where
         ``symbols`` maps ``gamma_k`` / ``beta_k`` to ``sympy.Symbol``,
         ``qudits`` is the list of ``cirq.LineQid``, and ``dimension`` is d.
+
     """
     n_qudits = Etab.shape[0]
     dimension = Etab.shape[1]  # d
@@ -355,6 +359,7 @@ def _param_resolver(
 
     Returns:
         ``cirq.ParamResolver`` binding each symbol to a float.
+
     """
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
@@ -380,6 +385,7 @@ def measurement_to_qudit_sequence(
 
     Returns:
         Integer array of shape ``(n_qudits,)``.
+
     """
     return np.asarray(row[:n_qudits], dtype=np.int64)
 
@@ -392,6 +398,7 @@ def qudit_sequence_to_key(seq: np.ndarray) -> str:
 
     Returns:
         String key such as ``"0-3-1"``.
+
     """
     return "-".join(str(int(v)) for v in seq)
 
@@ -404,6 +411,7 @@ def key_to_qudit_sequence(key: str) -> np.ndarray:
 
     Returns:
         Integer array of qudit values.
+
     """
     return np.array([int(v) for v in key.split("-")], dtype=np.int64)
 
@@ -424,6 +432,7 @@ def bitstring_to_qudit_sequence(
 
     Returns:
         Integer array of length ``n_qudits``.
+
     """
     if "-" in bitstring:
         return key_to_qudit_sequence(bitstring)
@@ -459,6 +468,7 @@ def evaluate_cost(
 
     Returns:
         Mean TQUDO cost over samples (same units as stored tensors).
+
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -494,6 +504,7 @@ def sample_solution(
 
     Returns:
         Mapping from dash-separated qudit keys to occurrence counts.
+
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -544,6 +555,7 @@ def optimize_qaoa(
         ``(best_energy, best_params, initial_samples, final_samples,
         initial_energy, energy_history)``. Sample dicts are None when
         ``sample_shots`` is None.
+
     """
     circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
         depth, Etab, Ettprimeab
@@ -641,6 +653,7 @@ def run_qaoa(
         Dict with keys ``energy``, ``params``, ``initial_samples``,
         ``final_samples``, ``best_bitstring`` (dash-separated key),
         ``best_sequence`` (numpy route), ``initial_energy``, ``energy_history``.
+
     """
     n_qudits = Etab.shape[0]
 

@@ -25,6 +25,7 @@ def _parse_range(raw_value: Any, field_name: str) -> tuple[float, float]:
 
     Raises:
         ValueError: If value is missing, not a 2-element sequence, or low > high.
+
     """
     if raw_value is None:
         raise ValueError(f"Missing required field: {field_name}")
@@ -49,6 +50,7 @@ def _parse_int_range(raw_value: Any, field_name: str) -> tuple[int, int]:
 
     Raises:
         ValueError: If value is missing, not a 2-element sequence, or low > high.
+
     """
     if raw_value is None:
         raise ValueError(f"Missing required field: {field_name}")
@@ -72,6 +74,7 @@ def load_instance_config(path: Path | str | None = None) -> InstanceConfig:
 
     Raises:
         ValueError: If required fields are missing or invalid.
+
     """
     config_path = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     with open(config_path, encoding="utf-8") as f:

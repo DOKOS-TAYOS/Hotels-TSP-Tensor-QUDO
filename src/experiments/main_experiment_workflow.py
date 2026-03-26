@@ -467,6 +467,7 @@ def run_check_solution_feasibility(output_root: Path, solver: str) -> int:
         1 if at least one file is infeasible, missing ``feasible``, or has ``error`` in
         ``solver_output``.
         2 if the solver solutions root does not exist.
+
     """
     root = solutions_solver_root(output_root, solver)
     if not root.is_dir():

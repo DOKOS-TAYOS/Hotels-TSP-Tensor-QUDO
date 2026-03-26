@@ -15,6 +15,7 @@ class InstanceConfig:
         prices_range_hotels: Uniform sampling range for hotel prices.
         prices_range_travels: Uniform sampling range for travel prices.
         seed: Master seed for the workflow when generating instance batches.
+
     """
 
     n_cities: int
@@ -35,6 +36,7 @@ class ProblemInstance:
         prices_travels: 3D array of travel prices (n_cities x n_cities x n_cities).
         seed: Integer seed used to generate this instance. Store it to allow
             exact reproduction via ``generate_random_instance(config, seed)``.
+
     """
 
     n_cities: int
@@ -58,6 +60,7 @@ class ProblemTQUDO:
         energy_scale: Factor by which the original tensors were divided during
             normalisation.  Multiply any sampled cost by this value to recover
             the original-units objective.
+
     """
 
     Etab: np.ndarray  # 3 dimensions
@@ -78,6 +81,7 @@ class ProblemQUBO:
         energy_scale: Factor by which the original matrix was divided during
             normalisation.  Multiply any sampled cost by this value to recover
             the original-units objective.
+
     """
 
     qubo_matrix: np.ndarray  # 2 dimensions
@@ -92,7 +96,9 @@ class RestrictionConfig:
         lambda_0: Penalty for "not exactly one node per timestep".
         lambda_1: Penalty for "not exactly one timestep per node".
         lambda_2: Penalty for precedence constraint violations.
+
     """
+
     lambda_0: float
     lambda_1: float
     lambda_2: float

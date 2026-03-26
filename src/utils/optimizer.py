@@ -30,6 +30,7 @@ def minimize_options(
 
     Returns:
         Dict passed as ``options=`` to :func:`scipy.optimize.minimize`.
+
     """
     opts: dict[str, float | int | bool] = {"maxiter": max_iter, "disp": False}
     meth = method.lower()

@@ -13,7 +13,7 @@ from utils.costs import calculate_tqudo_cost
 
 
 def _duplicate_sequences(n: int) -> list[list[int]]:
-    """A few non-permutation sequences (duplicate cities) for penalty coverage."""
+    """Return a few non-permutation sequences (duplicate cities) for penalty coverage."""
     out: list[list[int]] = []
     if n >= 2:
         out.append([0] * n)

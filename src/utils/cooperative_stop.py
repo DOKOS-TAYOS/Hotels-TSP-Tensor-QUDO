@@ -36,6 +36,7 @@ def raise_if_solver_stop_requested() -> None:
 
     Raises:
         SolverStopRequested: If :func:`request_solver_stop` was called.
+
     """
     if _stop_requested:
         raise SolverStopRequested

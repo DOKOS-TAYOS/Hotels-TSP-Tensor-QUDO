@@ -65,6 +65,7 @@ class BaseQAOASolver(ABC):
 
         Returns:
             Mapping bitstring → count sorted by descending count, or None.
+
         """
 
     @abstractmethod
@@ -81,6 +82,7 @@ class BaseQAOASolver(ABC):
             ``(n_systems, extra_kwargs)`` where ``n_systems`` counts qubits or
             qudits and ``extra_kwargs`` may include ``qudit_dimension`` or
             ``gpu_trajectory``.
+
         """
 
     # ------------------------------------------------------------------
@@ -101,6 +103,7 @@ class BaseQAOASolver(ABC):
 
         Raises:
             ValueError: If the formulation is not supported by this backend.
+
         """
         restriction = run_config.restriction_config or _default_restriction()
         formulation = run_config.formulation
@@ -140,6 +143,7 @@ class BaseQAOASolver(ABC):
 
         Returns:
             Metadata dict for JSON export and analysis.
+
         """
         metadata: dict[str, Any] = {
             "best_sequence": result.get("best_sequence"),
@@ -176,6 +180,7 @@ class BaseQAOASolver(ABC):
         Returns:
             Dict with scaled ``energy``, ``feasible``, ``best_sequence``, angles,
             sample histograms, etc.
+
         """
         problem = generate_TQUDO_from_problem(instance, restriction)
         raw = run_qaoa_fn(
@@ -225,6 +230,7 @@ class BaseQAOASolver(ABC):
 
         Raises:
             ValueError: If the backend does not support the formulation.
+
         """
         formulation = run_config.formulation
         if formulation == "tqudo_virtual":
@@ -248,6 +254,7 @@ class BaseQAOASolver(ABC):
 
         Raises:
             ValueError: If this backend does not support QUBO.
+
         """
         runner = self._get_qubo_runner()
         if runner is None:

@@ -25,7 +25,7 @@ SMALL_CONFIG = InstanceConfig(
 
 @pytest.fixture()
 def small_instance():
-    """A small random instance suitable for fast T₀ estimation."""
+    """Build a small random instance suitable for fast T₀ estimation."""
     return generate_random_instance(SMALL_CONFIG, seed=42)
 
 

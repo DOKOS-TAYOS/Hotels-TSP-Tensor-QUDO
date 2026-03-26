@@ -31,6 +31,7 @@ def process_raw_results(raw_dir: Path, processed_dir: Path) -> None:
     Args:
         raw_dir: Typically ``.../output/raw``.
         processed_dir: Target ``processed`` directory (must equal ``output/processed``).
+
     """
     if processed_dir.name != "processed":
         raise ValueError("processed_dir must be named 'processed' for layout consistency.")

@@ -28,6 +28,7 @@ def _parse_int_setting(raw_value: Any, field_name: str, minimum: int) -> int:
 
     Raises:
         ValueError: If the value is below *minimum*.
+
     """
     value = int(raw_value)
     if value < minimum:
@@ -46,6 +47,7 @@ def _validate_cobyla_budget(qaoa_depth: int, qaoa_max_iter: int, optimizer: str)
 
     Raises:
         ValueError: If COBYLA is selected and ``qaoa_max_iter`` is too small.
+
     """
     if optimizer != "COBYLA":
         return
@@ -73,6 +75,7 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
 
     Raises:
         ValueError: If required fields are missing or invalid.
+
     """
     if "n_instances" not in data:
         raise ValueError("Missing required field: n_instances")
@@ -223,6 +226,7 @@ def load_solver_config(path: Path | str | None = None) -> dict[str, Any]:
 
     Raises:
         ValueError: If required fields are missing or invalid.
+
     """
     config_path = Path(path) if path is not None else DEFAULT_SOLVER_CONFIG_PATH
     data = read_solver_yaml_as_mapping(config_path)

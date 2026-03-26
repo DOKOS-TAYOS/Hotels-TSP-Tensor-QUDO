@@ -45,6 +45,7 @@ class SolverRunConfig:
             with ``n = n_cities - 1`` capped at 8).
         brute_force_max_assignments_qubo: Max QUBO assignments (full space is ``2^(n^2)``,
             with ``n^2`` binary vars capped at 30).
+
     """
 
     max_iterations: int = 1_000
@@ -85,6 +86,7 @@ class SolverResult:
         metadata: Extra fields such as ``initial_energy``, ``energy_history``,
             ``best_sequence``, ``best_bitstring``, ``best_binary``,
             ``real_cost``, sample histograms, etc.
+
     """
 
     solver_name: str
@@ -109,4 +111,5 @@ class SolverProtocol(Protocol):
         Returns:
             :class:`SolverResult` with best objective, feasibility flag, runtime,
             and optional ``metadata``.
+
         """
