@@ -2,6 +2,8 @@
 
 Comprehensive technical reference for the Hotels-TSP-Tensor-QUDO project.
 
+Narrative walkthroughs: [repository_guide.md](repository_guide.md) (repo flow) and [parallelism_and_vectorization.md](parallelism_and_vectorization.md) (speedups).
+
 Reference paper: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958).
 Cost equations: [formulations.md](formulations.md).
 
@@ -45,7 +47,8 @@ src/
 ├── streamlit_app/           Streamlit UI shell
 └── utils/                   Costs (scalar + batch), constraints, JSON/experiment I/O,
                              YAML + experiment path helpers, QAOA helpers, progress,
-                             output paths (lazy package exports avoid import cycles)
+                             native stderr redirect for CUDA-Q, output paths (lazy exports
+                             avoid import cycles)
 ```
 
 ### Module dependency graph
@@ -143,9 +146,15 @@ flowchart LR
    - Returns a `SolverResult` with objective value, feasibility flag, runtime,
      and metadata (best sequence, energy history, optimal angles, samples).
 7. On the disk workflow, instances are written under
-   `output/raw/instances/n_<n_cities>/instance_<k>.json`, and each solve writes
-   `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`
-   (see `experiments/main_experiment_workflow.py` and `experiments/workflow_io.py`).
+      `output/raw/instances/n_<n_cities>/instance_<k>.json`, and each solve writes
+      `output/raw/solutions/<solver>/<formulation>/n_<n_cities>/[<depth>/]instance_<k>.json`
+      (see `experiments/main_experiment_workflow.py` and `experiments/workflow_io.py`).
+8. **Optional reporting:** `data_analysis` ingests `raw/solutions/**/*.json`, writes
+      tables under `output/processed/`, and `data_analysis.plot` writes PNGs to
+      `output/images/`. The static site in `webpage_results/` (repo root) loads those
+      processed CSVs via browser `fetch`, so it must be served over HTTP—for example
+      `make -f scripts/makefile results-web` then open
+      `http://localhost:8765/webpage_results/index.html`.
 
 ---
 

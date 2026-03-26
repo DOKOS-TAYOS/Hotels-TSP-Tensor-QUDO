@@ -25,6 +25,7 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 - Noise simulation framework with 5 noise types and per-gate overrides.
 - Experiment workflow with incremental JSON output and SIGINT handling; disk layout under `output/raw/solutions/<solver>/...`.
 - **Data analysis** pipeline (`src/data_analysis/`): ingest raw JSON → `output/processed/` (manifest, paired metrics, summaries) → figures in `output/images/` (optional extra `analysis`: pandas, pyarrow, matplotlib, scipy).
+- **Static results dashboard** ([`webpage_results/`](webpage_results/)): reads summaries and metrics from `output/processed/` over HTTP (not `file://`); use `make -f scripts/makefile results-web` after running the analysis pipeline.
 - Test suite covering models, formulations, solvers, constraints, brute force, and data ingest.
 - Streamlit UI scaffold.
 
@@ -60,16 +61,19 @@ make -f scripts/makefile app
 make -f scripts/makefile clean
 # After `pip install -e '.[analysis]'`:
 make -f scripts/makefile analysis-all    # ingest + metrics + plots → processed/ + images/
+# Serve repo root over HTTP for the static dashboard (fetch needs HTTP):
+make -f scripts/makefile results-web     # → http://localhost:8765/webpage_results/index.html
 ```
 
 ## Project layout
 
 ```text
 bin/                Bootstrap scripts (setup.sh)
-docs/               Architecture, formulations, API reference, configuration, development
+docs/               Architecture, guides (repository, parallelism, experiments, analysis), API reference, configuration
 input/              Optional input datasets
 output/             Local results (ignored in git except placeholders)
 scripts/            Task runner (makefile)
+webpage_results/    Static HTML dashboard (metrics from output/processed/; open via HTTP)
 src/
   config/           Runtime settings and environment loading (.env)
   data_analysis/    Ingest manifest, paired metrics vs brute_force ref, plots
@@ -86,13 +90,28 @@ tests/              Pytest suite: smoke, contracts, unit tests, brute_force, dat
 
 ## Documentation
 
+### Guides
+
+| Document | Description |
+|----------|-------------|
+| [docs/repository_guide.md](docs/repository_guide.md) | How the repo fits together: problem, `src/` layout, config → instances → solutions → analysis |
+| [docs/parallelism_and_vectorization.md](docs/parallelism_and_vectorization.md) | Cross-instance process pools vs NumPy batching in brute force / `costs_batch` |
+| [docs/extending_quantum_solvers.md](docs/extending_quantum_solvers.md) | Reusing parallel workers and `SolverProtocol` for other variational algorithms (e.g. VQE) |
+| [docs/parallel_workers_general_workloads.md](docs/parallel_workers_general_workloads.md) | The same worker pattern for DL, sweeps, and other CPU/GPU batch jobs |
+| [docs/experiments_design_and_artifacts.md](docs/experiments_design_and_artifacts.md) | Workflow modes, why JSON artifacts look like they do, top-level solution schema |
+| [docs/analysis_and_figures.md](docs/analysis_and_figures.md) | Short reference: analysis commands, processed outputs, figure filenames |
+| [docs/reproducing_results_from_scratch.md](docs/reproducing_results_from_scratch.md) | Command checklist from install through experiments, analysis, and static dashboard |
+
+### Reference
+
 | Document | Description |
 |----------|-------------|
 | [docs/architecture.md](docs/architecture.md) | Deep technical architecture: module map, data flow, solver matrix, QAOA circuits, noise system, cost pipeline |
 | [docs/formulations.md](docs/formulations.md) | Mathematical formulations (Tensor-QUDO and QUBO) with LaTeX equations, Cirq qudit gate documentation |
 | [docs/api_reference.md](docs/api_reference.md) | API reference: models, generators, solvers (incl. brute force), utils, config, experiments, data_analysis |
 | [docs/configuration.md](docs/configuration.md) | All configuration surfaces: `.env`, `config.yaml`, `solver_config.yaml`, compatibility rules, tuning guidance |
-| [docs/development.md](docs/development.md) | Development guide: setup, testing, linting, conventions, branching |
+| [docs/development.md](docs/development.md) | Development guide: setup, testing, linting, conventions, parallel instance settings |
+| [docs/data_analysis.md](docs/data_analysis.md) | Data analysis pipeline: manifest fields, metrics, aggregates, full figure catalog |
 | [CHANGELOG.md](CHANGELOG.md) | Project history and release notes |
 
 ## Configuration

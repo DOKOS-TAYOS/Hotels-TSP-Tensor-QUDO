@@ -1,5 +1,7 @@
 # Development Guide
 
+Narrative overview: [repository_guide.md](repository_guide.md). Parallel / vectorized execution: [parallelism_and_vectorization.md](parallelism_and_vectorization.md).
+
 ---
 
 ## Prerequisites
@@ -69,7 +71,11 @@ make -f scripts/makefile analysis-ingest   # raw JSON → processed/manifest.*
 make -f scripts/makefile analysis-metrics  # manifest → paired_metrics, summary, curves (no SA)
 make -f scripts/makefile analysis-plots    # processed tables → output/images/*.png
 make -f scripts/makefile analysis-all      # ingest + metrics + plots (default --output-root output)
+# Static dashboard (browser fetch needs HTTP, not file://):
+make -f scripts/makefile results-web       # http.server from repo root → webpage_results/
 ```
+
+The `webpage_results/` tree is a static HTML dashboard (Spanish copy) that reads CSV under `output/processed/`; run `analysis-all` (or the individual analysis targets) first, then `results-web` and open `http://localhost:8765/webpage_results/index.html`.
 
 ### Running individual tests
 
@@ -147,7 +153,7 @@ After runs exist under `output/raw/`, install the `analysis` extra and run:
 .venv/bin/python -m data_analysis.metrics --output-root output --sample-quality  # slower: histogram feasible mass
 ```
 
-Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`; figures under `output/images/`.
+Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`; figures under `output/images/`. The same processed tables feed the optional static site in `webpage_results/` when served over HTTP (`make -f scripts/makefile results-web`).
 
 ---
 
@@ -192,21 +198,25 @@ configuration, data ingest, and imports.
 | `test_settings.py`            | `load_settings()` from `.env` files and defaults                           |
 | `test_instance_config.py`     | `load_instance_config()` validation, n_cities limits, precedence ranges    |
 | `test_solver_config.py`       | `load_solver_config()` numeric validation, COBYLA budget, compatibility    |
+| `test_workflow_io.py`         | Experiment `workflow_io` paths, instance JSON (de)serialize, YAML merge smoke |
 | `test_qubo_tqudo_generation.py` | Penalty behaviour, QUBO vs TQUDO consistency, config validation          |
 | `test_costs.py`               | QUBO cost `x^T Q x`, TQUDO cost from sequence, real cost, length checks   |
-| `test_constraints.py`         | TQUDO/QUBO validation, precedence, duplicates, binary/sequence conversion  |
+| `test_costs_batch_qaoa_parity.py` | `costs_batch` vs scalar QUBO/TQUDO objectives, bit/qudit helpers        |
+| `test_constraints.py`       | TQUDO/QUBO validation, precedence, duplicates, binary/sequence conversion  |
 | `test_qubo_to_ising.py`       | `qubo_to_ising()` energy preservation, non-symmetric rejection             |
 | `test_solver_contracts.py`    | Solver protocol compliance, formulation compatibility, CUDA-Q GPU check    |
 | `test_cirq_tqudo.py`          | Qudit gates (Hadamard, diagonal cost, ring mixer), circuit build, run_qaoa |
 | `test_cudaq_tqudo.py`         | CUDA-Q TQUDO kernel scaling, CPU simulator override                        |
 | `test_cudaq_endianness.py`    | QUBO/TQUDO bitstring decoding vs `cudaq.sample`, noise target selection    |
 | `test_cudaq_target.py`        | Target selection (nvidia, density-matrix-cpu), idempotency                 |
+| `test_cudaq_parallel.py`      | CUDA-Q / CPU parallel batch helpers and workflow integration               |
 | `test_noise_models.py`        | NoiseConfig, Cirq/CUDA-Q noise, solver config round-trip, qudit Kraus      |
+| `test_native_stderr.py`       | `HTSP_SILENCE_NATIVE_STDERR` parsing and native stderr redirect context    |
 | `test_streamlit_app.py`       | Lazy import of Streamlit                                                   |
 | `test_brute_force_solver.py`  | Exhaustive QUBO/TQUDO enumeration, config caps                             |
 | `test_data_analysis.py`       | Manifest path parsing, ingest smoke tests                                |
 | `test_estimate_lambdas.py`  | Reference cost helper, brute-force λ ranking, parallel combo smoke, JSON payload |
-| `test_cudaq_parallel.py`    | CUDA-Q / CPU parallel batch helpers and workflow integration               |
+| `test_initial_temperature.py` | Ben–Ameur SA `estimate_initial_temperature` helper                         |
 
 ### Shared fixtures (`conftest.py`)
 
@@ -262,5 +272,6 @@ Hotels-TSP-Tensor-QUDO/
 ├── docs/                 # Project documentation
 ├── src/                  # Package source (8 sub-packages)
 ├── tests/                # pytest + conftest.py
+├── webpage_results/      # Static HTML dashboard (HTTP only; see results-web)
 └── output/               # Experiment results (gitignored contents)
 ```

@@ -102,24 +102,29 @@ avoid import cycles with `instance_gen_process` / `data_analysis`.
 ### Infrastructure
 
 - Editable package install via `pyproject.toml` with optional extras
-  (dev, cirq, cudaq, ui).
+  (`dev`, `cirq`, `cudaq`, `ui`, `analysis`, `all`).
 - `install.sh` and `bin/setup.sh` for automated environment setup.
-- `scripts/makefile` with setup, lint, test, app, and clean targets.
+- `scripts/makefile`: setup, lint, test, app, clean; `analysis-ingest`,
+  `analysis-metrics`, `analysis-plots`, `analysis-all`; `results-web` (HTTP
+  server for `webpage_results/`).
 - Settings loaded from `.env` with `HTSP_*` prefix variables.
 - ruff linting (line-length 100, Python 3.11 target; runtime 3.11–3.13).
-- 22 test files with shared fixtures in `conftest.py`.
+- 23 `tests/test_*.py` modules plus shared fixtures in `conftest.py`.
 - GPU tests auto-skip when no NVIDIA GPU is available.
-- Streamlit UI scaffold.
+- Streamlit UI shell (`streamlit_app`).
 
 ### Documentation
 
 - `docs/formulations.md`: mathematical formulations with LaTeX equations and
   Cirq native qudit gate documentation.
 - `docs/architecture.md`: technical architecture with module map, data flow,
-  solver matrix, QAOA circuit details, noise system.
+  solver matrix, QAOA circuit details, noise system, optional static dashboard flow.
 - `docs/api_reference.md`: comprehensive API reference for all public modules.
-- `docs/configuration.md`: all configuration surfaces with tuning guidance.
+- `docs/configuration.md`: all configuration surfaces with tuning guidance
+  (including CUDA-Q native stderr env vars).
 - `docs/development.md`: development guide with test suite documentation.
+- `docs/data_analysis.md`: ingest schema, metrics, aggregates, and figure catalog.
+- `README.md`: links the above; documents `webpage_results/` and `results-web`.
 
 ### Project timeline
 
@@ -137,3 +142,4 @@ avoid import cycles with `instance_gen_process` / `data_analysis`.
 | Mar 16-18  | Energy normalisation, sample storage, per-instance seeds, progress bar |
 | Mar 18-20  | CUDA-Q noise fix, performance improvements, validation hardening  |
 | Mar 20-21  | Circuit reuse optimisation, vectorised cost computation, formulation naming (`tqudo` vs `tqudo_virtual`), centralised QAOA runners |
+| Mar 26     | Documentation pass: `webpage_results`/ `results-web`, native stderr env vars, committed `solver_config` note, test list refresh |

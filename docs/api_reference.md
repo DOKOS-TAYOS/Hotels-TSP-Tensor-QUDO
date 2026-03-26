@@ -369,6 +369,43 @@ The `utils` package re-exports common helpers from `utils/__init__.py` using
 similar submodule imports) do not eagerly import `utils.constraints` and
 avoid circular-import issues with `instance_gen_process` and `data_analysis`.
 
+### Native stderr (`utils/native_stderr.py`)
+
+Helpers to redirect OS file descriptor 2 during CUDA-Q runs so native library
+stderr does not corrupt single-line TTY progress. Controlled by
+`HTSP_SILENCE_NATIVE_STDERR` and optional `HTSP_NATIVE_STDERR_LOG`; see
+`docs/configuration.md`.
+
+#### silence_native_stderr_requested
+
+```python
+def silence_native_stderr_requested() -> bool
+```
+
+Returns whether `HTSP_SILENCE_NATIVE_STDERR` is set to a truthy token (`1`, `true`,
+`yes`, `on`). Falsy/unset disables redirection.
+
+#### resolve_native_stderr_log_path
+
+```python
+def resolve_native_stderr_log_path(output_root: Path) -> Path
+```
+
+Returns `HTSP_NATIVE_STDERR_LOG` if set, otherwise `output_root / "native_stderr.log"`
+(resolved).
+
+#### redirect_native_stderr_to_file
+
+```python
+@contextmanager
+def redirect_native_stderr_to_file(log_path: Path) -> Generator[None, None, None]
+```
+
+For the duration of the context, duplicates fd 2 to *log_path* (append), redirects
+`sys.stderr`, and restores both on exit.
+
+---
+
 ### Costs (`utils/costs.py`)
 
 #### calculate_qubo_cost

@@ -101,7 +101,7 @@ The Cirq TQUDO backend uses three custom gates on `cirq.LineQid(dimension=d)`:
 
 - **`src/instance_gen_process/config.yaml`**: Instance generation (n_cities, price ranges, seed).
 - **`src/instance_gen_process/solver_config.yaml`**: Solver choice, formulation, QAOA params, SA params, noise config.
-- **`.env`**: Runtime environment (`HTSP_QUANTUM_BACKEND`, `HTSP_OUTPUT_DIR`, `HTSP_ENABLE_NOISE_SIMULATION`, etc.). For CUDA-Q on-disk experiments, `HTSP_SILENCE_NATIVE_STDERR=1` appends native CUDA stderr (fd 2) to `<output_root>/native_stderr.log` so TTY progress stays clean; optional `HTSP_NATIVE_STDERR_LOG=/path/to.log`.
+- **`.env`**: Runtime environment (`HTSP_QUANTUM_BACKEND`, `HTSP_OUTPUT_DIR`, `HTSP_ENABLE_NOISE_SIMULATION`, etc.); full table in `docs/configuration.md`. For CUDA-Q on-disk experiments, `HTSP_SILENCE_NATIVE_STDERR=1` redirects fd 2 (native + Python stderr) to `<output_root>/native_stderr.log`; optional `HTSP_NATIVE_STDERR_LOG=/path/to.log`.
 
 ## Code conventions
 
