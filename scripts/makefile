@@ -1,4 +1,4 @@
-.PHONY: setup lint test app clean analysis-ingest analysis-metrics analysis-plots analysis-all results-web
+.PHONY: setup lint lint-dead test app clean analysis-ingest analysis-metrics analysis-plots analysis-all results-web
 
 EXTRAS ?= dev,ui,cudaq
 PYTHON := .venv/bin/python
@@ -11,6 +11,10 @@ setup:
 
 lint:
 	$(PYTHON) -m ruff check .
+
+# Dead-code scan (min confidence 80 in pyproject.toml; lower tiers flag Cirq hooks as unused).
+lint-dead:
+	cd $(REPO_ROOT) && $(PYTHON) -m vulture
 
 test:
 	$(PYTHON) -m pytest

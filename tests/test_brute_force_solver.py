@@ -8,7 +8,7 @@ import pytest
 from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from solvers.base import SolverRunConfig
 from solvers.brute_force import BruteForceSolver
-from utils.constraints import validate_solution_constraints_tqudo
+from utils.constraints import validate_solution_constraints_qubo, validate_solution_constraints_tqudo
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
 
 from instance_gen_process import generate_QUBO_from_problem, generate_TQUDO_from_problem
@@ -96,6 +96,80 @@ def test_brute_force_qubo_matches_reference() -> None:
     assert out.metadata["configs_evaluated"] == 2**4
     assert np.allclose(np.array(out.metadata["best_binary"]), ref_x)
     assert out.metadata["best_feasible_sequence"] is not None
+
+
+def test_brute_force_global_minimum_can_be_infeasible_with_zero_penalties() -> None:
+    """When penalties are off, a non-tour sequence can beat every permutation.
+
+    Exercises objective_value vs best_feasible_* metadata (solver must not conflate them).
+    """
+    n = 3
+    n_available = 2
+    ph = np.zeros((n_available, n_available), dtype=np.float64)
+    pt = np.zeros((n, n, n), dtype=np.float64)
+    # Strongly favour staying on city 0 across the middle leg (duplicate visit).
+    pt[1, 0, 0] = -1000.0
+
+    instance = ProblemInstance(
+        n_cities=n,
+        precedences=(),
+        prices_hotels=ph,
+        prices_travels=pt,
+        seed=0,
+    )
+    restriction = RestrictionConfig(lambda_0=0.0, lambda_1=0.0, lambda_2=0.0)
+    run_t = SolverRunConfig(
+        formulation="tqudo",
+        restriction_config=restriction,
+        brute_force_max_assignments_tqudo=1000,
+        brute_force_max_assignments_qubo=1000,
+    )
+    run_q = SolverRunConfig(
+        formulation="qubo",
+        restriction_config=restriction,
+        brute_force_max_assignments_tqudo=1000,
+        brute_force_max_assignments_qubo=1000,
+    )
+
+    tqudo_prob = generate_TQUDO_from_problem(instance, restriction)
+    best_t, best_feasible_t = float("inf"), float("inf")
+    for a in range(n_available):
+        for b in range(n_available):
+            seq = [a, b]
+            c = calculate_tqudo_cost(tqudo_prob, np.array(seq, dtype=int))
+            best_t = min(best_t, c)
+            if validate_solution_constraints_tqudo(instance, seq):
+                best_feasible_t = min(best_feasible_t, c)
+
+    qubo_prob = generate_QUBO_from_problem(instance, restriction)
+    n_vars = n_available * n_available
+    best_q = float("inf")
+    best_feasible_q = float("inf")
+    x = np.zeros(n_vars, dtype=np.float64)
+    for i in range(1 << n_vars):
+        v = i
+        for b in range(n_vars):
+            x[b] = float(v & 1)
+            v >>= 1
+        c = calculate_qubo_cost(qubo_prob, x)
+        best_q = min(best_q, c)
+        if validate_solution_constraints_qubo(instance, x):
+            best_feasible_q = min(best_feasible_q, c)
+
+    assert best_feasible_t > best_t
+    assert best_feasible_q > best_q
+
+    out_t = BruteForceSolver().solve(instance, run_t)
+    assert out_t.objective_value == pytest.approx(best_t)
+    assert out_t.feasible is False
+    assert out_t.metadata["best_feasible_sequence"] is not None
+    assert out_t.metadata["best_feasible_objective_value"] == pytest.approx(best_feasible_t)
+
+    out_q = BruteForceSolver().solve(instance, run_q)
+    assert out_q.objective_value == pytest.approx(best_q)
+    assert out_q.feasible is False
+    assert out_q.metadata["best_feasible_sequence"] is not None
+    assert out_q.metadata["best_feasible_objective_value"] == pytest.approx(best_feasible_q)
 
 
 def test_brute_force_tqudo_qubo_same_optimal_tour_real_cost() -> None:
