@@ -34,6 +34,7 @@ Usage::
     python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500
     python -m experiments.estimate_lambdas --formulation tqudo --solver simulated_annealing
     python -m experiments.estimate_lambdas --solver brute_force --formulation tqudo --lambda-values 100,500
+
 """
 
 from __future__ import annotations

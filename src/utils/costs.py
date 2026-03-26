@@ -28,6 +28,7 @@ def calculate_qubo_cost_from_sequence(
     Returns:
         The QUBO objective in original problem units (same as
         :func:`calculate_qubo_cost` for the equivalent binary vector).
+
     """
     seq = np.asarray(sequence, dtype=np.int64).reshape(-1)
     t = np.arange(n_available, dtype=np.int64)
@@ -58,6 +59,7 @@ def calculate_qubo_cost(problem: ProblemQUBO, solution: np.ndarray) -> float:
 
     Returns:
         The QUBO cost value for the given solution in original problem units.
+
     """
     x = np.asarray(solution).flatten()
     return float(x @ problem.qubo_matrix @ x) * problem.energy_scale
@@ -95,6 +97,7 @@ def calculate_tqudo_cost(
 
     Returns:
         The TQUDO cost value for the given solution in original problem units.
+
     """
     x = np.asarray(solution, dtype=int).flatten()
     n = len(x)
@@ -123,6 +126,7 @@ def calculate_real_cost(problem: ProblemInstance, sequence: list[int]) -> float:
 
     Returns:
         Total cost: sum of hotel costs + sum of travel costs.
+
     """
     n_available = problem.n_cities - 1
     if len(sequence) != n_available:

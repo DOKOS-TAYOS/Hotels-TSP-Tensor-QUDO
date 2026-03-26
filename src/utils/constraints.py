@@ -19,6 +19,7 @@ def idx(t: int, i: int, n_available: int) -> int:
 
     Returns:
         Linear index ``t * n_available + i`` into the one-hot vectorisation.
+
     """
     return t * n_available + i
 
@@ -31,8 +32,8 @@ def validate_instance_constraints(instance: ProblemInstance) -> bool:
 
     Returns:
         True if dimensions and precedences are self-consistent.
-    """
 
+    """
     n_available = instance.n_cities - 1
     if n_available < 1:
         return False
@@ -66,6 +67,7 @@ def _has_cycle(
 
     Returns:
         True if a directed cycle exists.
+
     """
     adj: dict[int, list[int]] = {}
     for a, b in precedences:
@@ -109,6 +111,7 @@ def would_create_cycle(
 
     Returns:
         True if adding the edge would introduce a cycle.
+
     """
     adj: dict[int, list[int]] = {}
     for a, b in precedences:
@@ -138,6 +141,7 @@ def _check_precedences(
 
     Returns:
         True if all precedences are satisfied.
+
     """
     pos: dict[int, int] = {int(seq[t]): t for t in range(len(seq))}
     return all(
@@ -161,6 +165,7 @@ def validate_solution_constraints_tqudo(
 
     Returns:
         True if all constraints are satisfied, False otherwise.
+
     """
     n_available = instance.n_cities - 1
     seq = np.asarray(solution).flatten()
@@ -187,6 +192,7 @@ def qubo_binary_to_sequence(solution: np.ndarray, n_available: int) -> np.ndarra
     Returns:
         Integer array of shape ``(n_available,)`` with the route, or None if
         the one-hot constraints are violated.
+
     """
     x = np.asarray(solution).flatten()
     expected_len = n_available * n_available
@@ -223,6 +229,7 @@ def sequence_to_qubo_binary(
 
     Returns:
         Binary vector of shape (n_available * n_available,) with one-hot encoding.
+
     """
     seq = np.asarray(sequence).flatten()
     x = np.zeros(n_available * n_available, dtype=float)
@@ -248,6 +255,7 @@ def validate_solution_constraints_qubo(
 
     Returns:
         True if all constraints are satisfied, False otherwise.
+
     """
     n_available = instance.n_cities - 1
     seq = qubo_binary_to_sequence(solution, n_available)

@@ -35,6 +35,7 @@ def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float
 
     Raises:
         ValueError: If the imaginary part exceeds *imag_tol*.
+
     """
     total = complex(np.sum(np.asarray(values, dtype=np.complex128)))
     if abs(total.imag) > imag_tol:
@@ -61,6 +62,7 @@ def ising_to_pauli_sum(
 
     Returns:
         cirq.PauliSum representing the cost Hamiltonian.
+
     """
     n = len(h)
     if j_matrix.shape != (n, n) or len(qubits) != n:
@@ -109,6 +111,7 @@ def create_qaoa_circuit(
 
     Returns:
         Tuple (circuit, param_map) where param_map has 'gamma_0'..'beta_{p-1}' -> Symbol.
+
     """
     n_qubits = len(h_arr)
     symbols: dict[str, sympy.Symbol] = {}
@@ -155,6 +158,7 @@ def _param_resolver(params: np.ndarray, symbols: dict[str, sympy.Symbol], depth:
 
     Returns:
         ``cirq.ParamResolver`` for the circuit.
+
     """
     resolver_dict: dict[sympy.Symbol, float] = {}
     for k in range(depth):
@@ -185,6 +189,7 @@ def evaluate_cost(
 
     Returns:
         Sample-averaged QUBO objective.
+
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -213,6 +218,7 @@ def sample_solution(
 
     Returns:
         Histogram mapping bitstrings to counts.
+
     """
     resolver = _param_resolver(params, symbols, depth)
     result = simulator.run(circuit_with_measure, resolver, repetitions=n_shots)
@@ -258,6 +264,7 @@ def optimize_qaoa(
         ``(best_energy, best_params, initial_samples, final_samples,
         initial_energy, energy_history)``; sample dicts are None when
         ``sample_shots`` is None.
+
     """
     h, j_matrix, offset = qubo_to_ising(qubo_matrix)
     n = len(h)
@@ -345,6 +352,7 @@ def run_qaoa(
     Returns:
         Dict with ``energy``, ``params``, ``initial_samples``, ``final_samples``,
         ``best_bitstring``, ``best_binary``, ``initial_energy``, ``energy_history``.
+
     """
     best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
         optimize_qaoa(

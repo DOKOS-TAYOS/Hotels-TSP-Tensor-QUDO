@@ -250,6 +250,72 @@ class TestTQUDOGeneration:
 
 
 # ---------------------------------------------------------------------------
+# QUBO feasible-route algebraic identity (decoupled from TQUDO)
+# ---------------------------------------------------------------------------
+
+class TestQuboFeasibleRouteAlgebraicIdentity:
+    """For one-hot permutations with no precedences: QUBO = real - (λ₀+λ₁)·n_available."""
+
+    @pytest.mark.parametrize("seed", [0, 7, 99])
+    def test_all_permutations_match_doc_identity_random_instance(self, seed: int) -> None:
+        import itertools
+
+        config = InstanceConfig(
+            n_cities=5,
+            n_precedences_range=(0, 0),
+            prices_range_hotels=(5.0, 80.0),
+            prices_range_travels=(5.0, 80.0),
+            seed=seed,
+        )
+        instance = generate_random_instance(config, seed)
+        restriction = RestrictionConfig(lambda_0=12.5, lambda_1=7.25, lambda_2=300.0)
+        qubo = generate_QUBO_from_problem(instance, restriction)
+        n_available = instance.n_cities - 1
+        offset = (restriction.lambda_0 + restriction.lambda_1) * n_available
+
+        for perm in itertools.permutations(range(n_available)):
+            seq = list(perm)
+            x = sequence_to_qubo_binary(seq, n_available)
+            qcost = calculate_qubo_cost(qubo, x)
+            rc = calculate_real_cost(instance, seq)
+            assert qcost == pytest.approx(rc - offset), (seq, qcost, rc - offset, rc)
+
+    def test_identity_with_matrix_normalisation_energy_scale_gt_one(self) -> None:
+        """Same identity after QUBO normalisation (energy_scale > 1)."""
+        import itertools
+
+        n_cities = 4
+        n_available = 3
+        prices_hotels = np.full((n_available, n_available), 500.0)
+        prices_travels = np.zeros((n_cities, n_cities, n_cities), dtype=float)
+        for k in range(n_cities):
+            prices_travels[:, k, k] = 0.0
+        prices_travels[0, n_available, :] = 200.0
+        prices_travels[n_available, :, n_available] = 200.0
+        for t in range(1, n_cities):
+            prices_travels[t, :, :] += 50.0
+
+        instance = ProblemInstance(
+            n_cities=n_cities,
+            precedences=(),
+            prices_hotels=prices_hotels,
+            prices_travels=prices_travels,
+            seed=1,
+        )
+        restriction = RestrictionConfig(lambda_0=3.0, lambda_1=4.0, lambda_2=200.0)
+        qubo = generate_QUBO_from_problem(instance, restriction)
+        assert qubo.energy_scale > 1.0
+
+        offset = (restriction.lambda_0 + restriction.lambda_1) * n_available
+        for perm in itertools.permutations(range(n_available)):
+            seq = list(perm)
+            x = sequence_to_qubo_binary(seq, n_available)
+            qcost = calculate_qubo_cost(qubo, x)
+            rc = calculate_real_cost(instance, seq)
+            assert qcost == pytest.approx(rc - offset), seq
+
+
+# ---------------------------------------------------------------------------
 # Cross-formulation consistency
 # ---------------------------------------------------------------------------
 

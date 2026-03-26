@@ -91,6 +91,7 @@ def resolve_cudaq_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
 
     Returns:
         Integer >= 1.
+
     """
     raw = os.environ.get(CUDAQ_PARALLEL_ENV)
     if raw is not None and str(raw).strip() != "":
@@ -111,6 +112,7 @@ def resolve_cpu_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
 
     Returns:
         Integer >= 1.
+
     """
     raw = os.environ.get(CPU_PARALLEL_ENV)
     if raw is not None and str(raw).strip() != "":
@@ -253,6 +255,7 @@ def run_parallel_solve_batch(
     Returns:
         Counts of failures and completed writes, and whether the batch was cut
         short by interrupt/cancel.
+
     """
     from experiments import cudaq_parallel as _cqp_mod
 

@@ -27,6 +27,7 @@ def validate_solver_instance_compatibility(
 
     Raises:
         ValueError: If the combination is unsupported or impractical.
+
     """
     formulation = solver_config.get("formulation", "tqudo")
     solver = solver_config.get("solver", "cudaq")

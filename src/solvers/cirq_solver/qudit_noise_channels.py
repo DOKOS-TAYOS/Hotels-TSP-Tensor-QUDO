@@ -298,6 +298,7 @@ def _make_single_qudit_channel(
 
     Raises:
         ValueError: If *noise_type* is unknown.
+
     """
     factory = _QUDIT_CHANNEL_FACTORIES.get(noise_type)
     if factory is None:
@@ -322,6 +323,7 @@ def _make_two_qudit_channel(
 
     Returns:
         :class:`TwoQuditDepolarizingChannel` instance.
+
     """
     return TwoQuditDepolarizingChannel(dimension, probability)
 
@@ -352,6 +354,7 @@ class ConstantQuditNoiseModel(cirq.NoiseModel):
     Args:
         config: Noise type, default probability, and optional gate overrides.
         dimension: Native qudit dimension d for all channels in this model.
+
     """
 
     def __init__(self, config: NoiseConfig, dimension: int) -> None:
@@ -378,6 +381,7 @@ class ConstantQuditNoiseModel(cirq.NoiseModel):
 
         Returns:
             List starting with *op* then appropriate channel applications.
+
         """
         if isinstance(op.gate, cirq.MeasurementGate) or op.gate is None:
             return op
@@ -428,5 +432,6 @@ def build_qudit_noise_model(
 
     Returns:
         Noise model instance for ``circuit.with_noise(...)``.
+
     """
     return ConstantQuditNoiseModel(config, dimension)

@@ -10,8 +10,8 @@ def configure_logging(level: str = "INFO") -> None:
 
     Args:
         level: Name such as ``INFO`` or ``DEBUG``; invalid names fall back to INFO.
-    """
 
+    """
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",

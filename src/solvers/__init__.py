@@ -46,6 +46,7 @@ def __getattr__(name: str) -> object:
 
     Raises:
         AttributeError: If *name* is not a known lazy export.
+
     """
     if name in _LAZY_IMPORTS:
         module_path, attr = _LAZY_IMPORTS[name]

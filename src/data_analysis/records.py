@@ -41,7 +41,14 @@ def manifest_empty_schema_row() -> dict[str, Any]:
 
 
 def _parse_solutions_subpath(parts: tuple[str, ...]) -> dict[str, Any] | None:
-    """Parse ``solver/formulation/n_{n}/[depth]/instance_{k}.json`` under raw/solutions."""
+    """Parse ``solver/formulation/n_{n}/[depth]/instance_{k}.json`` under raw/solutions.
+
+    Also accepts ``solver/solver/formulation/n_{n}/...`` (duplicate solver folder).
+    """
+    if len(parts) < 4:
+        return None
+    if len(parts) >= 5 and parts[0] == parts[1] and not parts[2].startswith("n_"):
+        parts = (parts[0],) + parts[2:]
     if len(parts) < 4:
         return None
     solver, formulation, n_raw = parts[0], parts[1], parts[2]

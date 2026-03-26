@@ -41,6 +41,7 @@ def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator
     Returns:
         cudaq.SpinOperator representing the cost Hamiltonian H_C.
         Can be passed to cudaq.observe() for expectation value computation.
+
     """
     n = len(h)
     if j_matrix.shape != (n, n):
@@ -84,6 +85,7 @@ def create_qaoa_ansatz(
     Returns:
         Kernel with signature (gamma, beta). Use ``observe(kernel,
         hamiltonian, gamma, beta)``.
+
     """
     n_qubits = len(h_arr)
 
@@ -156,6 +158,7 @@ def evaluate_cost(
 
     Returns:
         float: Average x^T Q x over sampled bitstrings.
+
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
@@ -192,6 +195,7 @@ def sample_solution(
     Returns:
         cudaq.SampleResult: Dict-like object with bitstring counts.
         e.g. result["001"] = 42. Use .items() or iterate for (bitstring, count).
+
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
@@ -236,6 +240,8 @@ def optimize_qaoa(
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
         optimizer_tol: SciPy ``minimize`` stopping tolerance.
+        noise_config: Optional backend noise settings; when set, selects the CUDA-Q
+            target and builds the sampling noise model.
 
     Returns:
         Tuple of (best_energy, best_params, initial_samples, final_samples,
@@ -245,6 +251,7 @@ def optimize_qaoa(
         final_samples: SampleResult at best_params when sample_shots is set, else None.
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
+
     """
     ensure_cudaq_target(noise_config)
     if seed is not None:
@@ -329,6 +336,8 @@ def run_qaoa(
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
         optimizer_tol: SciPy ``minimize`` stopping tolerance.
+        noise_config: Optional backend noise settings; when set, selects the CUDA-Q
+            target and builds the sampling noise model.
 
     Returns:
         Dict with keys: energy, params, initial_samples, final_samples, best_bitstring,
@@ -337,6 +346,7 @@ def run_qaoa(
         final_samples: SampleResult at best params (after optimization).
         best_bitstring: Most frequent bitstring from final_samples.
         best_binary: bitstring_to_binary(best_bitstring).
+
     """
     best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (
         optimize_qaoa(

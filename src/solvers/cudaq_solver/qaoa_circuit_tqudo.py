@@ -40,6 +40,7 @@ def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[in
 
     Raises:
         ValueError: On rank mismatch, shape mismatch, or non-power-of-two *d*.
+
     """
     if Etab.ndim != 3:
         raise ValueError(f"Etab must be a rank-3 tensor, got shape {Etab.shape}.")
@@ -79,6 +80,7 @@ def _nonzero_etab_terms(Etab: np.ndarray) -> list[tuple[int, int, int, int, floa
 
     Returns:
         Tuples ``(t, t+1, x_left, x_right, coefficient)`` above threshold.
+
     """
     n_qudits = Etab.shape[0]
     adjacent = Etab[:n_qudits - 1]
@@ -97,6 +99,7 @@ def _nonzero_ett_terms(Ettprimeab: np.ndarray) -> list[tuple[int, int, int, int,
 
     Returns:
         Tuples ``(t, t_prime, x_t, x_tp, coefficient)``.
+
     """
     n_qudits = Ettprimeab.shape[0]
     mask = np.abs(Ettprimeab) > 1e-14
@@ -130,6 +133,7 @@ def _apply_state_conditioned_phase(
         left_state: Integer encoding of the left qudit basis state.
         right_state: Integer encoding of the right qudit basis state.
         angle: Phase angle (may be a kernel parameter expression).
+
     """
     left_base = left_qudit * qubits_per_qudit
     right_base = right_qudit * qubits_per_qudit
@@ -181,6 +185,7 @@ def create_qaoa_ansatz(
 
     Raises:
         ValueError: Propagated from :func:`_validate_tqudo_shapes`.
+
     """
     n_qudits, dimension_qudits = _validate_tqudo_shapes(Etab, Ettprimeab)
     qubits_per_qudit = max(1, int(math.ceil(math.log2(dimension_qudits))))
@@ -245,6 +250,7 @@ def evaluate_cost(
 
     Returns:
         Average TQUDO cost over samples, or 0.0 if no samples were returned.
+
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
@@ -283,6 +289,7 @@ def sample_solution(
 
     Returns:
         cudaq.SampleResult: Dict-like object with bitstring counts.
+
     """
     gamma = params[:depth].tolist()
     beta = params[depth:].tolist()
@@ -325,6 +332,8 @@ def optimize_qaoa(
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
         optimizer_tol: SciPy ``minimize`` stopping tolerance.
+        noise_config: Optional backend noise settings; when set, selects the CUDA-Q
+            target and builds the sampling noise model.
 
     Returns:
         Tuple of (best_energy, best_params, initial_samples, final_samples,
@@ -334,6 +343,7 @@ def optimize_qaoa(
         final_samples: SampleResult at best_params when sample_shots is set, else None.
         initial_energy: Energy at init_params before optimization.
         energy_history: List of energies at each optimizer evaluation.
+
     """
     ensure_cudaq_target(noise_config)
     if seed is not None:
@@ -416,6 +426,8 @@ def run_qaoa(
         optimizer: scipy optimizer method (COBYLA, Powell, L-BFGS-B, SLSQP, Nelder-Mead).
         delta_t: Time step for TQA initialization (default 0.55).
         optimizer_tol: SciPy ``minimize`` stopping tolerance.
+        noise_config: Optional backend noise settings; when set, selects the CUDA-Q
+            target and builds the sampling noise model.
 
     Returns:
         Dict with keys: energy, params, initial_samples, final_samples, best_bitstring,
@@ -424,6 +436,7 @@ def run_qaoa(
         final_samples: SampleResult at best params (after optimization).
         best_bitstring: Most frequent bitstring from final_samples.
         best_sequence: Qudit sequence (route) from best_bitstring.
+
     """
     n_qudits = Etab.shape[0]
     qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))

@@ -16,6 +16,7 @@ def _load_streamlit() -> ModuleType:
 
     Raises:
         ModuleNotFoundError: If Streamlit is not installed (hint to use ``[ui]``).
+
     """
     try:
         import streamlit as st
@@ -32,10 +33,10 @@ def main() -> None:
     st = _load_streamlit()
 
     st.set_page_config(page_title="Hotel TSP · Tensor-QUDO", layout="wide")
-    st.title("Hotel TSP · Tensor-QUDO y QUBO")
+    st.title("Hotel TSP · Tensor-QUDO and QUBO")
     st.caption(
-        "Routing con restricciones de precedencia: formulación QUBO (one-hot) frente a Tensor-QUDO "
-        "(qudits). Referencia: arXiv:2508.01958. Configuración local antes de lanzar pipelines "
+        "Routing with precedence constraints: QUBO (one-hot) vs Tensor-QUDO (qudits). "
+        "Reference: arXiv:2508.01958. Local configuration before running "
         "(`experiments`, `data_analysis`)."
     )
 
@@ -44,7 +45,7 @@ def main() -> None:
 
     left_col, right_col = st.columns(2)
     with left_col:
-        st.subheader("Entorno y salida")
+        st.subheader("Environment and output")
         st.json(
             {
                 "quantum_backend": settings.quantum_backend,
@@ -57,7 +58,7 @@ def main() -> None:
         )
 
     with right_col:
-        st.subheader("Generación de instancias")
+        st.subheader("Instance generation")
         st.json(
             {
                 "n_cities": instance_config.n_cities,
@@ -69,9 +70,9 @@ def main() -> None:
         )
 
     st.info(
-        "Los resultados agregados y figuras se exploran en `webpage_results/` "
-        "(servidor HTTP: `make -f scripts/makefile results-web`). "
-        "Backends: CUDA-Q, Cirq, recocido simulado y fuerza bruta según `solver_config.yaml`."
+        "Aggregated results and figures are browsed under `webpage_results/` "
+        "(HTTP server: `make -f scripts/makefile results-web`). "
+        "Backends: CUDA-Q, Cirq, simulated annealing, and brute force per `solver_config.yaml`."
     )
 
 

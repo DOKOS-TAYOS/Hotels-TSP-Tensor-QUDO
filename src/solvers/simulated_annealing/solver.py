@@ -47,6 +47,7 @@ def evaluate_cost(
 
     Returns:
         Cost in stored (normalized) units, rescaled consistently with solvers.
+
     """
     if formulation == "tqudo":
         return float(calculate_tqudo_cost(problem, sequence))
@@ -108,6 +109,7 @@ def _swap_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarray
 
     Returns:
         New permutation (copy); unchanged if length < 2.
+
     """
     n = len(sequence)
     if n < 2:
@@ -132,6 +134,7 @@ def _insert_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndarr
 
     Returns:
         New permutation; copy only if length < 2.
+
     """
     n = len(sequence)
     if n < 2:
@@ -157,6 +160,7 @@ def _reverse_neighbor(sequence: np.ndarray, rng: np.random.Generator) -> np.ndar
 
     Returns:
         New permutation; falls back to :func:`_swap_neighbor` if length < 3.
+
     """
     n = len(sequence)
     if n < 3:
@@ -179,6 +183,7 @@ def random_neighbor(
 
     Returns:
         Neighbour state and ``op_id`` in ``{0: swap, 1: insert, 2: reverse}``.
+
     """
     _operators = (_swap_neighbor, _insert_neighbor, _reverse_neighbor)
     op_id = int(rng.integers(0, len(_operators)))
@@ -202,6 +207,7 @@ class SimulatedAnnealingSolver:
 
         Raises:
             ValueError: If ``formulation`` is ``tqudo_virtual``.
+
         """
         restriction = run_config.restriction_config or _default_restriction()
         formulation = run_config.formulation

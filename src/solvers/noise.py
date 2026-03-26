@@ -83,6 +83,7 @@ class NoiseConfig:
             ``"x"``, ``"h"``, ``"rx"``, ``"rz"``, ``"cx"`` / ``"cnot"``, etc.
             When a gate is *not* listed here, ``probability`` is used as
             the fallback.
+
     """
 
     enabled: bool = False
@@ -95,6 +96,7 @@ class NoiseConfig:
 
         Raises:
             ValueError: If any field is out of range or ``noise_type`` is unknown.
+
         """
         if self.noise_type not in VALID_NOISE_TYPES:
             raise ValueError(
@@ -127,6 +129,7 @@ class NoiseConfig:
             qudit_dimension: Dimension of each quantum system.  For qudits
                 (d > 2) the effective Hilbert-space size is d^n, so the
                 equivalent qubit count is ``n * log₂(d)``.
+
         """
         if not self.enabled:
             return

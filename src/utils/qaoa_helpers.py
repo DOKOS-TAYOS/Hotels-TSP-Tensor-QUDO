@@ -21,6 +21,7 @@ def tqa_init_params(depth: int, delta_t: float) -> np.ndarray:
     Returns:
         1-D array of shape ``(2 * depth,)``:
         ``[gamma_1, …, gamma_p, beta_1, …, beta_p]``.
+
     """
     indices = np.arange(1, depth + 1)
     gamma_init = (indices / depth) * delta_t
@@ -36,6 +37,7 @@ def bitstring_to_binary(bitstring: str) -> np.ndarray:
 
     Returns:
         Integer array with ``x_i = 0`` for ``|0⟩`` and ``x_i = 1`` for ``|1⟩``.
+
     """
     return np.array([int(b) for b in bitstring], dtype=np.int64)
 
@@ -50,6 +52,7 @@ def measurement_histogram_for_json(
 
     Returns:
         ``{key: int(count)}`` sorted by count descending, or None when *samples* is None.
+
     """
     if samples is None:
         return None
@@ -66,6 +69,7 @@ def most_probable_key(counts: dict[str, int], fallback: str) -> str:
 
     Returns:
         Argmax key by count, or *fallback*.
+
     """
     if not counts:
         return fallback
@@ -80,5 +84,6 @@ def is_power_of_two(value: int) -> bool:
 
     Returns:
         True iff ``value > 0`` and only one bit is set in binary.
+
     """
     return value > 0 and (value & (value - 1)) == 0

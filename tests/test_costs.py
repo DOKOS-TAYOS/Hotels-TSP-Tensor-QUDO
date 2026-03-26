@@ -98,6 +98,33 @@ class TestCalculateTqudoCost:
         assert c0 + delta == pytest.approx(c1)
 
 
+class TestEnergyScaleInvariants:
+    """``energy_scale`` must undo stored tensor/matrix normalisation (original units)."""
+
+    def test_qubo_rescaling_invariant(self) -> None:
+        rng = np.random.default_rng(3)
+        n = 6
+        a = rng.standard_normal((n, n))
+        q_raw = (a + a.T) / 2.0
+        s = 2.7
+        x = rng.integers(0, 2, size=(n,)).astype(np.float64)
+        p1 = ProblemQUBO(qubo_matrix=q_raw / s, energy_scale=s)
+        p2 = ProblemQUBO(qubo_matrix=q_raw, energy_scale=1.0)
+        assert calculate_qubo_cost(p1, x) == pytest.approx(calculate_qubo_cost(p2, x))
+
+    def test_tqudo_rescaling_invariant(self) -> None:
+        rng = np.random.default_rng(4)
+        n = 5
+        d = 4
+        etab_r = rng.standard_normal((n, d, d))
+        ett_r = rng.standard_normal((n, n, d, d))
+        s = 0.8
+        seq = rng.integers(0, d, size=(n,))
+        p1 = ProblemTQUDO(Etab=etab_r / s, Ettprimeab=ett_r / s, energy_scale=s)
+        p2 = ProblemTQUDO(Etab=etab_r, Ettprimeab=ett_r, energy_scale=1.0)
+        assert calculate_tqudo_cost(p1, seq) == pytest.approx(calculate_tqudo_cost(p2, seq))
+
+
 class TestCalculateRealCost:
     """Tests for calculate_real_cost."""
 

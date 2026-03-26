@@ -19,6 +19,7 @@ class OutputLayout:
         raw: Subfolder for raw JSON or solver dumps.
         processed: Subfolder for post-processed tables or aggregates.
         images: Subfolder for figures.
+
     """
 
     root: Path
@@ -35,6 +36,7 @@ def build_output_layout(root: Path) -> OutputLayout:
 
     Returns:
         OutputLayout with root, raw, processed, and images subpaths.
+
     """
     return OutputLayout(
         root=root,

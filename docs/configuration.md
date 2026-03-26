@@ -21,11 +21,17 @@ Settings are resolved in this order: **environment variable > `.env` file > defa
 | `HTSP_RANDOM_SEED`              | int     | `42`                                      | Global random seed                                           |
 | `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` | int | `1` (implicit)                          | Overrides `cudaq_max_parallel_instances` in solver YAML when set (non-empty string) |
 | `HTSP_CPU_MAX_PARALLEL_INSTANCES`   | int | `1` (implicit)                          | Overrides `cpu_max_parallel_instances` in solver YAML when set (non-empty string)   |
+| `HTSP_SILENCE_NATIVE_STDERR`      | bool    | `false` (unset)                           | When true, on-disk CUDA-Q experiments redirect OS fd 2 (native + Python stderr) to a log file so TTY progress lines stay clean (see below) |
+| `HTSP_NATIVE_STDERR_LOG`          | path    | (see below)                               | Optional explicit log file; default is `<HTSP_OUTPUT_DIR>/native_stderr.log` when silence is enabled |
 
 Boolean values accept: `1`, `true`, `yes`, `on` (case-insensitive) for true;
 everything else is false.
 
 Relative paths are resolved against the project root directory.
+
+### Native stderr (CUDA-Q on-disk experiments)
+
+Native libraries (CUDA, cuQuantum, etc.) may write to file descriptor 2 independently of Python `logging` / `warnings`. Setting `HTSP_SILENCE_NATIVE_STDERR` to a truthy value (`1`, `true`, `yes`, `on`, case-insensitive) enables redirection **for the duration of CUDA-Q solves** in the experiment workflow: stderr is appended to `HTSP_NATIVE_STDERR_LOG` if set, otherwise to `<output_root>/native_stderr.log` (with `output_root` taken from the run, typically `HTSP_OUTPUT_DIR`). Falsy tokens: `0`, `false`, `no`, `off`. Implemented in `utils.native_stderr`.
 
 ### Noise kill-switch
 
@@ -101,14 +107,18 @@ noise:
   probability: 0.01
 ```
 
+### Committed file vs reference
+
+The YAML block above is a **minimal template** (field shapes and typical values). The version-controlled **`src/instance_gen_process/solver_config.yaml`** in this repository is the working profile for project benchmarks: it may differ in parallel batch keys (`cudaq_max_parallel_instances`, `cpu_max_parallel_instances`), `optimizer`, simulated-annealing tuning, shot counts, or penalties. Use that file when replicating runs from this repo.
+
 ### General fields
 
 | Field              | Type           | Default  | Constraints                                      |
 |--------------------|----------------|----------|--------------------------------------------------|
 | `n_instances`      | int            | --       | >= 1, required                                   |
 | `solver`           | string         | `cudaq`  | `brute_force`, `cudaq`, `cirq`, or `simulated_annealing` |
-| `formulation`      | string         | `tqudo`  | `qubo`, `tqudo`, or `tqudo_virtual`              |
-| `optimizer`        | string         | `COBYLA` | `COBYLA`, `Powell`, `L-BFGS-B`, `SLSQP`, `Nelder-Mead` |
+| `formulation`      | string         | `tqudo_virtual` | `qubo`, `tqudo`, or `tqudo_virtual` (repo default favors `tqudo_virtual` for CUDA-Q) |
+| `optimizer`        | string         | `COBYLA` | `COBYLA`, `Powell`, `L-BFGS-B`, `SLSQP`, `Nelder-Mead` (repo copy may override, e.g. Powell) |
 | `seed`             | int or null    | null     | Optional random seed                             |
 | `max_iterations`   | int            | `1000`   | >= 0 (SA max iterations)                         |
 | `timeout_seconds`  | float or null  | null     | Optional timeout in seconds                      |

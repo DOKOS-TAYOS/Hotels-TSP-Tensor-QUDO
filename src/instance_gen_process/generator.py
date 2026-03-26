@@ -29,6 +29,7 @@ def generate_random_set_instances(config: InstanceConfig, n_instances: int, seed
 
     Returns:
         List of n_instances ProblemInstance with valid precedences and price matrices.
+
     """
     master_rng = random.Random(seed)
     instance_seeds = [master_rng.randint(0, 2**32 - 1) for _ in range(n_instances)]
@@ -48,6 +49,7 @@ def generate_random_instance(config: InstanceConfig, seed: int) -> ProblemInstan
 
     Returns:
         ProblemInstance with acyclic precedences and random price matrices.
+
     """
     rng = random.Random(seed)
 
@@ -112,6 +114,7 @@ def generate_TQUDO_from_problem(problem: ProblemInstance, restriction: Restricti
 
     Returns:
         ProblemTQUDO with Etab (3D) and Ettprimeab (4D) tensors.
+
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1
@@ -178,6 +181,7 @@ def generate_QUBO_from_problem(problem: ProblemInstance, restriction: Restrictio
 
     Returns:
         ProblemQUBO with qubo_matrix of shape (n_available^2, n_available^2).
+
     """
     n_cities = problem.n_cities
     n_available = n_cities - 1

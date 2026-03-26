@@ -455,7 +455,7 @@ class TestCirqNativeQuditNoisyRun:
         Etab, Ettprimeab = self._small_tensors(d=3)
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         result = run_qaoa(
-            Etab, Ettprimeab, depth=1, max_iter=3, n_shots=30,
+            Etab, Ettprimeab, depth=1, max_iter=5, n_shots=30,
             sample_shots=30, seed=42, noise_config=cfg,
         )
         assert "energy" in result
@@ -527,7 +527,7 @@ class TestCirqNativeQuditNoisyRun:
         Etab, Ettprimeab = self._small_tensors(d=d)
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         result = run_qaoa(
-            Etab, Ettprimeab, depth=1, max_iter=3, n_shots=20,
+            Etab, Ettprimeab, depth=1, max_iter=5, n_shots=20,
             sample_shots=20, seed=42, noise_config=cfg,
         )
         assert isinstance(result["energy"], float)
