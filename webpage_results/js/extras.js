@@ -15,20 +15,7 @@ async function fetchDirListing(relDir) {
   return { ok: true, links: parseDirectoryJsonLinks(html), status: r.status };
 }
 
-function showJson(id, data) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = JSON.stringify(data, null, 2);
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    const wc = await fetchJson("processed/wilcoxon_sa_qubo_tqudo.json");
-    showJson("json-wilcoxon", wc);
-  } catch (e) {
-    showJson("json-wilcoxon", { note: "No disponible", error: String(e) });
-  }
-
   const t0 = await fetchDirListing("T0sampling/");
   const hostT0 = document.getElementById("t0-list");
   if (hostT0) {

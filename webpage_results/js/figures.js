@@ -2,19 +2,19 @@ import { outputUrl } from "./config.js";
 
 const knownFigures = [
   [
-    "img-feas",
-    "images/feasibility_by_config.png",
-    "Factibilidad de rutas vs configuración (solver × formulación × n)",
-  ],
-  [
-    "img-violin",
-    "images/approx_ratio_real_violin.png",
-    "Distribución del ratio de aproximación sobre el coste real",
-  ],
-  [
     "img-energy",
-    "images/energy_history_median.png",
-    "Historial de energía (mediana) durante la optimización QAOA",
+    "images/energy_history_mean_cudaq_qubo_vs_tqudo_virtual_n5.png",
+    "Historial de energía (media): CUDA-Q QUBO vs TQUDO virtual, n=5",
+  ],
+  [
+    "img-energy-cirq-cuda",
+    "images/energy_history_mean_cirq_tqudo_vs_cudaq_tvirt_n5.png",
+    "Historial de energía (media): Cirq TQUDO vs CUDA-Q virtual, n=5",
+  ],
+  [
+    "img-energy-cirq-n",
+    "images/energy_history_mean_cirq_tqudo_by_ncities.png",
+    "Historial de energía (media): Cirq TQUDO por n_cities",
   ],
 ];
 

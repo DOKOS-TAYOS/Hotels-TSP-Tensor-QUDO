@@ -37,8 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   line("st-paired", r2.ok, r2.msg);
   const r3 = await probe("processed/energy_curves_agg.csv", "energy_curves_agg.csv");
   line("st-curves", r3.ok, r3.msg);
-  const r4 = await probe("processed/wilcoxon_sa_qubo_tqudo.json", "wilcoxon (opcional)");
-  line("st-wilcoxon", r4.ok, r4.msg);
-  const imgOk = await resourceExists("images/feasibility_by_config.png");
+  const imgOk = await resourceExists("images/energy_history_mean_cudaq_qubo_vs_tqudo_virtual_n5.png");
   line("st-images", imgOk, imgOk ? "figuras PNG (ej.): OK" : "figuras PNG (ej.): no encontrado");
 });

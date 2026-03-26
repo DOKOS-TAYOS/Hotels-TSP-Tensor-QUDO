@@ -428,7 +428,7 @@ Always use `calculate_real_cost()` when comparing solutions across formulations.
 output/
 ├── raw/           Per-instance JSON (workflow); solutions under raw/solutions/<solver>/...
 ├── processed/     data_analysis: manifest, paired_metrics, summary_by_config, optional curves
-└── images/        data_analysis: feasibility, ratios, energy curves (*.png)
+└── images/        data_analysis: energy curves, benchmark figures (*.png)
 ```
 
 Each JSON file in `output/raw/` contains:

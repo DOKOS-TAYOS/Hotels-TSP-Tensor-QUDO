@@ -66,7 +66,7 @@ make -f scripts/makefile app     # streamlit run src/streamlit_app/app.py
 make -f scripts/makefile clean   # Remove caches, __pycache__, .pyc, temp dirs
 # Require pip install -e '.[analysis]' for the following:
 make -f scripts/makefile analysis-ingest   # raw JSON → processed/manifest.*
-make -f scripts/makefile analysis-metrics  # manifest → paired_metrics, summary, curves, wilcoxon
+make -f scripts/makefile analysis-metrics  # manifest → paired_metrics, summary, curves (no SA)
 make -f scripts/makefile analysis-plots    # processed tables → output/images/*.png
 make -f scripts/makefile analysis-all      # ingest + metrics + plots (default --output-root output)
 ```
@@ -147,7 +147,7 @@ After runs exist under `output/raw/`, install the `analysis` extra and run:
 .venv/bin/python -m data_analysis.metrics --output-root output --sample-quality  # slower: histogram feasible mass
 ```
 
-Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`, `wilcoxon_sa_qubo_tqudo.json`; figures under `output/images/`.
+Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`; figures under `output/images/`.
 
 ---
 

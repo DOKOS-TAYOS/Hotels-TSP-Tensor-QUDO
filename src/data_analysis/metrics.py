@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -76,6 +77,12 @@ def _load_manifest(processed: Path) -> Any:
 
 
 def _reference_bruteforce(df: Any) -> Any:
+    """Ground-truth optimum: always *real* cost from ``brute_force`` + ``tqudo``.
+
+    Objective references for ratios / first-hit curves: TQUDO BF objective for
+    ``tqudo`` / ``tqudo_virtual`` rows; QUBO BF objective for ``qubo`` rows when
+    a brute_force QUBO row exists for the same instance.
+    """
     import pandas as pd
 
     bf = df[df["parse_ok"] & df["solve_ok"] & (df["solver"] == "brute_force")].copy()
@@ -84,20 +91,47 @@ def _reference_bruteforce(df: Any) -> Any:
             columns=[
                 "n_cities",
                 "instance_key",
-                "formulation",
-                "ref_objective_value",
                 "ref_real_cost",
+                "ref_objective_tqudo",
+                "ref_objective_qubo",
             ]
         )
     bf = bf.sort_values("path")
     bf["ref_real_cost"] = bf["best_feasible_real_cost"].where(
         bf["best_feasible_real_cost"].notna(), bf["real_cost"]
     )
-    bf["ref_objective_value"] = bf["objective_value"]
-    ref = bf.groupby(["n_cities", "instance_key", "formulation"], as_index=False).last()
-    return ref[
-        ["n_cities", "instance_key", "formulation", "ref_objective_value", "ref_real_cost"]
+
+    tqudo = bf[bf["formulation"] == "tqudo"]
+    if tqudo.empty:
+        return pd.DataFrame(
+            columns=[
+                "n_cities",
+                "instance_key",
+                "ref_real_cost",
+                "ref_objective_tqudo",
+                "ref_objective_qubo",
+            ]
+        )
+
+    tq = tqudo.copy()
+    tq["ref_objective_tqudo"] = tq["objective_value"]
+    ref = tq.groupby(["n_cities", "instance_key"], as_index=False).last()
+    ref = ref[
+        ["n_cities", "instance_key", "ref_real_cost", "ref_objective_tqudo"]
     ]
+
+    qubo = bf[bf["formulation"] == "qubo"]
+    if not qubo.empty:
+        qb = qubo.copy()
+        qb["ref_objective_qubo"] = qb["objective_value"]
+        qref = qb.groupby(["n_cities", "instance_key"], as_index=False).last()[
+            ["n_cities", "instance_key", "ref_objective_qubo"]
+        ]
+        ref = ref.merge(qref, on=["n_cities", "instance_key"], how="left")
+    else:
+        ref["ref_objective_qubo"] = np.nan
+
+    return ref
 
 
 def build_paired_metrics(df: Any) -> Any:
@@ -109,28 +143,42 @@ def build_paired_metrics(df: Any) -> Any:
         return out
     merged = df.merge(
         ref,
-        on=["n_cities", "instance_key", "formulation"],
+        on=["n_cities", "instance_key"],
         how="left",
         suffixes=("", "_dup"),
     )
+    ref_obj = np.full(len(merged), np.nan, dtype=np.float64)
+    m_q = merged["formulation"].eq("qubo")
+    m_t = merged["formulation"].isin(["tqudo", "tqudo_virtual"])
+    ref_obj[m_q.to_numpy()] = merged.loc[m_q, "ref_objective_qubo"].to_numpy()
+    ref_obj[m_t.to_numpy()] = merged.loc[m_t, "ref_objective_tqudo"].to_numpy()
+    merged["ref_objective_value"] = ref_obj
+    merged.drop(
+        columns=[c for c in ("ref_objective_tqudo", "ref_objective_qubo") if c in merged.columns],
+        inplace=True,
+    )
+    _eps = 1e-15
+    ref_r = merged["ref_real_cost"].to_numpy(dtype=np.float64, copy=False)
+    ref_o = merged["ref_objective_value"].to_numpy(dtype=np.float64, copy=False)
+    init_e = merged["initial_energy"].to_numpy(dtype=np.float64, copy=False)
     merged["approx_ratio_real"] = np.where(
         (merged["real_cost"].notna())
-        & (merged["ref_real_cost"].notna())
-        & (merged["ref_real_cost"] > 0),
+        & np.isfinite(ref_r)
+        & (np.abs(ref_r) > _eps),
         merged["real_cost"] / merged["ref_real_cost"],
         np.nan,
     )
     merged["approx_ratio_objective"] = np.where(
         (merged["objective_value"].notna())
-        & (merged["ref_objective_value"].notna())
-        & (merged["ref_objective_value"] != 0),
+        & np.isfinite(ref_o)
+        & (np.abs(ref_o) > _eps),
         merged["objective_value"] / merged["ref_objective_value"],
         np.nan,
     )
     merged["energy_improvement_rel"] = np.where(
-        (merged["initial_energy"].notna())
-        & (merged["objective_value"].notna())
-        & (merged["initial_energy"] != 0),
+        (merged["objective_value"].notna())
+        & np.isfinite(init_e)
+        & (np.abs(init_e) > _eps),
         (merged["initial_energy"] - merged["objective_value"])
         / np.abs(merged["initial_energy"]),
         np.nan,
@@ -142,6 +190,8 @@ def build_summary_by_config(df: Any) -> Any:
     import pandas as pd
 
     ok = df[df["parse_ok"] & df["solve_ok"]].copy()
+    if "solver" in ok.columns:
+        ok = ok[ok["solver"] != "simulated_annealing"]
     if ok.empty:
         return pd.DataFrame()
 
@@ -185,14 +235,45 @@ def _read_energy_history(json_path: Path) -> list[float] | None:
         return None
 
 
+def read_energy_history_from_solution_json(json_path: Path) -> list[float] | None:
+    """Load ``solver_output.metadata.energy_history`` from a solution JSON file."""
+    return _read_energy_history(json_path)
+
+
+def first_optimizer_step_reaching_min_energy(history: list[float]) -> int | None:
+    """1-based optimizer-evaluation index when ``energy_history`` first hits its minimum.
+
+    Uses mixed ``math.isclose`` tolerances for float plateaus. Returns ``None`` if history empty
+    or non-finite values.
+    """
+    if not history:
+        return None
+    arr = np.asarray([float(x) for x in history], dtype=np.float64)
+    if arr.size == 0 or not np.all(np.isfinite(arr)):
+        return None
+    m = float(np.min(arr))
+    atol = max(1e-12, 1e-9 * max(1.0, abs(m)))
+    for i in range(int(arr.size)):
+        if math.isclose(float(arr[i]), m, rel_tol=1e-9, abs_tol=atol):
+            return i + 1
+    return int(np.argmin(arr)) + 1
+
+
 def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) -> Any:
     import pandas as pd
 
     ok = df[df["parse_ok"] & df["solve_ok"] & (df["n_energy_steps"] > 0)]
+    if "solver" in ok.columns:
+        ok = ok[ok["solver"] != "simulated_annealing"]
     if ok.empty:
         return pd.DataFrame()
 
     group_cols = ["n_cities", "solver", "formulation", "qaoa_depth"]
+    if any(c not in ok.columns for c in group_cols):
+        ok = ok.copy()
+        for c in group_cols:
+            if c not in ok.columns:
+                ok[c] = np.nan
     rows_out: list[dict[str, Any]] = []
 
     for grp, sub in ok.groupby(group_cols, dropna=False):
@@ -220,6 +301,7 @@ def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) 
                 "p50": float(np.median(col)),
                 "p75": float(np.percentile(col, 75)),
                 "mean": float(np.mean(col)),
+                "std": float(np.std(col, ddof=1)) if col.size > 1 else 0.0,
                 "n_curves": int(col.size),
             }
             if isinstance(grp, tuple):
@@ -288,37 +370,6 @@ def enrich_sample_quality(df: Any, output_root: Path) -> Any:
     return out
 
 
-def wilcoxon_sa_qubo_vs_tqudo(df: Any) -> dict[str, Any] | None:
-    try:
-        from scipy.stats import wilcoxon
-    except ImportError:
-        return None
-
-    sa = df[df["parse_ok"] & df["solve_ok"] & (df["solver"] == "simulated_annealing")]
-    if sa.empty or "real_cost" not in sa.columns:
-        return None
-    piv = sa.pivot_table(
-        index=["n_cities", "instance_key"],
-        columns="formulation",
-        values="real_cost",
-        aggfunc="first",
-    )
-    if "qubo" not in piv.columns or "tqudo" not in piv.columns:
-        return None
-    sub = piv[["qubo", "tqudo"]].dropna()
-    if len(sub) < 2:
-        return {"n_pairs": int(len(sub)), "note": "too_few_pairs"}
-    try:
-        stat, pval = wilcoxon(sub["qubo"].values, sub["tqudo"].values)
-    except ValueError as e:
-        return {"n_pairs": int(len(sub)), "error": str(e)}
-    return {
-        "n_pairs": int(len(sub)),
-        "statistic": float(stat),
-        "pvalue": float(pval),
-    }
-
-
 def run_metrics(output_root: Path, sample_quality: bool) -> None:
     _require_pandas()
 
@@ -339,11 +390,6 @@ def run_metrics(output_root: Path, sample_quality: bool) -> None:
     if not curves.empty:
         curves.to_parquet(layout.processed / "energy_curves_agg.parquet", index=False)
         curves.to_csv(layout.processed / "energy_curves_agg.csv", index=False)
-
-    wc = wilcoxon_sa_qubo_vs_tqudo(paired)
-    if wc is not None:
-        with open(layout.processed / "wilcoxon_sa_qubo_tqudo.json", "w", encoding="utf-8") as f:
-            json.dump(wc, f, indent=2)
 
     print(f"Wrote {pq_p}", flush=True)
 

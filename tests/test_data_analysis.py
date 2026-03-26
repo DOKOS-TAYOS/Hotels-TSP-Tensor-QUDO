@@ -36,6 +36,39 @@ def test_path_context_disk_no_depth(tmp_path: Path) -> None:
     assert ctx["qaoa_depth"] is None
 
 
+def test_path_context_disk_duplicate_solver_dir(tmp_path: Path) -> None:
+    """Workflows may emit raw/solutions/{solver}/{solver}/formulation/..."""
+    out = tmp_path / "output"
+    p = (
+        out
+        / "raw"
+        / "solutions"
+        / "cudaq"
+        / "cudaq"
+        / "qubo"
+        / "n_5"
+        / "2"
+        / "instance_3.json"
+    )
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("{}", encoding="utf-8")
+    ctx = path_context(p, out)
+    assert ctx["layout"] == "disk"
+    assert ctx["solver"] == "cudaq"
+    assert ctx["formulation"] == "qubo"
+    assert ctx["n_cities"] == 5
+    assert ctx["qaoa_depth"] == 2
+    assert ctx["instance_key"] == 3
+
+
+def test_first_optimizer_step_reaching_min_energy() -> None:
+    from data_analysis.metrics import first_optimizer_step_reaching_min_energy
+
+    assert first_optimizer_step_reaching_min_energy([3.0, 2.0, 2.5]) == 2
+    assert first_optimizer_step_reaching_min_energy([1.0]) == 1
+    assert first_optimizer_step_reaching_min_energy([]) is None
+
+
 def test_iter_raw_json_files(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     (raw / "solutions" / "a").mkdir(parents=True)
