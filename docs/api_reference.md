@@ -872,4 +872,4 @@ paired metrics, summaries, and energy-curve aggregates.
 
 CLI: `python -m data_analysis.plot --output-root output` — PNGs under `images/` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`).
 
-Supporting modules: `scan.py`, `records.py`; `benchmark_plots.py` (dashboards, \(\rho\), \(P(\mathrm{opt})\), energy / \(\Delta P\) comparisons — some series re-read JSON for histograms and `energy_history`); `optimal_sample_mass.py` (brute-force optimal sequence → histogram keys, sample mass); `energy_plots.py`; layout via `utils.output_paths`.
+Supporting modules: `scan.py`, `records.py`; `benchmark/run.py` (dashboards, \(\rho\), \(P(\mathrm{opt})\), energy / \(\Delta P\) comparisons — some series re-read JSON for histograms and `energy_history`); `optimal_sample_mass.py` (brute-force optimal sequence → histogram keys, sample mass); `energy_plots.py`; layout via `utils.output_paths`.

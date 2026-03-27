@@ -1,7 +1,7 @@
 """Generate figures under ``output/images/`` from processed tables.
 
 Calls :func:`data_analysis.energy_plots.run_energy_history_figures` when
-``energy_curves_agg`` exists and :func:`data_analysis.benchmark_plots.run_benchmark_plots`
+``energy_curves_agg`` exists and :func:`data_analysis.benchmark.run.run_benchmark_plots`
 when ``paired_metrics`` exists (dashboards, approximation ratio, optimal-state sample
 probability, relative energy improvement, and paired CQ-vs-Cirq comparisons — see
 ``docs/data_analysis.md`` Phase 3). PNGs are written to subfolders under ``images/``.
@@ -13,7 +13,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from data_analysis.benchmark_plots import run_benchmark_plots
+from data_analysis._deps import require_plot_stack
+from data_analysis.benchmark.run import run_benchmark_plots
 from data_analysis.energy_plots import run_energy_history_figures
 from utils.output_paths import build_output_layout
 
@@ -49,18 +50,8 @@ def _remove_legacy_flat_figures(images_root: Path) -> None:
             p.unlink()
 
 
-def _require_plot_deps() -> None:
-    try:
-        import matplotlib.pyplot as plt  # noqa: F401
-        import pandas as pd  # noqa: F401
-    except ImportError as exc:
-        raise SystemExit(
-            "plot requires matplotlib and pandas (pip install -e '.[analysis]')."
-        ) from exc
-
-
 def run_plots(output_root: Path) -> None:
-    _require_plot_deps()
+    require_plot_stack(context="plot")
     import pandas as pd
 
     layout = build_output_layout(output_root)

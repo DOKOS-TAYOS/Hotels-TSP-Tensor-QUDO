@@ -1,6 +1,6 @@
 """Brute-force optimal tour keys and histogram mass for P(opt) analysis plots.
 
-Used by :mod:`data_analysis.benchmark_plots` together with ``initial_samples`` /
+Used by :mod:`data_analysis.benchmark.collectors` together with ``initial_samples`` /
 ``final_samples`` in solution JSON. Documented under Phase 3, section 3, in
 ``docs/data_analysis.md``.
 """

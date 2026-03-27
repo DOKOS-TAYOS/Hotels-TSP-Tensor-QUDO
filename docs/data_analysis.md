@@ -207,7 +207,7 @@ Source: `energy_curves_agg.parquet` (`mean` and `std` per step, per `(n_cities, 
 - **Cohort:** `solver == cirq`, `formulation == tqudo`; one series per `n_cities` at fixed \(p\).
 - **Y axis:** \(f/|f^*|\) with \(f^*\) from the BF reference for that \(n\).
 
-### 2. Comparison dashboards and approximation ratio (`benchmark_plots.py`)
+### 2. Comparison dashboards and approximation ratio (`data_analysis.benchmark.run`)
 
 Requires `paired_metrics.parquet`. **2×2 dashboards use paired rows**: same `instance_key` and \(p\); real-cost optimality vs brute-force TQUDO (`ref_real_cost`).
 
@@ -266,7 +266,7 @@ Same layout and pairing as above, but **`n_cities = 9`**. This needs an **inner 
 
 Older grouped-bar figures named `*_opt_steps_both_optimal_*` (both sides optimal in each pair) are **no longer produced**.
 
-### 3. Ground-state sample probability and improvements (`benchmark_plots.py`, `optimal_sample_mass.py`)
+### 3. Ground-state sample probability and improvements (`data_analysis.benchmark.run`, `optimal_sample_mass.py`)
 
 These figures re-open solution JSON at plot time (in addition to `paired_metrics`). They need **`raw/solutions/brute_force/tqudo/n_{n}/instance_{k}.json`** for the reference tour and **`solver_output.metadata.initial_samples` / `final_samples`** where applicable.
 
