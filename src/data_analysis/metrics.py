@@ -12,6 +12,10 @@ from typing import Any
 import numpy as np
 
 from data_analysis._deps import coerce_bool_scalar, require_pandas
+from data_analysis.angles_stats import (
+    build_angle_cohort_stats_table,
+    paired_backend_angle_rows,
+)
 from utils.output_paths import build_output_layout
 
 
@@ -113,11 +117,20 @@ def _reference_bruteforce(df: Any) -> Any:
 
 
 def build_paired_metrics(df: Any) -> Any:
+    import pandas as pd
+
     ref = _reference_bruteforce(df)
     if ref.empty:
         out = df.copy()
         out["ref_objective_value"] = np.nan
         out["ref_real_cost"] = np.nan
+        rt = pd.to_numeric(out["runtime_seconds"], errors="coerce")
+        ns = pd.to_numeric(out["n_energy_steps"], errors="coerce")
+        out["runtime_per_energy_step"] = np.where(
+            ns.notna() & (ns > 0) & rt.notna(),
+            rt / ns,
+            np.nan,
+        )
         return out
     merged = df.merge(
         ref,
@@ -161,6 +174,14 @@ def build_paired_metrics(df: Any) -> Any:
         / np.abs(merged["initial_energy"]),
         np.nan,
     )
+
+    rt = pd.to_numeric(merged["runtime_seconds"], errors="coerce")
+    ns = pd.to_numeric(merged["n_energy_steps"], errors="coerce")
+    merged["runtime_per_energy_step"] = np.where(
+        ns.notna() & (ns > 0) & rt.notna(),
+        rt / ns,
+        np.nan,
+    )
     return merged
 
 
@@ -176,6 +197,22 @@ def build_summary_by_config(df: Any) -> Any:
     def _feas_rate(s: Any) -> float:
         return float(s.fillna(False).mean()) if len(s) else float("nan")
 
+    def _nanmean_series(s: Any) -> float:
+        x = pd.to_numeric(s, errors="coerce").dropna()
+        return float(x.mean()) if len(x) else float("nan")
+
+    def _nanmedian_series(s: Any) -> float:
+        x = pd.to_numeric(s, errors="coerce").dropna()
+        return float(x.median()) if len(x) else float("nan")
+
+    rt = pd.to_numeric(ok["runtime_seconds"], errors="coerce")
+    ns = pd.to_numeric(ok["n_energy_steps"], errors="coerce")
+    ok["runtime_per_energy_step"] = np.where(
+        ns.notna() & (ns > 0) & rt.notna(),
+        rt / ns,
+        np.nan,
+    )
+
     gcols = ["n_cities", "solver", "formulation", "qaoa_depth"]
     for c in gcols:
         if c not in ok.columns:
@@ -184,10 +221,13 @@ def build_summary_by_config(df: Any) -> Any:
         n_runs=("path", "count"),
         feas_rate=("feasible", _feas_rate),
         mean_runtime=("runtime_seconds", "mean"),
+        median_runtime_seconds=("runtime_seconds", _nanmedian_series),
         mean_objective=("objective_value", "mean"),
         mean_real_cost=("real_cost", "mean"),
         mean_approx_ratio_real=("approx_ratio_real", "mean"),
         mean_energy_steps=("n_energy_steps", "mean"),
+        mean_configs_evaluated=("configs_evaluated", _nanmean_series),
+        mean_runtime_per_energy_step=("runtime_per_energy_step", _nanmean_series),
     )
     return agg.reset_index()
 
@@ -398,6 +438,45 @@ def run_metrics(
 
     summary = build_summary_by_config(paired)
     summary.to_csv(layout.processed / "summary_by_config.csv", index=False)
+
+    angle_cohort = build_angle_cohort_stats_table(paired)
+    if not angle_cohort.empty:
+        angle_cohort.to_parquet(layout.processed / "angle_cohort_stats.parquet", index=False)
+        angle_cohort.to_csv(layout.processed / "angle_cohort_stats.csv", index=False)
+
+    paired_angles_cq_cirq = paired_backend_angle_rows(
+        paired,
+        left_solver="cudaq",
+        left_formulation="tqudo_virtual",
+        right_solver="cirq",
+        right_formulation="tqudo",
+    )
+    if not paired_angles_cq_cirq.empty:
+        paired_angles_cq_cirq.to_parquet(
+            layout.processed / "paired_angle_cudaq_tvirt_cirq_tqudo.parquet",
+            index=False,
+        )
+        paired_angles_cq_cirq.to_csv(
+            layout.processed / "paired_angle_cudaq_tvirt_cirq_tqudo.csv",
+            index=False,
+        )
+
+    paired_angles_q_t = paired_backend_angle_rows(
+        paired,
+        left_solver="cudaq",
+        left_formulation="qubo",
+        right_solver="cudaq",
+        right_formulation="tqudo_virtual",
+    )
+    if not paired_angles_q_t.empty:
+        paired_angles_q_t.to_parquet(
+            layout.processed / "paired_angle_cudaq_qubo_tvirt.parquet",
+            index=False,
+        )
+        paired_angles_q_t.to_csv(
+            layout.processed / "paired_angle_cudaq_qubo_tvirt.csv",
+            index=False,
+        )
 
     curves = aggregate_energy_curves(
         paired,

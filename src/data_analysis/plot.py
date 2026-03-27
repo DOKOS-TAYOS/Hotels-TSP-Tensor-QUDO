@@ -13,6 +13,7 @@ from pathlib import Path
 from data_analysis._deps import require_plot_stack
 from data_analysis.benchmark.run import run_benchmark_plots_from_disk
 from data_analysis.energy_plots import run_energy_history_figures_from_disk
+from data_analysis.extended_plots import run_extended_analysis_figures
 from utils.output_paths import build_output_layout
 
 _LEGACY_FLAT_FIGURE_NAMES: tuple[str, ...] = (
@@ -80,10 +81,11 @@ def run_plots(output_root: Path) -> None:
         pdata / "energy_history",
         layout.images / "energy_history",
     )
+    run_extended_analysis_figures(layout.processed, layout.images / "extended")
 
     print(
         f"Figures written under {layout.images} "
-        "(energy_history/, approx_ratio/, steps/, improvement/, p_opt/, dashboards/).",
+        "(energy_history/, approx_ratio/, steps/, improvement/, p_opt/, dashboards/, extended/).",
         flush=True,
     )
 

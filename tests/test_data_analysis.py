@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from data_analysis.instance_features import instance_features_from_json_dict
 from data_analysis.records import json_row, path_context
 from data_analysis.scan import iter_raw_json_files
 
@@ -108,6 +109,101 @@ def test_json_row_solver_output_error(tmp_path: Path) -> None:
     assert "boom" in (row.get("solver_error") or "")
 
 
+def test_instance_features_from_json_dict() -> None:
+    inst = {
+        "n_cities": 4,
+        "precedences": [[0, 1], [1, 2]],
+        "prices_hotels": [[1.0, 2.0], [3.0, 4.0]],
+        "prices_travels": [
+            [
+                [0.0, 5.0],
+                [7.0, 0.0],
+            ],
+        ],
+    }
+    f = instance_features_from_json_dict(inst)
+    assert f["inst_n_precedences"] == 2
+    assert f["inst_precedence_density"] == pytest.approx(2.0 / 9.0)
+    assert f["inst_prices_travels_pos_mean"] == pytest.approx((5.0 + 7.0) / 2.0)
+
+
+def test_cohort_angle_stats_mean_pairwise_cosine() -> None:
+    import pandas as pd
+
+    from data_analysis.angles_stats import cohort_angle_stats
+
+    rows = [
+        {"oa_gamma": [1.0], "oa_beta": [0.0]},
+        {"oa_gamma": [1.0], "oa_beta": [0.0]},
+        {"oa_gamma": [0.0], "oa_beta": [1.0]},
+    ]
+    st = cohort_angle_stats(pd.DataFrame(rows))
+    assert st["n_runs"] == 3
+    assert st["n_runs_with_angles"] == 3
+    assert st["n_runs_angles_dim_consistent"] == 3
+    assert st["mean_pairwise_cosine"] == pytest.approx((1.0 + 0.0 + 0.0) / 3.0)
+
+
+def test_cohort_angle_stats_mixed_vector_length_uses_mode_length() -> None:
+    import pandas as pd
+
+    from data_analysis.angles_stats import cohort_angle_stats
+
+    rows = [
+        {"oa_gamma": [1.0], "oa_beta": [0.0]},
+        {"oa_gamma": [1.0], "oa_beta": [0.0]},
+        {"oa_gamma": [0.5, 0.5], "oa_beta": [0.25, 0.25]},
+    ]
+    st = cohort_angle_stats(pd.DataFrame(rows))
+    assert st["n_runs_with_angles"] == 3
+    assert st["n_runs_angles_dim_consistent"] == 2
+    assert st["angle_vector_dim_used"] == 2.0
+    assert st["mean_pairwise_cosine"] == pytest.approx(1.0)
+
+
+def test_json_row_instance_features_and_optimal_angles(tmp_path: Path) -> None:
+    out = tmp_path / "output"
+    p = out / "raw" / "solutions" / "cirq" / "tqudo" / "n_4" / "1" / "instance_1.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "instance": {
+            "n_cities": 4,
+            "precedences": [[0, 1]],
+            "prices_hotels": [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0],
+            ],
+            "prices_travels": [
+                [
+                    [0.0, 10.0, 10.0],
+                    [20.0, 0.0, 20.0],
+                    [30.0, 30.0, 0.0],
+                ],
+            ],
+        },
+        "solver_config": {"solver": "cirq", "formulation": "tqudo", "seed": 1, "qaoa_depth": 1},
+        "solver_output": {
+            "feasible": True,
+            "objective_value": 42.0,
+            "runtime_seconds": 2.0,
+            "metadata": {
+                "energy_history": [10.0, 9.0],
+                "real_cost": 40.0,
+                "optimal_angles": {"gamma": [0.5], "beta": [0.25]},
+            },
+        },
+    }
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    row = json_row(p, out)
+    assert row["parse_ok"] is True
+    assert row["solve_ok"] is True
+    assert row["inst_n_precedences"] == 1
+    assert row["oa_gamma"] == [0.5]
+    assert row["oa_beta"] == [0.25]
+    assert json.loads(row["oa_gamma_json"] or "[]") == [0.5]
+
+
 def test_json_row_minimal_disk(tmp_path: Path) -> None:
     out = tmp_path / "output"
     p = out / "raw" / "solutions" / "simulated_annealing" / "tqudo" / "n_5" / "instance_1.json"
@@ -178,6 +274,36 @@ def test_plot_renders_from_minimal_plots_data(tmp_path: Path) -> None:
     run_plots(out)
     png = out / "images" / "dashboards" / "cudaq_qubo_vs_tvirt_n5.png"
     assert png.is_file()
+
+
+def test_extended_plots_writes_pngs_from_processed(tmp_path: Path) -> None:
+    pytest.importorskip("pandas")
+    pytest.importorskip("matplotlib")
+    pytest.importorskip("pyarrow")
+    import pandas as pd
+
+    from data_analysis.extended_plots import run_extended_analysis_figures
+
+    proc = tmp_path / "processed"
+    proc.mkdir(parents=True)
+    ext = tmp_path / "images" / "extended"
+    paired = pd.DataFrame(
+        {
+            "parse_ok": [True, True],
+            "solve_ok": [True, True],
+            "solver": ["cirq", "cudaq"],
+            "formulation": ["tqudo", "tqudo_virtual"],
+            "feasible": [True, True],
+            "inst_precedence_density": [0.1, 0.2],
+            "approx_ratio_real": [1.01, 1.1],
+            "runtime_seconds": [12.0, 30.0],
+            "configs_evaluated": [50.0, 80.0],
+        }
+    )
+    paired.to_parquet(proc / "paired_metrics.parquet", index=False)
+    run_extended_analysis_figures(proc, ext)
+    assert (ext / "instance_precedence_density_vs_rho.png").is_file()
+    assert (ext / "efficiency_runtime_vs_rho.png").is_file()
 
 
 @pytest.mark.parametrize("fmt", ["parquet", "csv"])

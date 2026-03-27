@@ -74,6 +74,8 @@ Typical fields (non-exhaustive; see `manifest_empty_schema_row` in `records.py` 
 | `instance_index` | Optional top-level field |
 | `feasible`, `objective_value`, `runtime_seconds` | `solver_output` |
 | `real_cost`, `n_energy_steps`, `has_final_samples`, `has_initial_samples`, `initial_energy`, `best_feasible_objective_value`, `best_feasible_real_cost`, `configs_evaluated` | `solver_output.metadata` |
+| `inst_n_precedences`, `inst_precedence_density`, `inst_prices_hotels_mean`, `inst_prices_hotels_std`, `inst_prices_hotels_range`, `inst_prices_travels_pos_mean`, `inst_prices_travels_pos_std` | Derived from `instance` (`data_analysis.instance_features`) |
+| `oa_gamma`, `oa_beta` (lists in Parquet), `oa_gamma_json`, `oa_beta_json` | `metadata.optimal_angles` when `gamma`/`beta` length matches path or config `qaoa_depth` |
 | `solver_error`, `error_message` | Parse or solver errors |
 
 Fill rules:
@@ -124,6 +126,8 @@ Outputs:
 
 - `processed/paired_metrics.parquet` and `paired_metrics.csv`.
 
+`paired_metrics` also carries **`runtime_per_energy_step`** (`runtime_seconds` / `n_energy_steps` when steps &gt; 0) for efficiency plots.
+
 ### 2.3 Per-configuration summary (`summary_by_config`)
 
 `build_summary_by_config` keeps only `parse_ok ∧ solve_ok` and groups by:
@@ -143,6 +147,9 @@ Per-group aggregates:
 | `mean_real_cost` | Mean of `real_cost` |
 | `mean_approx_ratio_real` | Mean of `approx_ratio_real` |
 | `mean_energy_steps` | Mean of `n_energy_steps` |
+| `median_runtime_seconds` | Median of `runtime_seconds` (robust to outliers) |
+| `mean_configs_evaluated` | Mean of `configs_evaluated` (NaNs ignored) |
+| `mean_runtime_per_energy_step` | Mean of `runtime_seconds / n_energy_steps` where steps &gt; 0 |
 
 Output: `processed/summary_by_config.csv`.
 
@@ -174,17 +181,44 @@ For each row with `parse_ok`, `solve_ok`, and `has_final_samples`, opens JSON an
 
 Adds **`final_sample_feasible_mass`** (`None` if not applicable or parsing fails).
 
+### 2.6 QAOA angle similarity (`angle_cohort_stats`, paired backends)
+
+After `paired_metrics` is written, `data_analysis.metrics` builds:
+
+- **`processed/angle_cohort_stats.parquet` / `.csv`**: per `(n_cities, solver, formulation, qaoa_depth)` cohort (excluding `brute_force`), summary of whether **normalized** \((\gamma,\beta)\) vectors are similar across instances: `mean_pairwise_cosine`, `std_pairwise_cosine`, per-layer `std_gamma_*` / `std_beta_*` (and JSON columns `std_gamma_json` / `std_beta_json`). If a cohort mixes different vector lengths (e.g. missing depth in path), only the **most frequent** length is kept (`angle_vector_dim_used`, `n_runs_angles_dim_consistent` vs `n_runs_with_angles`). If fewer than two runs remain, pairwise cosine statistics are NaN.
+- **`processed/paired_angle_cudaq_tvirt_cirq_tqudo.parquet` / `.csv`**: inner join on `(n_cities, instance_key, qaoa_depth)` between CUDA-Q `tqudo_virtual` and Cirq `tqudo`; columns `cosine_pair`, `l2_delta` compare the concatenated unit vectors.
+- **`processed/paired_angle_cudaq_qubo_tvirt.parquet` / `.csv`**: same join for CUDA-Q `qubo` vs CUDA-Q `tqudo_virtual` when both exist.
+
+Empty tables are not written.
+
 The pipeline **does not** analyze *simulated annealing*: rows with `solver == "simulated_annealing"` are dropped from `summary_by_config` and `energy_curves_agg` (the manifest / `paired_metrics` may still list those runs if present on disk).
 
 ## Phase 3: Plots (figures)
 
-`run_plots` reads tables already in `processed/` and writes PNGs under `images/` **subfolders** (`energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`). A first run removes legacy PNGs that previously sat directly under `images/`.
+`run_plots` reads tables under `processed/plots_data/` (benchmark + energy history) and **also** reads aggregate tables directly from `processed/` for extended figures. It writes PNGs under `images/` **subfolders** (`energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`, `extended/`). A first run removes legacy PNGs that previously sat directly under `images/`.
 
 Most figures have **no figure title**. Cohort and axis semantics are documented below.
 
 **Notation in plots:** \(p\) = QAOA depth (repeated cost–mixer layers). \(f\) = **normalized** scalar objective stored in JSON (same scale as `energy_history`). \(\rho\) = `approx_ratio_real` = best feasible real cost found divided by **TQUDO** brute-force optimal real cost (see Section 2.2).
 
-Requires `paired_metrics.parquet` and/or `energy_curves_agg.parquet` (if neither exists, the command fails and asks to run metrics first).
+Requires `processed/plots_data` from `prepare_plots` (if missing, the command fails and asks to run `prepare_plots` first). Extended PNGs are skipped silently when the corresponding Parquet/CSV is absent.
+
+### 0. Extended: instance features, efficiency, QAOA angles (`extended_plots.py`)
+
+Source: `paired_metrics.parquet`, `summary_by_config.csv`, `angle_cohort_stats.parquet`, `paired_angle_*.parquet` in `processed/`. Only **feasible** QAOA rows enter the instance/efficiency scatters (brute force and simulated annealing excluded).
+
+| PNG | What it shows |
+|-----|----------------|
+| `images/extended/instance_precedence_density_vs_rho.png` | Precedence density vs \(\rho\) (colour = backend/formulation). |
+| `images/extended/efficiency_runtime_vs_rho.png` | Wall time vs \(\rho\) (log time). |
+| `images/extended/efficiency_configs_evaluated_vs_rho.png` | `configs_evaluated` vs \(\rho\) when that field is populated; **otherwise** falls back to `n_energy_steps` (length of `energy_history`) with an updated axis title and footnote (QAOA JSON usually lacks `configs_evaluated`). |
+| `images/extended/efficiency_mean_runtime_by_depth.png` | Mean runtime vs \(p\) from `summary_by_config` (one line per \(n\) + cohort). |
+| `images/extended/angles_mean_pairwise_cosine_by_depth.png` | Cohort mean pairwise cosine vs \(p\) (higher ⇒ angles more similar across instances). |
+| `images/extended/angles_cudaq_virt_cirq_cosine_hist.png` | Histogram of paired-instance cosine (CUDA-Q virt. vs Cirq). |
+| `images/extended/angles_cudaq_virt_cirq_l2_hist.png` | Histogram of \(\ell_2\) gap between normalized angle vectors. |
+| `images/extended/angles_cudaq_qubo_virt_cosine_hist.png` | Same cosine histogram for QUBO vs TQUDO virt. on CUDA-Q (if joined rows exist). |
+
+**Better handled outside a single figure:** exact per-layer angle dispersion (`std_gamma_json` / `std_beta_json` in `angle_cohort_stats.csv`), partial correlations of several `inst_*` columns with \(\rho\), or calibration of \(P(\mathrm{opt})\) vs angle similarity — export `paired_metrics.parquet` / angle CSVs into a notebook and compute correlations or regressions there.
 
 ### 1. Energy history (`energy_plots.py`, multiple PNGs; no SA)
 
