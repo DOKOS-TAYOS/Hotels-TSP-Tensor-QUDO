@@ -658,6 +658,7 @@ class OutputLayout:
     root: Path
     raw: Path
     processed: Path
+    plots_data: Path
     images: Path
 ```
 
@@ -667,7 +668,7 @@ class OutputLayout:
 def build_output_layout(root: Path) -> OutputLayout
 ```
 
-Returns `OutputLayout(root, root/"raw", root/"processed", root/"images")`.
+Returns `OutputLayout(root, root/"raw", root/"processed", root/"processed"/"plots_data", root/"images")`.
 Does not create directories.
 
 ---

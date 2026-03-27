@@ -38,9 +38,10 @@ make -f scripts/makefile clean
 .venv/bin/python -m experiments.estimate_lambdas --solver brute_force --formulation tqudo --lambda-values 100,500  # exact global min + gap vs combinatorial optimum; needs small n_cities for QUBO
 # Workflow modes: --mode generate | cudaq | sa | cirq5 | brute_force | experiment | check_feasibility
 
-# Data analysis (requires pip install -e '.[analysis]'): manifest → paired metrics → figures
+# Data analysis (requires pip install -e '.[analysis]'): manifest → paired metrics → plots_data → figures
 .venv/bin/python -m data_analysis.ingest --output-root output
 .venv/bin/python -m data_analysis.metrics --output-root output
+.venv/bin/python -m data_analysis.prepare_plots --output-root output
 .venv/bin/python -m data_analysis.plot --output-root output
 # Or full pipeline: .venv/bin/python -m data_analysis.pipeline --output-root output
 # Plot suite: dashboards, ρ, energy curves, P(opt)/ΔP vs brute_force+tqudo (see docs/data_analysis.md Phase 3 §3).

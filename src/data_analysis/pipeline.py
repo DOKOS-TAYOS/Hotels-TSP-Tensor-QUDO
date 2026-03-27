@@ -9,6 +9,7 @@ from pathlib import Path
 from data_analysis.ingest import run_ingest
 from data_analysis.metrics import run_metrics
 from data_analysis.plot import run_plots
+from data_analysis.prepare_plots import run_prepare_plots
 
 
 def run_pipeline(
@@ -19,7 +20,7 @@ def run_pipeline(
     *,
     energy_curve_percentiles: bool = True,
 ) -> None:
-    """Run ingest → metrics → plots on *output_root*."""
+    """Run ingest → metrics → prepare_plots → plots on *output_root*."""
     root = output_root.resolve()
     run_ingest(root, manifest_format)
     run_metrics(
@@ -27,6 +28,7 @@ def run_pipeline(
         sample_quality=sample_quality,
         energy_curve_percentiles=energy_curve_percentiles,
     )
+    run_prepare_plots(root)
     if not skip_plots:
         run_plots(root)
 

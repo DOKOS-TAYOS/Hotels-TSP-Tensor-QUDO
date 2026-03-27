@@ -18,6 +18,7 @@ class OutputLayout:
         root: Base output directory.
         raw: Subfolder for raw JSON or solver dumps.
         processed: Subfolder for post-processed tables or aggregates.
+        plots_data: Subfolder for per-figure tables fed to ``data_analysis.plot``.
         images: Subfolder for figures.
 
     """
@@ -25,6 +26,7 @@ class OutputLayout:
     root: Path
     raw: Path
     processed: Path
+    plots_data: Path
     images: Path
 
 
@@ -35,12 +37,14 @@ def build_output_layout(root: Path) -> OutputLayout:
         root: Base directory for output artifacts.
 
     Returns:
-        OutputLayout with root, raw, processed, and images subpaths.
+        OutputLayout with root, raw, processed, plots_data, and images subpaths.
 
     """
+    proc = root / "processed"
     return OutputLayout(
         root=root,
         raw=root / "raw",
-        processed=root / "processed",
+        processed=proc,
+        plots_data=proc / "plots_data",
         images=root / "images",
     )

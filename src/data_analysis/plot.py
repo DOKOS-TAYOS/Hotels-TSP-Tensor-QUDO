@@ -1,10 +1,7 @@
-"""Generate figures under ``output/images/`` from processed tables.
+"""Generate figures under ``output/images/`` from ``processed/plots_data`` tables.
 
-Calls :func:`data_analysis.energy_plots.run_energy_history_figures` when
-``energy_curves_agg`` exists and :func:`data_analysis.benchmark.run.run_benchmark_plots`
-when ``paired_metrics`` exists (dashboards, approximation ratio, optimal-state sample
-probability, relative energy improvement, and paired CQ-vs-Cirq comparisons — see
-``docs/data_analysis.md`` Phase 3). PNGs are written to subfolders under ``images/``.
+Requires :func:`data_analysis.prepare_plots.run_prepare_plots` after metrics.
+Writes PNGs under ``images/`` (energy_history, dashboards, etc.).
 """
 
 from __future__ import annotations
@@ -14,8 +11,8 @@ import sys
 from pathlib import Path
 
 from data_analysis._deps import require_plot_stack
-from data_analysis.benchmark.run import run_benchmark_plots
-from data_analysis.energy_plots import run_energy_history_figures
+from data_analysis.benchmark.run import run_benchmark_plots_from_disk
+from data_analysis.energy_plots import run_energy_history_figures_from_disk
 from utils.output_paths import build_output_layout
 
 _LEGACY_FLAT_FIGURE_NAMES: tuple[str, ...] = (
@@ -50,33 +47,39 @@ def _remove_legacy_flat_figures(images_root: Path) -> None:
             p.unlink()
 
 
+def _plots_data_ready(plots_data: Path) -> bool:
+    paired_block = any(
+        (plots_data / "dashboards" / f"{s}.parquet").is_file()
+        for s in (
+            "cudaq_qubo_vs_tvirt_n5",
+            "cudaq_tvirt_vs_cirq_n5",
+            "cudaq_tvirt_vs_cirq_n9",
+        )
+    )
+    energy_block = any((plots_data / "energy_history").glob("*.parquet"))
+    return paired_block or energy_block
+
+
 def run_plots(output_root: Path) -> None:
     require_plot_stack(context="plot")
-    import pandas as pd
 
     layout = build_output_layout(output_root)
     layout.images.mkdir(parents=True, exist_ok=True)
     _remove_legacy_flat_figures(layout.images)
-    proc = layout.processed
+    pdata = layout.plots_data
 
-    paired_path = proc / "paired_metrics.parquet"
-    curves_path = proc / "energy_curves_agg.parquet"
-    if not paired_path.is_file() and not curves_path.is_file():
+    if not _plots_data_ready(pdata):
         raise FileNotFoundError(
-            f"No paired_metrics.parquet or energy_curves_agg.parquet in {proc}. Run metrics first."
+            f"No plot input tables under {pdata} (expected e.g. dashboards/*.parquet "
+            "and/or energy_history/*.parquet). Run: python -m data_analysis.prepare_plots "
+            f"--output-root {layout.root}"
         )
 
-    p_no_sa = pd.DataFrame()
-    if paired_path.is_file():
-        p = pd.read_parquet(paired_path)
-        p_no_sa = p[p["solver"] != "simulated_annealing"] if "solver" in p.columns else p
-        if not p_no_sa.empty:
-            run_benchmark_plots(p_no_sa, output_root.resolve(), layout.images)
-
-    if curves_path.is_file():
-        c = pd.read_parquet(curves_path)
-        if not c.empty and "mean" in c.columns:
-            run_energy_history_figures(p_no_sa, c, layout.images)
+    run_benchmark_plots_from_disk(pdata, layout.images)
+    run_energy_history_figures_from_disk(
+        pdata / "energy_history",
+        layout.images / "energy_history",
+    )
 
     print(
         f"Figures written under {layout.images} "
@@ -86,7 +89,9 @@ def run_plots(output_root: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Plot figures from processed metrics.")
+    parser = argparse.ArgumentParser(
+        description="Plot figures from processed/plots_data (run prepare_plots first).",
+    )
     parser.add_argument("--output-root", type=Path, default=Path("output"))
     args = parser.parse_args(argv)
     run_plots(args.output_root.resolve())

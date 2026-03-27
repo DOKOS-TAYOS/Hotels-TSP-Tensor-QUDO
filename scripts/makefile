@@ -1,4 +1,4 @@
-.PHONY: setup lint lint-dead test app clean analysis-ingest analysis-metrics analysis-plots analysis-all results-web
+.PHONY: setup lint lint-dead test app clean analysis-ingest analysis-metrics analysis-prepare-plots analysis-plots analysis-all results-web
 
 EXTRAS ?= dev,ui,cudaq
 PYTHON := .venv/bin/python
@@ -27,6 +27,9 @@ analysis-ingest:
 
 analysis-metrics:
 	$(PYTHON) -m data_analysis.metrics --output-root output
+
+analysis-prepare-plots:
+	$(PYTHON) -m data_analysis.prepare_plots --output-root output
 
 analysis-plots:
 	$(PYTHON) -m data_analysis.plot --output-root output
