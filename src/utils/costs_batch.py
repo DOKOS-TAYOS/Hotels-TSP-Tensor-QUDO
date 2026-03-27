@@ -92,3 +92,21 @@ def bitstring_to_qudit_sequence(
     """
     mat = bitstrings_to_binary_matrix([bitstring])
     return bit_rows_to_qudit_sequences(mat, n_qudits, qubits_per_qudit)[0]
+
+
+def qudit_sequence_to_bitstring(
+    sequence: np.ndarray | list[int] | tuple[int, ...],
+    qubits_per_qudit: int,
+) -> str:
+    """Encode qudit indices as a contiguous ``'0'``/``'1'`` string (inverse of :func:`bitstring_to_qudit_sequence`).
+
+    Within each qudit block, bits are little-endian (column ``k`` has weight ``2**k``), matching
+    :func:`bit_rows_to_qudit_sequences`.
+    """
+    seq = np.asarray(sequence, dtype=np.int64).ravel()
+    parts: list[str] = []
+    for v in seq:
+        vi = int(v)
+        for k in range(int(qubits_per_qudit)):
+            parts.append(str((vi >> k) & 1))
+    return "".join(parts)

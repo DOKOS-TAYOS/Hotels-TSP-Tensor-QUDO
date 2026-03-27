@@ -151,7 +151,8 @@ flowchart LR
       (see `experiments/main_experiment_workflow.py` and `experiments/workflow_io.py`).
 8. **Optional reporting:** `data_analysis` ingests `raw/solutions/**/*.json`, writes
       tables under `output/processed/`, and `data_analysis.plot` writes PNGs to
-      `output/images/`. The static site in `webpage_results/` (repo root) loads those
+      `output/images/` (including \(P(\mathrm{opt})\) and improvement figures that pair
+      sample histograms with brute-force TQUDO optima; see `docs/data_analysis.md`). The static site in `webpage_results/` (repo root) loads those
       processed CSVs via browser `fetch`, so it must be served over HTTP—for example
       `make -f scripts/makefile results-web` then open
       `http://localhost:8765/webpage_results/index.html`.
@@ -437,7 +438,7 @@ Always use `calculate_real_cost()` when comparing solutions across formulations.
 output/
 ├── raw/           Per-instance JSON (workflow); solutions under raw/solutions/<solver>/...
 ├── processed/     data_analysis: manifest, paired_metrics, summary_by_config, optional curves
-└── images/        data_analysis: energy curves, benchmark figures (*.png)
+└── images/        data_analysis: energy_history/, dashboards/, approx_ratio/, steps/, improvement/, p_opt/
 ```
 
 Each JSON file in `output/raw/` contains:

@@ -11,50 +11,28 @@ from typing import Any
 
 import numpy as np
 
+from data_analysis._deps import coerce_bool_scalar, require_pandas
 from utils.output_paths import build_output_layout
 
 
-def _require_pandas() -> None:
-    try:
-        import pandas as pd  # noqa: F401
-    except ImportError as exc:
-        raise SystemExit(
-            "metrics requires pandas (pip install -e '.[analysis]')."
-        ) from exc
-
-
 def _coerce_parse_ok(df: Any) -> Any:
-    def _as_bool(x: object) -> bool:
-        if x is True:
-            return True
-        if x is False:
-            return False
-        return str(x).lower() == "true"
-
     out = df.copy()
     if "parse_ok" in out.columns:
-        out["parse_ok"] = out["parse_ok"].map(_as_bool)
+        out["parse_ok"] = out["parse_ok"].map(coerce_bool_scalar)
     return out
 
 
 def _coerce_solve_ok(df: Any) -> Any:
     """Normalize ``solve_ok``; infer from ``solver_error`` for old manifests."""
 
-    def _as_bool(x: object) -> bool:
-        if x is True:
-            return True
-        if x is False:
-            return False
-        return str(x).lower() == "true"
-
     out = df.copy()
     if "solve_ok" in out.columns:
-        out["solve_ok"] = out["solve_ok"].map(_as_bool)
+        out["solve_ok"] = out["solve_ok"].map(coerce_bool_scalar)
         return out
     if "parse_ok" not in out.columns:
         out["solve_ok"] = False
         return out
-    parse_ok_series = out["parse_ok"].map(_as_bool)
+    parse_ok_series = out["parse_ok"].map(coerce_bool_scalar)
     if "solver_error" in out.columns:
         out["solve_ok"] = parse_ok_series & out["solver_error"].isna()
     else:
@@ -243,8 +221,8 @@ def read_energy_history_from_solution_json(json_path: Path) -> list[float] | Non
 def first_optimizer_step_reaching_min_energy(history: list[float]) -> int | None:
     """1-based optimizer-evaluation index when ``energy_history`` first hits its minimum.
 
-    Uses mixed ``math.isclose`` tolerances for float plateaus. Returns ``None`` if history empty
-    or non-finite values.
+    Uses mixed ``math.isclose`` tolerances for float plateaus. Returns ``None`` if history empty,
+    non-finite values, or no index matches the minimum within tolerance.
     """
     if not history:
         return None
@@ -256,10 +234,26 @@ def first_optimizer_step_reaching_min_energy(history: list[float]) -> int | None
     for i in range(int(arr.size)):
         if math.isclose(float(arr[i]), m, rel_tol=1e-9, abs_tol=atol):
             return i + 1
-    return int(np.argmin(arr)) + 1
+    return None
 
 
-def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) -> Any:
+def aggregate_energy_curves(
+    df: Any,
+    output_root: Path,
+    max_len_cap: int | None = None,
+    *,
+    include_percentiles: bool = True,
+) -> Any:
+    """Per-group stats of ``energy_history`` after **per-row** scaling by ``|ref_objective_value|``.
+
+    Each instance contributes ``E(t)/|E^*_inst|``; then step-wise mean/std across instances.
+    Rows without a usable BF ``ref_objective_value`` are skipped.
+
+    ``max_len_cap``: if set, truncates all curves in the group to at most this many steps;
+    if ``None`` (default), uses the longest ``energy_history`` in the group (no fixed upper bound).
+
+    If ``include_percentiles`` is False, omits ``p25``/``p50``/``p75`` (plots only need ``mean``/``std``).
+    """
     import pandas as pd
 
     ok = df[df["parse_ok"] & df["solve_ok"] & (df["n_energy_steps"] > 0)]
@@ -278,14 +272,28 @@ def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) 
 
     for grp, sub in ok.groupby(group_cols, dropna=False):
         histories: list[list[float]] = []
-        for rel in sub["path"].astype(str):
-            p = output_root / rel
-            h = _read_energy_history(p)
-            if h:
-                histories.append(h)
+        for _, row in sub.iterrows():
+            rel = row.get("path")
+            if rel is None or (isinstance(rel, float) and np.isnan(rel)):
+                continue
+            json_path = output_root / str(rel).strip()
+            h = _read_energy_history(json_path)
+            if not h:
+                continue
+            ref = row.get("ref_objective_value")
+            if ref is None or (isinstance(ref, float) and np.isnan(ref)):
+                continue
+            ref_f = float(ref)
+            if not np.isfinite(ref_f):
+                continue
+            denom = abs(ref_f)
+            if denom <= 0.0:
+                continue
+            histories.append([float(x) / denom for x in h])
         if not histories:
             continue
-        max_len = min(max_len_cap, max(len(h) for h in histories))
+        longest = max(len(h) for h in histories)
+        max_len = longest if max_len_cap is None else min(int(max_len_cap), longest)
         mat = np.full((len(histories), max_len), np.nan, dtype=np.float64)
         for i, h in enumerate(histories):
             take = h[:max_len]
@@ -295,15 +303,16 @@ def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) 
             col = col[~np.isnan(col)]
             if col.size == 0:
                 continue
-            d = {
+            d: dict[str, Any] = {
                 "step": step,
-                "p25": float(np.percentile(col, 25)),
-                "p50": float(np.median(col)),
-                "p75": float(np.percentile(col, 75)),
                 "mean": float(np.mean(col)),
                 "std": float(np.std(col, ddof=1)) if col.size > 1 else 0.0,
                 "n_curves": int(col.size),
             }
+            if include_percentiles:
+                d["p25"] = float(np.percentile(col, 25))
+                d["p50"] = float(np.median(col))
+                d["p75"] = float(np.percentile(col, 75))
             if isinstance(grp, tuple):
                 for k, v in zip(group_cols, grp, strict=True):
                     d[k] = v
@@ -332,7 +341,6 @@ def _histogram_feasible_fraction(samples: dict[str, int], instance: dict[str, An
             continue
         bits = [float(int(c)) for c in key if c in "01"]
         if len(bits) != n_available * n_available:
-            seq = None
             if len(key) == n_available and key.isdigit():
                 seq_l = [int(x) for x in key]
                 if validate_solution_constraints_tqudo(inst, seq_l):
@@ -370,8 +378,13 @@ def enrich_sample_quality(df: Any, output_root: Path) -> Any:
     return out
 
 
-def run_metrics(output_root: Path, sample_quality: bool) -> None:
-    _require_pandas()
+def run_metrics(
+    output_root: Path,
+    sample_quality: bool,
+    *,
+    energy_curve_percentiles: bool = True,
+) -> None:
+    require_pandas(context="metrics")
 
     layout = build_output_layout(output_root)
     layout.processed.mkdir(parents=True, exist_ok=True)
@@ -386,7 +399,11 @@ def run_metrics(output_root: Path, sample_quality: bool) -> None:
     summary = build_summary_by_config(paired)
     summary.to_csv(layout.processed / "summary_by_config.csv", index=False)
 
-    curves = aggregate_energy_curves(paired, output_root)
+    curves = aggregate_energy_curves(
+        paired,
+        output_root,
+        include_percentiles=energy_curve_percentiles,
+    )
     if not curves.empty:
         curves.to_parquet(layout.processed / "energy_curves_agg.parquet", index=False)
         curves.to_csv(layout.processed / "energy_curves_agg.csv", index=False)
@@ -402,8 +419,17 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Scan JSONs for final_samples feasible mass (slower).",
     )
+    parser.add_argument(
+        "--no-energy-curve-percentiles",
+        action="store_true",
+        help="Omit p25/p50/p75 from energy_curves_agg (faster; plots use mean/std only).",
+    )
     args = parser.parse_args(argv)
-    run_metrics(args.output_root.resolve(), args.sample_quality)
+    run_metrics(
+        args.output_root.resolve(),
+        args.sample_quality,
+        energy_curve_percentiles=not args.no_energy_curve_percentiles,
+    )
 
 
 if __name__ == "__main__":

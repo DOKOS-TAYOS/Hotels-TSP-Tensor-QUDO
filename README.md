@@ -127,6 +127,6 @@ See [docs/configuration.md](docs/configuration.md) for full reference.
 
 - `output/raw/`: instance JSON under `raw/instances/...` and solution JSON under `raw/solutions/<solver>/<formulation>/n_<n>/...`.
 - `output/processed/`: tables produced by `data_analysis` (`manifest.parquet`, `paired_metrics.parquet`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`/`.csv`; SA rows are excluded from summaries and energy aggregates).
-- `output/images/`: PNG figures from `data_analysis.plot` (energy curves, benchmark / ratio comparisons).
+- `output/images/`: PNG figures from `data_analysis.plot` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`).
 
 Placeholders may be committed; bulk generated files are typically gitignored.

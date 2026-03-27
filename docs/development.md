@@ -153,7 +153,7 @@ After runs exist under `output/raw/`, install the `analysis` extra and run:
 .venv/bin/python -m data_analysis.metrics --output-root output --sample-quality  # slower: histogram feasible mass
 ```
 
-Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`; figures under `output/images/`. The same processed tables feed the optional static site in `webpage_results/` when served over HTTP (`make -f scripts/makefile results-web`).
+Artifacts: `output/processed/manifest.parquet` (or `.csv`), `paired_metrics.*`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`; figures under `output/images/` (benchmark dashboards, \(\rho\) curves, energy traces, and optimal-state probability / \(\Delta P\) plots — list in `docs/analysis_and_figures.md` and `docs/data_analysis.md`). The same processed tables feed the optional static site in `webpage_results/` when served over HTTP (`make -f scripts/makefile results-web`).
 
 ---
 

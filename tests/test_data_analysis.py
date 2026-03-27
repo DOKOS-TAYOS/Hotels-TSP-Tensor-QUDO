@@ -69,6 +69,20 @@ def test_first_optimizer_step_reaching_min_energy() -> None:
     assert first_optimizer_step_reaching_min_energy([]) is None
 
 
+def test_process_raw_results_validates_processed_dir(tmp_path: Path) -> None:
+    from data_analysis.pipeline import process_raw_results
+
+    out = tmp_path / "output"
+    (out / "raw").mkdir(parents=True)
+    other = tmp_path / "other_output" / "processed"
+    other.mkdir(parents=True)
+    with pytest.raises(ValueError, match="same output root"):
+        process_raw_results(out / "raw", other)
+
+    with pytest.raises(ValueError, match="named 'processed'"):
+        process_raw_results(out / "raw", out / "not_processed")
+
+
 def test_iter_raw_json_files(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     (raw / "solutions" / "a").mkdir(parents=True)

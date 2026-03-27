@@ -43,6 +43,7 @@ make -f scripts/makefile clean
 .venv/bin/python -m data_analysis.metrics --output-root output
 .venv/bin/python -m data_analysis.plot --output-root output
 # Or full pipeline: .venv/bin/python -m data_analysis.pipeline --output-root output
+# Plot suite: dashboards, ρ, energy curves, P(opt)/ΔP vs brute_force+tqudo (see docs/data_analysis.md Phase 3 §3).
 
 # Local results dashboard (static HTML; requires HTTP — not file://)
 # After analysis-all: make -f scripts/makefile results-web → http://localhost:8765/webpage_results/index.html

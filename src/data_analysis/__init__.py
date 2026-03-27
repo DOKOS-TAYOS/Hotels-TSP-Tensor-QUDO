@@ -1,4 +1,10 @@
-"""Data analysis: ingest raw JSON, metrics, plots under output/processed and output/images."""
+"""Data analysis: ingest raw JSON, metrics, plots under ``output/processed`` and ``output/images``.
+
+Plots (see ``docs/data_analysis.md``) include energy-curve aggregates, CUDA-Q/Cirq
+dashboards, approximation ratios, and figures for ground-state sample probability
+and energy / ΔP improvements derived from ``initial_samples`` /
+``final_samples`` and brute-force TQUDO references.
+"""
 
 from __future__ import annotations
 
