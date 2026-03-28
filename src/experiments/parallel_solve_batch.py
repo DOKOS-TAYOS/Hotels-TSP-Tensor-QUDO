@@ -1,14 +1,13 @@
 """Parallel instance solves for on-disk experiment workflows (multi-backend).
 
-Uses ``multiprocessing`` spawn + :class:`~concurrent.futures.ProcessPoolExecutor`
-so each worker owns its own backend context (CUDA-Q on GPU; Cirq, brute_force,
-and simulated_annealing on CPU). Parent process shows which instance labels are
+Uses ``multiprocessing`` spawn and ``ProcessPoolExecutor`` so each worker owns
+its own backend context (CUDA-Q on GPU; Cirq, ``brute_force``, and
+``simulated_annealing`` on CPU). The parent shows which instance labels are
 currently running.
 
-.. note::
-
-    The legacy module name ``cudaq_parallel`` re-exports this API; CUDA-Q is only
-    one of the supported backends.
+Note:
+    The legacy module name ``cudaq_parallel`` re-exports this API; CUDA-Q is
+    only one of the supported backends.
 """
 
 from __future__ import annotations
@@ -126,7 +125,7 @@ def resolve_cpu_max_parallel_instances(cfg_dict: dict[str, Any]) -> int:
 class ParallelSolveJob:
     """Picklable unit of work for one on-disk parallel batch instance.
 
-    ``status_queue`` is set by :func:`run_parallel_solve_batch` for worker
+    ``status_queue`` is injected by ``run_parallel_solve_batch`` for worker
     processes; omit or leave ``None`` in job specs passed by callers.
     """
 
@@ -237,24 +236,24 @@ def run_parallel_solve_batch(
     solutions_write_fn: Callable[[ParallelSolveJob, dict[str, Any]], Path],
     is_interrupted: Callable[[], bool],
 ) -> ParallelSolveBatchResult:
-    """Execute *job_specs* with up to *max_workers* worker processes.
+    """Execute ``job_specs`` with up to ``max_workers`` worker processes.
 
     Supported ``solver_name`` values: ``cudaq``, ``cirq``, ``brute_force``,
     ``simulated_annealing``.
 
-    Creates a :class:`multiprocessing.managers.SyncManager` for the status queue
-    and shuts it down when the batch finishes.
+    Creates a ``multiprocessing.Manager`` queue for worker status updates and
+    shuts it down when the batch finishes.
 
     Args:
-        job_specs: Non-empty list of job descriptions (queue added here). All
+        job_specs: List of job descriptions (status queue injected here). All
             specs must share the same ``solver_name``.
         max_workers: Cap on concurrent processes (clamped to ``len(job_specs)``).
-        solutions_write_fn: Maps (job, payload) to output path; must write JSON.
+        solutions_write_fn: Maps ``(job, payload)`` to output path; must write JSON.
         is_interrupted: Predicate for cooperative exit (SIGINT / stop flag).
 
     Returns:
         Counts of failures and completed writes, and whether the batch was cut
-        short by interrupt/cancel.
+        short by interrupt or cancel.
 
     """
     from experiments import cudaq_parallel as _cqp_mod

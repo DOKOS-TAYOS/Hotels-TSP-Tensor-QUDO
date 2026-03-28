@@ -1,7 +1,7 @@
 """Generate figures under ``output/images/`` from ``processed/plots_data`` tables.
 
-Requires :func:`data_analysis.prepare_plots.run_prepare_plots` after metrics.
-Writes PNGs under ``images/`` (energy_history, dashboards, etc.).
+Run ``data_analysis.prepare_plots`` after metrics so Parquet inputs exist.
+Writes PNGs under ``images/`` (energy_history, dashboards, extended, etc.).
 """
 
 from __future__ import annotations
@@ -65,6 +65,15 @@ def _plots_data_ready(plots_data: Path) -> bool:
 
 
 def run_plots(output_root: Path) -> None:
+    """Render benchmark, energy-history, and extended figures under ``images/``.
+
+    Args:
+        output_root: Root with ``processed/plots_data/`` from ``prepare_plots``.
+
+    Raises:
+        FileNotFoundError: If plot input tables are missing.
+
+    """
     require_plot_stack(context="plot")
 
     layout = build_output_layout(output_root)
@@ -96,6 +105,7 @@ def run_plots(output_root: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI entrypoint for the plotting stage."""
     parser = argparse.ArgumentParser(
         description="Plot figures from processed/plots_data (run prepare_plots first).",
     )

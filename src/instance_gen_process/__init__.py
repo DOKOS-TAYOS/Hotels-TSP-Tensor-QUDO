@@ -1,4 +1,11 @@
-"""Instance configuration and generation for travel routing (Hotel TSP) experiments."""
+"""Instance configuration and generation for travel routing (Hotel TSP) experiments.
+
+Exports YAML loaders, random instance generators, QUBO/TQUDO builders, and
+solver-config helpers used by ``experiments`` and solvers.
+
+Note:
+    See ``docs/repository_guide.md`` for config → instances → solutions flow.
+"""
 
 from instance_gen_process.config_loader import (
     DEFAULT_CONFIG_PATH,

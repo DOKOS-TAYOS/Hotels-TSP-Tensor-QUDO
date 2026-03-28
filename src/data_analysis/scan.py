@@ -7,7 +7,15 @@ from pathlib import Path
 
 
 def iter_raw_json_files(raw_dir: Path) -> Iterator[Path]:
-    """Yield JSON paths under ``raw/solutions/**/*.json``."""
+    """Yield solution JSON paths under ``raw/solutions/**/*.json``.
+
+    Args:
+        raw_dir: The ``raw`` directory inside an output root.
+
+    Yields:
+        Paths to ``*.json`` files, sorted by the caller if needed.
+
+    """
     solutions = raw_dir / "solutions"
     if solutions.is_dir():
         yield from solutions.rglob("*.json")

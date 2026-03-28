@@ -13,7 +13,19 @@ from utils.output_paths import build_output_layout
 
 
 def run_ingest(output_root: Path, fmt: str) -> Path:
-    """Build manifest from ``raw/solutions/**/*.json`` and write to ``processed/``."""
+    """Scan raw solution JSON and write a manifest table under ``processed/``.
+
+    Args:
+        output_root: Root containing ``raw/`` and ``processed/``.
+        fmt: ``parquet`` or ``csv``.
+
+    Returns:
+        Path to the written manifest file.
+
+    Raises:
+        FileNotFoundError: If ``raw/`` is missing.
+
+    """
     require_pandas(context="ingest")
     import pandas as pd
 
@@ -41,6 +53,7 @@ def run_ingest(output_root: Path, fmt: str) -> Path:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Parse CLI args and run ingest."""
     parser = argparse.ArgumentParser(description="Build manifest from raw experiment JSON.")
     parser.add_argument(
         "--output-root",

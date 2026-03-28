@@ -55,7 +55,11 @@ class ProblemTQUDO:
     energy_scale: float = 1.0 # Normalisation factor
 ```
 
-- `d = n_available` (qudit dimension).
+- `d = n_available` (qudit dimension). The first axis length is `n_qudits =
+  n_available` (matches `Etab.shape[0]`). QAOA circuits use all `n_qudits`
+  lines; adjacent transitions read `Etab[t]` for `t = 0 .. n_available - 2`.
+  Row `t = n_available - 1` is kept for shape alignment and is all zeros in
+  `generate_TQUDO_from_problem`.
 - Tensors are normalised so `max(|Etab|, |Ettprimeab|) == 1`.
 - Multiply sampled costs by `energy_scale` to recover original units.
 

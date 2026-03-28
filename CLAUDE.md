@@ -14,6 +14,7 @@ Research scaffold for combinatorial optimization of a Hotel TSP (travel routing 
 # Setup (creates .venv, installs editable package)
 ./install.sh                    # default: dev,ui,cudaq extras
 ./install.sh dev,ui,cirq        # for Cirq backend instead
+./install.sh dev,ui,cudaq,analysis   # adds data_analysis dependencies
 
 # Lint, test, UI, clean
 make -f scripts/makefile lint   # ruff check .

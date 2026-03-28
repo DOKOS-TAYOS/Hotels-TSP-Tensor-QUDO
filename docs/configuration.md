@@ -67,7 +67,10 @@ seed: 42
 
 - `n_available = n_cities - 1`: number of non-depot cities.
 - QUBO variables: `n_available^2` binary variables (one-hot encoding).
-- TQUDO qudits: `n_available - 1` qudits of dimension `n_available`.
+- Native TQUDO (`tqudo`): `n_available` qudits, each of dimension `d = n_available`
+  (see `create_qaoa_circuit` in `solvers/cirq_solver/qaoa_circuit_tqudo.py`).
+  Adjacent-step costs use `Etab[t]` for `t = 0 .. n_available - 2`; slice
+  `t = n_available - 1` is shape padding in `generate_TQUDO_from_problem`.
 - Maximum possible precedences: `n_available * (n_available - 1) / 2`
   (acyclic DAG constraint).
 
@@ -220,18 +223,18 @@ message suggesting alternatives.
 
 | Formulation      | Quantum systems                         | Hilbert space dimension     |
 |------------------|-----------------------------------------|-----------------------------|
-| `tqudo`          | `n_available - 1` qudits (dim `d`)     | `d^(n_available-1)`         |
-| `tqudo_virtual`  | `(n_available - 1) * ceil(log2(d))` qubits | `2^n_qubits`           |
+| `tqudo`          | `n_qudits = n_available` qudits (dim `d = n_available`) | `d^n_qudits` |
+| `tqudo_virtual`  | `n_qudits * ceil(log2(d))` qubits with `n_qudits = n_available`, `d = n_available` | `2^n_qubits` |
 | `qubo`           | `n_available^2` qubits                  | `2^(n_available^2)`         |
 
 ### Scaling examples
 
 | `n_cities` | `n_available` | TQUDO qudits | TQUDO virtual qubits | QUBO qubits |
 |------------|---------------|-------------:|---------------------:|------------:|
-| 3          | 2             | 1            | 1                    | 4           |
-| 5          | 4             | 3            | 6                    | 16          |
-| 9          | 8             | 7            | 21                   | 64          |
-| 17         | 16            | 15           | 60                   | 256         |
+| 3          | 2             | 2            | 2                    | 4           |
+| 5          | 4             | 4            | 8                    | 16          |
+| 9          | 8             | 8            | 24                   | 64          |
+| 17         | 16            | 16           | 64                   | 256         |
 
 ---
 

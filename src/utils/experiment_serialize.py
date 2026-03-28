@@ -11,7 +11,14 @@ from utils.json_serialize import to_json_friendly
 
 
 def serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
-    """Convert :class:`~instance_gen_process.models.InstanceConfig` to JSON-friendly dict."""
+    """Convert ``InstanceConfig`` to a JSON-serialisable dict.
+
+    Args:
+        config: Instance generation parameters.
+
+    Returns:
+        Mapping with lists for tuple fields, suitable for ``json.dump``.
+    """
     return {
         "n_cities": config.n_cities,
         "n_precedences_range": list(config.n_precedences_range),
@@ -22,7 +29,14 @@ def serialize_instance_config(config: InstanceConfig) -> dict[str, Any]:
 
 
 def serialize_restriction_config(restriction: RestrictionConfig) -> dict[str, float]:
-    """Convert :class:`~instance_gen_process.models.RestrictionConfig` to plain floats."""
+    """Convert ``RestrictionConfig`` to a flat dict of penalty floats.
+
+    Args:
+        restriction: QUBO/TQUDO penalty coefficients.
+
+    Returns:
+        Dict with keys ``lambda_0``, ``lambda_1``, ``lambda_2``.
+    """
     return {
         "lambda_0": restriction.lambda_0,
         "lambda_1": restriction.lambda_1,
@@ -31,7 +45,14 @@ def serialize_restriction_config(restriction: RestrictionConfig) -> dict[str, fl
 
 
 def serialize_solver_result(result: SolverResult) -> dict[str, Any]:
-    """Convert :class:`~solvers.base.SolverResult` to a JSON-friendly dict."""
+    """Convert ``SolverResult`` to a JSON-safe dict.
+
+    Args:
+        result: Solver output from any backend.
+
+    Returns:
+        Dict with objective, feasibility, runtime, and JSON-normalised metadata.
+    """
     return {
         "solver_name": result.solver_name,
         "objective_value": result.objective_value,
@@ -50,7 +71,19 @@ def build_solution_record(
     solver_output: dict[str, Any],
     instance_source: str | None = None,
 ) -> dict[str, Any]:
-    """Assemble the standard top-level JSON object for experiment solution files."""
+    """Assemble the canonical on-disk solution JSON object.
+
+    Args:
+        instance: Serialised ``ProblemInstance`` snapshot.
+        instance_config: Serialised instance-generation parameters.
+        instance_index: Zero-based index within the batch for the run.
+        solver_config: Merged solver settings snapshot (JSON-safe).
+        solver_output: Serialised solver result or error payload.
+        instance_source: Optional path to the input instance JSON.
+
+    Returns:
+        Dict written as one ``instance_*.json`` under ``raw/solutions/``.
+    """
     out: dict[str, Any] = {
         "instance": instance,
         "instance_config": instance_config,
@@ -64,7 +97,16 @@ def build_solution_record(
 
 
 def solver_config_payload_dict(solver_config_dict: dict[str, Any]) -> dict[str, Any]:
-    """Build JSON-safe solver config snapshot (expand restriction dataclass)."""
+    """Build a JSON-safe copy of a validated solver config dict.
+
+    Args:
+        solver_config_dict: Mapping from ``parse_solver_config_dict`` /
+            ``load_solver_config`` (includes ``restriction`` dataclass).
+
+    Returns:
+        Shallow copy with ``restriction`` expanded to plain floats, then passed
+        through ``to_json_friendly``.
+    """
     restriction = solver_config_dict["restriction"]
     serializable: dict[str, Any] = {
         k: v for k, v in solver_config_dict.items() if k != "restriction"

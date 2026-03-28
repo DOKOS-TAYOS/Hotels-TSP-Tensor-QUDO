@@ -15,7 +15,7 @@ OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
 
 
 def _default_noise_config() -> NoiseConfig:
-    """Return a default :class:`~solvers.noise.NoiseConfig` (noise disabled)."""
+    """Return default ``NoiseConfig`` with noise simulation disabled."""
     from solvers.noise import NoiseConfig
     return NoiseConfig()
 
@@ -102,14 +102,14 @@ class SolverProtocol(Protocol):
     solver_name: str
 
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult:
-        """Run the solver on *instance* using *run_config*.
+        """Run the solver on the given instance.
 
         Args:
             instance: Problem instance (precedences, hotel and travel prices).
             run_config: Backend-specific limits, formulation, QAOA/SA options.
 
         Returns:
-            :class:`SolverResult` with best objective, feasibility flag, runtime,
-            and optional ``metadata``.
+            ``SolverResult`` with best objective, feasibility flag, runtime, and
+            optional ``metadata``.
 
         """

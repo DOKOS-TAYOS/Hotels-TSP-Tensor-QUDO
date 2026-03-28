@@ -171,7 +171,18 @@ def run_generate_instances(
     instance_generation_config_path: Path | str | None = None,
     output_root: Path | str | None = None,
 ) -> None:
-    """Write ``raw/instances/n_<n_cities>/instance_<k>.json`` from generation config."""
+    """Generate on-disk instance JSON from the instance-generation YAML grid.
+
+    Args:
+        instance_config_path: Base ``config.yaml`` for ``n_cities``, prices,
+            precedence range. Defaults to project or ``HTSP_INSTANCE_CONFIG``.
+        instance_generation_config_path: YAML listing ``(n_cities, n_instances)``
+            blocks. Defaults to ``experiments`` default generation config.
+        output_root: Root containing ``raw/instances/``. Defaults to ``output``.
+
+    Note:
+        Responds to SIGINT by stopping between instances and exiting with code 130.
+    """
     base_config = load_instance_config(instance_config_path)
     entries = load_instance_generation_entries(instance_generation_config_path)
     output_root_path = Path(output_root) if output_root else Path("output")
@@ -205,7 +216,25 @@ def run_experiment_from_yaml(
     output_root: Path | str | None = None,
     settings: Settings | None = None,
 ) -> None:
-    """Load merged solver YAML, solve on-disk instances, write under ``raw/solutions/``."""
+    """Run one experiment YAML: merge configs, solve instances, write solution JSON.
+
+    Args:
+        experiment_yaml_path: Experiment YAML merged over base solver config.
+        instance_config_path: Base instance-generation YAML (per-city overrides).
+        solver_config_path: Base ``solver_config.yaml`` path.
+        output_root: Root for ``raw/solutions/``. Defaults to ``output`` or
+            ``Settings.output_dir`` when invoked via CLI.
+        settings: If provided, applies noise kill-switch from
+            ``enable_noise_simulation``.
+
+    Raises:
+        ValueError: If the experiment omits ``n_cities`` or invalid counts.
+        FileNotFoundError: If a required on-disk instance JSON is missing.
+
+    Note:
+        May spawn a process pool when parallel instance keys and multiple
+        instances apply. Honors cooperative stop and SIGINT (exit 130).
+    """
     base_instance = load_instance_config(instance_config_path)
     base_solver_path = Path(solver_config_path) if solver_config_path else DEFAULT_SOLVER_CONFIG_PATH
     base_solver = load_yaml_mapping(base_solver_path)
@@ -460,13 +489,16 @@ def run_experiment_from_yaml(
 
 
 def run_check_solution_feasibility(output_root: Path, solver: str) -> int:
-    """Scan ``raw/solutions/<solver>/**/*.json`` and print entries that are not feasible.
+    """Audit solution JSON under ``raw/solutions/<solver>/`` for feasibility.
+
+    Args:
+        output_root: Experiment output root.
+        solver: Backend subdirectory name (e.g. ``cudaq``, ``cirq``).
 
     Returns:
-        0 if every file reports ``feasible: true`` and has no solver error.
-        1 if at least one file is infeasible, missing ``feasible``, or has ``error`` in
-        ``solver_output``.
-        2 if the solver solutions root does not exist.
+        Process exit code intent: ``0`` if every file is feasible and has no
+        solver ``error``; ``1`` if any file is bad; ``2`` if the tree is
+        missing.
 
     """
     root = solutions_solver_root(output_root, solver)
@@ -521,7 +553,17 @@ def run_experiment_batch(
     output_root: Path | str | None = None,
     settings: Settings | None = None,
 ) -> None:
-    """Run :func:`run_experiment_from_yaml` for each path in order."""
+    """Run multiple experiment YAMLs sequentially.
+
+    Args:
+        experiment_yaml_paths: Paths in execution order (preset modes pass
+            resolved paths under ``src/experiments/``).
+        instance_config_path: Base instance-generation YAML.
+        solver_config_path: Base solver YAML.
+        output_root: Output root directory.
+        settings: Optional settings for noise kill-switch and paths.
+
+    """
     for p in experiment_yaml_paths:
         logger.info("Experiment YAML: %s", p)
         run_experiment_from_yaml(
@@ -534,7 +576,13 @@ def run_experiment_batch(
 
 
 def main() -> None:
-    """Parse CLI arguments and dispatch workflow mode."""
+    """CLI entrypoint: ``python -m experiments.main_experiment_workflow``.
+
+    ``--mode`` is required (generate, cudaq, sa, cirq5, brute_force,
+    experiment, check_feasibility). Dispatches to generation, batch solves, or
+    feasibility audit.
+
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Hotel TSP experiment workflow: generate on-disk instances, run batched experiments, "

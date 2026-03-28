@@ -648,6 +648,19 @@ def run_metrics(
     energy_curve_percentiles: bool = True,
     energy_trajectory_metrics: bool = False,
 ) -> None:
+    """Build paired metrics and aggregates from the ingest manifest.
+
+    Args:
+        output_root: Root with ``processed/manifest.*``.
+        sample_quality: If True, scan JSON for histogram / sample-quality columns.
+        energy_curve_percentiles: Include p25/p50/p75 in energy curve aggregates.
+        energy_trajectory_metrics: If True, add normalised AUC and step-count columns.
+
+    Note:
+        Writes ``paired_metrics``, summaries, optional angle tables, and energy
+        curve Parquet/CSV under ``processed/``.
+
+    """
     require_pandas(context="metrics")
 
     layout = build_output_layout(output_root)
@@ -724,6 +737,7 @@ def run_metrics(
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI for the metrics stage."""
     parser = argparse.ArgumentParser(description="Build paired metrics from manifest.")
     parser.add_argument("--output-root", type=Path, default=Path("output"))
     parser.add_argument(

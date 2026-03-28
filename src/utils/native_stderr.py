@@ -1,10 +1,10 @@
-r"""Redirect OS-level stderr (fd 2) for native libraries (CUDA, cuQuantum, etc.).
+"""Redirect OS-level stderr (fd 2) for native libraries (CUDA, cuQuantum, etc.).
 
-Python's :mod:`warnings` and even :data:`sys.stderr` assignment do not stop C/C++
-runtimes from writing to file descriptor 2. Experiment progress uses ``\r`` on
-stdout; interleaved native stderr breaks TTY progress lines.
+Python ``warnings`` and reassigning ``sys.stderr`` do not stop C/C++ runtimes
+from writing to file descriptor 2. Experiment progress uses carriage returns
+on stdout; interleaved native stderr breaks TTY progress lines.
 
-Enable during on-disk experiment solves with::
+Enable during on-disk experiment solves::
 
     HTSP_SILENCE_NATIVE_STDERR=1
 
@@ -23,10 +23,11 @@ from pathlib import Path
 
 
 def silence_native_stderr_requested() -> bool:
-    """Return True when ``HTSP_SILENCE_NATIVE_STDERR`` requests fd 2 redirection.
+    """Return whether environment requests redirecting fd 2 to a log during solves.
 
-    Truthy: ``1``, ``true``, ``yes``, ``on`` (case-insensitive).
-    Falsy or unset: no redirection.
+    Returns:
+        True when ``HTSP_SILENCE_NATIVE_STDERR`` is truthy (``1``, ``true``,
+        ``yes``, ``on``, case-insensitive). False when unset or falsy.
     """
     raw = os.environ.get("HTSP_SILENCE_NATIVE_STDERR")
     if raw is None or str(raw).strip() == "":
@@ -35,7 +36,14 @@ def silence_native_stderr_requested() -> bool:
 
 
 def resolve_native_stderr_log_path(output_root: Path) -> Path:
-    """Resolve log path: ``HTSP_NATIVE_STDERR_LOG`` or *output_root* / ``native_stderr.log``."""
+    """Resolve the append path for native stderr redirection.
+
+    Args:
+        output_root: Run output root used when no explicit env path is set.
+
+    Returns:
+        ``HTSP_NATIVE_STDERR_LOG`` if set, else ``output_root / native_stderr.log``.
+    """
     explicit = os.environ.get("HTSP_NATIVE_STDERR_LOG", "").strip()
     if explicit:
         return Path(explicit).expanduser().resolve()
@@ -44,10 +52,10 @@ def resolve_native_stderr_log_path(output_root: Path) -> Path:
 
 @contextmanager
 def redirect_native_stderr_to_file(log_path: Path) -> Generator[None, None, None]:
-    """Dup fd 2 to *log_path* for the duration of the context (C + Python stderr).
+    """Context manager: dup fd 2 to a file (native + Python stderr).
 
-    Appends to *log_path*. Creates parent directories if needed. Restores fd 2
-    and :data:`sys.stderr` on exit.
+    Appends to ``log_path``, creates parent directories, and restores fd 2 and
+    ``sys.stderr`` on exit.
 
     Args:
         log_path: Append destination for all stderr (native and Python).
