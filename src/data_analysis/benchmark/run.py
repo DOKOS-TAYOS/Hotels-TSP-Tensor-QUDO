@@ -27,6 +27,7 @@ class _BenchmarkImageDirs(NamedTuple):
     steps: Path
     improvement: Path
     p_opt: Path
+    histogram: Path
 
 
 def _ensure_benchmark_image_dirs(images_dir: Path) -> _BenchmarkImageDirs:
@@ -36,9 +37,12 @@ def _ensure_benchmark_image_dirs(images_dir: Path) -> _BenchmarkImageDirs:
     steps = images_dir / "steps"
     improvement = images_dir / "improvement"
     p_opt = images_dir / "p_opt"
-    for p in (dashboards, approx_ratio, steps, improvement, p_opt):
+    histogram = images_dir / "histogram"
+    for p in (dashboards, approx_ratio, steps, improvement, p_opt, histogram):
         p.mkdir(parents=True, exist_ok=True)
-    return _BenchmarkImageDirs(dashboards, approx_ratio, steps, improvement, p_opt)
+    return _BenchmarkImageDirs(
+        dashboards, approx_ratio, steps, improvement, p_opt, histogram
+    )
 
 
 def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
@@ -91,6 +95,11 @@ def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
         ("p_opt/cirq_tqudo_popt_vs_n_by_p", imgs.p_opt),
         ("improvement/cirq_tqudo_rel_energy_vs_n_by_p", imgs.improvement),
         ("p_opt/cirq_tqudo_delta_popt_vs_n_by_p", imgs.p_opt),
+        ("histogram/entropy_nat_vs_n_cirq_tqudo", imgs.histogram),
+        ("histogram/top5_mass_vs_n_cirq_tqudo", imgs.histogram),
+        ("histogram/near_bf_h1_vs_n_cirq_tqudo", imgs.histogram),
+        ("histogram/energy_auc_vs_n_cirq_tqudo", imgs.histogram),
+        ("histogram/steps_to_ref_eps_vs_n_cirq_tqudo", imgs.histogram),
     )
     for rel, dest in triplet_specs:
         pq = root / f"{rel}.parquet"

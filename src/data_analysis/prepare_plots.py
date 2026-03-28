@@ -22,6 +22,7 @@ from data_analysis.benchmark.collectors import (
     _p_opt_final_from_row,
     _p_opt_lists_by_depth_unpaired,
     _step_lists_to_depth_dict,
+    float_metric_from_paired_column,
     pd_notna_n,
 )
 from data_analysis.benchmark.plot_serde import (
@@ -55,8 +56,66 @@ def _ensure_plot_data_subdirs(plots_data: Path) -> None:
         "improvement",
         "p_opt",
         "energy_history",
+        "histogram",
     ):
         (plots_data / name).mkdir(parents=True, exist_ok=True)
+
+
+def write_histogram_and_trajectory_plot_tables(
+    paired: Any, output_root: Path, plots_data: Path
+) -> None:
+    """Boxplot inputs for sample-distribution and energy-trajectory columns (if present)."""
+    root = output_root.resolve()
+    bf_cache: dict[tuple[int, int], list[int] | None] = {}
+    depths = (1, 2, 3)
+    hist_dir = plots_data / "histogram"
+    hist_dir.mkdir(parents=True, exist_ok=True)
+
+    m_ct = (
+        paired["parse_ok"]
+        & paired["solve_ok"]
+        & (paired["solver"] == "cirq")
+        & (paired["formulation"] == "tqudo")
+        & paired["qaoa_depth"].notna()
+    )
+    n_tick = sorted({int(x) for x in paired.loc[m_ct, "n_cities"].unique() if pd_notna_n(x)})
+    if not n_tick:
+        n_tick = [5, 6, 7, 8, 9]
+
+    def _triplet_if_col(col: str, stem: str, y_label: str) -> None:
+        if col not in paired.columns:
+            return
+        series = _collect_numeric_box_series_vs_ncities(
+            paired,
+            solver="cirq",
+            formulation="tqudo",
+            depth_values=depths,
+            output_root=root,
+            value_fn=float_metric_from_paired_column(col),
+            bf_cache=bf_cache,
+        )
+        if not series:
+            return
+        write_triplet_series_long(
+            hist_dir / f"{stem}.parquet",
+            series,
+            plot_kwargs={"n_tick_vals": n_tick, "y_label": y_label, "figsize": (8.5, 5)},
+            kind="triplet_vs_x",
+        )
+
+    _triplet_if_col("final_sample_entropy_nat", "entropy_nat_vs_n_cirq_tqudo", r"$H(\hat p)$ (nat)")
+    _triplet_if_col("final_sample_top_5_mass", "top5_mass_vs_n_cirq_tqudo", "top-5 mass")
+    _triplet_if_col(
+        "final_sample_near_bf_mass_h1",
+        "near_bf_h1_vs_n_cirq_tqudo",
+        r"$P(d \leq 1)$ vs BF",
+    )
+    _triplet_if_col("energy_history_auc_norm", "energy_auc_vs_n_cirq_tqudo", "AUC (norm.)")
+    _triplet_if_col(
+        "energy_history_steps_to_ref_eps",
+        "steps_to_ref_eps_vs_n_cirq_tqudo",
+        r"steps to $\epsilon$-BF",
+    )
 
 
 def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path) -> None:
@@ -402,6 +461,7 @@ def run_prepare_plots(output_root: Path, *, clean: bool = False) -> Path:
 
     if not paired_no_sa.empty:
         write_benchmark_plot_tables(paired_no_sa, layout.root, plots_data)
+        write_histogram_and_trajectory_plot_tables(paired_no_sa, layout.root, plots_data)
 
     curves_path = proc / "energy_curves_agg.parquet"
     curves = pd.DataFrame()

@@ -19,6 +19,7 @@ def run_pipeline(
     skip_plots: bool = False,
     *,
     energy_curve_percentiles: bool = True,
+    energy_trajectory_metrics: bool = False,
 ) -> None:
     """Run ingest → metrics → prepare_plots → plots on *output_root*."""
     root = output_root.resolve()
@@ -27,6 +28,7 @@ def run_pipeline(
         root,
         sample_quality=sample_quality,
         energy_curve_percentiles=energy_curve_percentiles,
+        energy_trajectory_metrics=energy_trajectory_metrics,
     )
     run_prepare_plots(root)
     if not skip_plots:
@@ -65,6 +67,11 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Omit p25/p50/p75 from energy_curves_agg (faster; plots use mean/std only).",
     )
+    parser.add_argument(
+        "--energy-trajectory-metrics",
+        action="store_true",
+        help="Compute per-row energy_history AUC and steps-to-epsilon vs BF ref.",
+    )
     args = parser.parse_args(argv)
     run_pipeline(
         args.output_root.resolve(),
@@ -72,6 +79,7 @@ def main(argv: list[str] | None = None) -> None:
         sample_quality=args.sample_quality,
         skip_plots=args.skip_plots,
         energy_curve_percentiles=not args.no_energy_curve_percentiles,
+        energy_trajectory_metrics=args.energy_trajectory_metrics,
     )
 
 

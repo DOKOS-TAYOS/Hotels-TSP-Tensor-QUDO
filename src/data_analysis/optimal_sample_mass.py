@@ -150,6 +150,117 @@ def histogram_mass(hist: dict[str, int] | None, key: str) -> float | None:
     return float(cnt) / float(total)
 
 
+def _histogram_total_counts(hist: dict[str, int] | None) -> int:
+    if not hist or not isinstance(hist, dict):
+        return 0
+    total = 0
+    for v in hist.values():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            total += int(v)
+    return total
+
+
+def histogram_shannon_entropy(hist: dict[str, int] | None, base: float = math.e) -> float | None:
+    """Empirical Shannon entropy :math:`-\\sum_i p_i \\log(p_i)` in nats if ``base`` is ``e``.
+
+    Returns ``None`` if histogram is missing or has zero total counts.
+    """
+    if not hist or not isinstance(hist, dict):
+        return None
+    total = _histogram_total_counts(hist)
+    if total <= 0:
+        return None
+    ent = 0.0
+    logf = math.log
+    for v in hist.values():
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            continue
+        c = int(v)
+        if c <= 0:
+            continue
+        p = float(c) / float(total)
+        ent -= p * logf(p) / logf(base)
+    return float(ent)
+
+
+def histogram_top_k_mass(hist: dict[str, int] | None, k: int) -> float | None:
+    """Sum of the ``k`` largest outcome probabilities (or all if fewer than ``k`` keys)."""
+    if not hist or not isinstance(hist, dict) or k <= 0:
+        return None
+    total = _histogram_total_counts(hist)
+    if total <= 0:
+        return None
+    counts: list[int] = []
+    for v in hist.values():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            counts.append(int(v))
+    if not counts:
+        return None
+    counts.sort(reverse=True)
+    take = counts[: min(k, len(counts))]
+    return float(sum(take)) / float(total)
+
+
+def histogram_key_hamming_distance(
+    key_a: str,
+    key_b: str,
+    formulation: str,
+    n_cities: int,
+) -> int | None:
+    """Assignment / bit Hamming distance between two histogram keys.
+
+    For ``qubo`` and ``tqudo_virtual``: distance on equal-length bitstrings; ``None`` if lengths differ.
+    For ``tqudo``: dash-separated qudit string vs ``native_histogram_key`` (``n_cities - 1`` parts).
+    """
+    n_available = int(n_cities) - 1
+    if n_available < 1:
+        return None
+    if formulation in ("qubo", "tqudo_virtual"):
+        if len(key_a) != len(key_b):
+            return None
+        return sum(1 for ca, cb in zip(key_a, key_b, strict=True) if ca != cb)
+    if formulation == "tqudo":
+        parts_a = key_a.split("-")
+        parts_b = key_b.split("-")
+        if len(parts_a) != n_available or len(parts_b) != n_available:
+            return None
+        try:
+            da = [int(x) for x in parts_a]
+            db = [int(x) for x in parts_b]
+        except ValueError:
+            return None
+        return sum(1 for x, y in zip(da, db, strict=True) if x != y)
+    raise ValueError(f"Unsupported formulation for key distance: {formulation!r}")
+
+
+def histogram_mass_near_center(
+    hist: dict[str, int] | None,
+    center_key: str,
+    formulation: str,
+    n_cities: int,
+    max_hamming: int,
+) -> float | None:
+    """Fraction of counts on keys within ``max_hamming`` of ``center_key`` (incompatible keys skipped)."""
+    if not hist or not isinstance(hist, dict) or not center_key:
+        return None
+    total = _histogram_total_counts(hist)
+    if total <= 0:
+        return None
+    near = 0
+    for key, raw in hist.items():
+        if not isinstance(key, str):
+            continue
+        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+            continue
+        cnt = int(raw)
+        if cnt <= 0:
+            continue
+        d = histogram_key_hamming_distance(center_key, key, formulation, n_cities)
+        if d is not None and d <= max_hamming:
+            near += cnt
+    return float(near) / float(total)
+
+
 def read_sample_histograms_from_solution_json(
     json_path: Path,
 ) -> tuple[dict[str, int] | None, dict[str, int] | None]:

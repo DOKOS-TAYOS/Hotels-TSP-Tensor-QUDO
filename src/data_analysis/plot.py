@@ -12,7 +12,10 @@ from pathlib import Path
 
 from data_analysis._deps import require_plot_stack
 from data_analysis.benchmark.run import run_benchmark_plots_from_disk
-from data_analysis.energy_plots import run_energy_history_figures_from_disk
+from data_analysis.energy_plots import (
+    run_energy_curve_dispersion_figure,
+    run_energy_history_figures_from_disk,
+)
 from data_analysis.extended_plots import run_extended_analysis_figures
 from utils.output_paths import build_output_layout
 
@@ -77,15 +80,17 @@ def run_plots(output_root: Path) -> None:
         )
 
     run_benchmark_plots_from_disk(pdata, layout.images)
-    run_energy_history_figures_from_disk(
-        pdata / "energy_history",
-        layout.images / "energy_history",
+    img_energy = layout.images / "energy_history"
+    run_energy_history_figures_from_disk(pdata / "energy_history", img_energy)
+    run_energy_curve_dispersion_figure(
+        layout.processed / "energy_curves_agg.parquet",
+        img_energy,
     )
     run_extended_analysis_figures(layout.processed, layout.images / "extended")
 
     print(
         f"Figures written under {layout.images} "
-        "(energy_history/, approx_ratio/, steps/, improvement/, p_opt/, dashboards/, extended/).",
+        "(energy_history/, approx_ratio/, steps/, improvement/, p_opt/, histogram/, dashboards/, extended/).",
         flush=True,
     )
 

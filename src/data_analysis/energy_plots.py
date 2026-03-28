@@ -372,3 +372,62 @@ def run_energy_history_figures_from_disk(
         fig.tight_layout()
         fig.savefig(images_energy / f"{stem}.png", dpi=150)
         plt.close(fig)
+
+
+def run_energy_curve_dispersion_figure(
+    energy_curves_agg_parquet: Path,
+    images_energy: Path,
+) -> None:
+    """Cross-instance std of normalized energy vs optimizer step for selected cohorts (n = 5, p = 1)."""
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    if not energy_curves_agg_parquet.is_file():
+        return
+    curves = pd.read_parquet(energy_curves_agg_parquet)
+    if curves.empty or "std" not in curves.columns or "step" not in curves.columns:
+        return
+    cohorts = [
+        ("cudaq", "qubo", 5, 1),
+        ("cudaq", "tqudo_virtual", 5, 1),
+        ("cirq", "tqudo", 5, 1),
+    ]
+    images_energy.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    prop = plt.rcParams["axes.prop_cycle"].by_key()
+    colors = prop["color"]
+    plotted = False
+    for i, (solver, form, n, d) in enumerate(cohorts):
+        m = (
+            (curves["solver"] == solver)
+            & (curves["formulation"] == form)
+            & (curves["n_cities"] == int(n))
+        )
+        if "qaoa_depth" in curves.columns:
+            qd = pd.to_numeric(curves["qaoa_depth"], errors="coerce")
+            m &= qd == float(int(d))
+        sub = curves.loc[m, ["step", "std"]].drop_duplicates(subset=["step"]).sort_values(
+            "step"
+        )
+        if sub.empty:
+            continue
+        plotted = True
+        lab = f"{solver} / {form}, $n={n}$, $p={d}$"
+        c = colors[i % len(colors)]
+        ax.plot(
+            sub["step"].to_numpy(dtype=np.float64),
+            sub["std"].to_numpy(dtype=np.float64),
+            color=c,
+            linewidth=1.8,
+            label=lab,
+        )
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Step (0-based)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(r"$\sigma$ of $f / |f^*|$ across instances", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
+    ax.legend(fontsize=LEGEND_FONTSIZE_COMPACT, loc="best")
+    fig.tight_layout()
+    fig.savefig(images_energy / "energy_curve_std_vs_step_n5_p1.png", dpi=150)
+    plt.close(fig)

@@ -21,6 +21,30 @@ from data_analysis.optimal_sample_mass import (
 from data_analysis.benchmark.common import _mask_qaoa_depth_eq
 from data_analysis.benchmark.pairing import _dedupe_solution_rows, is_optimal_vs_ref
 
+
+def float_metric_from_paired_column(col: str) -> Any:
+    """Build ``value_fn`` for :func:`_collect_numeric_box_series_vs_ncities` from a DataFrame column."""
+
+    def _fn(
+        row: Any,
+        _output_root: Path,
+        _formulation: str,
+        _bf_cache: dict[tuple[int, int], list[int] | None],
+    ) -> float | None:
+        v = row.get(col)
+        if v is None:
+            return None
+        try:
+            vf = float(v)
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(vf):
+            return None
+        return vf
+
+    return _fn
+
+
 def _opt_steps_from_rel_path(output_root: Path, rel_path: Any) -> float | None:
     """1-based step count to first trace minimum from JSON at ``output_root / rel_path``."""
     if rel_path is None:
