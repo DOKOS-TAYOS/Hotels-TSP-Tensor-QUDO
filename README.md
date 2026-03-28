@@ -18,7 +18,7 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 
 ## Current status
 
-**Version**: 0.1.0 (alpha, unreleased)
+**Version**: 0.3.0 (beta, unreleased)
 
 - Two mathematical formulations: Tensor-QUDO (native qudits) and QUBO (binary one-hot).
 - Four solver backends: Cirq (native qudits + qubit emulation), CUDA-Q (GPU-accelerated), Simulated Annealing, and **brute force** (exact enumeration over the full QUBO / TQUDO assignment space within documented size limits).
