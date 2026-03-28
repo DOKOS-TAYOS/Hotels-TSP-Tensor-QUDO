@@ -11,50 +11,42 @@ from typing import Any
 
 import numpy as np
 
+from data_analysis._deps import coerce_bool_scalar, require_pandas
+from data_analysis.angles_stats import (
+    build_angle_cohort_stats_table,
+    paired_backend_angle_rows,
+)
+from data_analysis.optimal_sample_mass import (
+    histogram_key_for_formulation,
+    histogram_mass_near_center,
+    histogram_shannon_entropy,
+    histogram_top_k_mass,
+    load_bruteforce_optimal_sequence,
+)
 from utils.output_paths import build_output_layout
 
-
-def _require_pandas() -> None:
-    try:
-        import pandas as pd  # noqa: F401
-    except ImportError as exc:
-        raise SystemExit(
-            "metrics requires pandas (pip install -e '.[analysis]')."
-        ) from exc
+# 1-based optimizer step labels; stored rows use 0-based ``step`` indices (``k - 1``).
+ENERGY_CURVE_SNAPSHOT_STEPS_1BASED: tuple[int, ...] = (1, 5, 10, 20)
 
 
 def _coerce_parse_ok(df: Any) -> Any:
-    def _as_bool(x: object) -> bool:
-        if x is True:
-            return True
-        if x is False:
-            return False
-        return str(x).lower() == "true"
-
     out = df.copy()
     if "parse_ok" in out.columns:
-        out["parse_ok"] = out["parse_ok"].map(_as_bool)
+        out["parse_ok"] = out["parse_ok"].map(coerce_bool_scalar)
     return out
 
 
 def _coerce_solve_ok(df: Any) -> Any:
     """Normalize ``solve_ok``; infer from ``solver_error`` for old manifests."""
 
-    def _as_bool(x: object) -> bool:
-        if x is True:
-            return True
-        if x is False:
-            return False
-        return str(x).lower() == "true"
-
     out = df.copy()
     if "solve_ok" in out.columns:
-        out["solve_ok"] = out["solve_ok"].map(_as_bool)
+        out["solve_ok"] = out["solve_ok"].map(coerce_bool_scalar)
         return out
     if "parse_ok" not in out.columns:
         out["solve_ok"] = False
         return out
-    parse_ok_series = out["parse_ok"].map(_as_bool)
+    parse_ok_series = out["parse_ok"].map(coerce_bool_scalar)
     if "solver_error" in out.columns:
         out["solve_ok"] = parse_ok_series & out["solver_error"].isna()
     else:
@@ -135,11 +127,20 @@ def _reference_bruteforce(df: Any) -> Any:
 
 
 def build_paired_metrics(df: Any) -> Any:
+    import pandas as pd
+
     ref = _reference_bruteforce(df)
     if ref.empty:
         out = df.copy()
         out["ref_objective_value"] = np.nan
         out["ref_real_cost"] = np.nan
+        rt = pd.to_numeric(out["runtime_seconds"], errors="coerce")
+        ns = pd.to_numeric(out["n_energy_steps"], errors="coerce")
+        out["runtime_per_energy_step"] = np.where(
+            ns.notna() & (ns > 0) & rt.notna(),
+            rt / ns,
+            np.nan,
+        )
         return out
     merged = df.merge(
         ref,
@@ -183,6 +184,14 @@ def build_paired_metrics(df: Any) -> Any:
         / np.abs(merged["initial_energy"]),
         np.nan,
     )
+
+    rt = pd.to_numeric(merged["runtime_seconds"], errors="coerce")
+    ns = pd.to_numeric(merged["n_energy_steps"], errors="coerce")
+    merged["runtime_per_energy_step"] = np.where(
+        ns.notna() & (ns > 0) & rt.notna(),
+        rt / ns,
+        np.nan,
+    )
     return merged
 
 
@@ -198,6 +207,22 @@ def build_summary_by_config(df: Any) -> Any:
     def _feas_rate(s: Any) -> float:
         return float(s.fillna(False).mean()) if len(s) else float("nan")
 
+    def _nanmean_series(s: Any) -> float:
+        x = pd.to_numeric(s, errors="coerce").dropna()
+        return float(x.mean()) if len(x) else float("nan")
+
+    def _nanmedian_series(s: Any) -> float:
+        x = pd.to_numeric(s, errors="coerce").dropna()
+        return float(x.median()) if len(x) else float("nan")
+
+    rt = pd.to_numeric(ok["runtime_seconds"], errors="coerce")
+    ns = pd.to_numeric(ok["n_energy_steps"], errors="coerce")
+    ok["runtime_per_energy_step"] = np.where(
+        ns.notna() & (ns > 0) & rt.notna(),
+        rt / ns,
+        np.nan,
+    )
+
     gcols = ["n_cities", "solver", "formulation", "qaoa_depth"]
     for c in gcols:
         if c not in ok.columns:
@@ -206,10 +231,13 @@ def build_summary_by_config(df: Any) -> Any:
         n_runs=("path", "count"),
         feas_rate=("feasible", _feas_rate),
         mean_runtime=("runtime_seconds", "mean"),
+        median_runtime_seconds=("runtime_seconds", _nanmedian_series),
         mean_objective=("objective_value", "mean"),
         mean_real_cost=("real_cost", "mean"),
         mean_approx_ratio_real=("approx_ratio_real", "mean"),
         mean_energy_steps=("n_energy_steps", "mean"),
+        mean_configs_evaluated=("configs_evaluated", _nanmean_series),
+        mean_runtime_per_energy_step=("runtime_per_energy_step", _nanmean_series),
     )
     return agg.reset_index()
 
@@ -243,8 +271,8 @@ def read_energy_history_from_solution_json(json_path: Path) -> list[float] | Non
 def first_optimizer_step_reaching_min_energy(history: list[float]) -> int | None:
     """1-based optimizer-evaluation index when ``energy_history`` first hits its minimum.
 
-    Uses mixed ``math.isclose`` tolerances for float plateaus. Returns ``None`` if history empty
-    or non-finite values.
+    Uses mixed ``math.isclose`` tolerances for float plateaus. Returns ``None`` if history empty,
+    non-finite values, or no index matches the minimum within tolerance.
     """
     if not history:
         return None
@@ -256,10 +284,26 @@ def first_optimizer_step_reaching_min_energy(history: list[float]) -> int | None
     for i in range(int(arr.size)):
         if math.isclose(float(arr[i]), m, rel_tol=1e-9, abs_tol=atol):
             return i + 1
-    return int(np.argmin(arr)) + 1
+    return None
 
 
-def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) -> Any:
+def aggregate_energy_curves(
+    df: Any,
+    output_root: Path,
+    max_len_cap: int | None = None,
+    *,
+    include_percentiles: bool = True,
+) -> Any:
+    """Per-group stats of ``energy_history`` after **per-row** scaling by ``|ref_objective_value|``.
+
+    Each instance contributes ``E(t)/|E^*_inst|``; then step-wise mean/std across instances.
+    Rows without a usable BF ``ref_objective_value`` are skipped.
+
+    ``max_len_cap``: if set, truncates all curves in the group to at most this many steps;
+    if ``None`` (default), uses the longest ``energy_history`` in the group (no fixed upper bound).
+
+    If ``include_percentiles`` is False, omits ``p25``/``p50``/``p75`` (plots only need ``mean``/``std``).
+    """
     import pandas as pd
 
     ok = df[df["parse_ok"] & df["solve_ok"] & (df["n_energy_steps"] > 0)]
@@ -278,14 +322,28 @@ def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) 
 
     for grp, sub in ok.groupby(group_cols, dropna=False):
         histories: list[list[float]] = []
-        for rel in sub["path"].astype(str):
-            p = output_root / rel
-            h = _read_energy_history(p)
-            if h:
-                histories.append(h)
+        for _, row in sub.iterrows():
+            rel = row.get("path")
+            if rel is None or (isinstance(rel, float) and np.isnan(rel)):
+                continue
+            json_path = output_root / str(rel).strip()
+            h = _read_energy_history(json_path)
+            if not h:
+                continue
+            ref = row.get("ref_objective_value")
+            if ref is None or (isinstance(ref, float) and np.isnan(ref)):
+                continue
+            ref_f = float(ref)
+            if not np.isfinite(ref_f):
+                continue
+            denom = abs(ref_f)
+            if denom <= 0.0:
+                continue
+            histories.append([float(x) / denom for x in h])
         if not histories:
             continue
-        max_len = min(max_len_cap, max(len(h) for h in histories))
+        longest = max(len(h) for h in histories)
+        max_len = longest if max_len_cap is None else min(int(max_len_cap), longest)
         mat = np.full((len(histories), max_len), np.nan, dtype=np.float64)
         for i, h in enumerate(histories):
             take = h[:max_len]
@@ -295,15 +353,16 @@ def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) 
             col = col[~np.isnan(col)]
             if col.size == 0:
                 continue
-            d = {
+            d: dict[str, Any] = {
                 "step": step,
-                "p25": float(np.percentile(col, 25)),
-                "p50": float(np.median(col)),
-                "p75": float(np.percentile(col, 75)),
                 "mean": float(np.mean(col)),
                 "std": float(np.std(col, ddof=1)) if col.size > 1 else 0.0,
                 "n_curves": int(col.size),
             }
+            if include_percentiles:
+                d["p25"] = float(np.percentile(col, 25))
+                d["p50"] = float(np.median(col))
+                d["p75"] = float(np.percentile(col, 75))
             if isinstance(grp, tuple):
                 for k, v in zip(group_cols, grp, strict=True):
                     d[k] = v
@@ -313,8 +372,15 @@ def aggregate_energy_curves(df: Any, output_root: Path, max_len_cap: int = 500) 
     return pd.DataFrame(rows_out)
 
 
-def _histogram_feasible_fraction(samples: dict[str, int], instance: dict[str, Any]) -> float | None:
-    """Fraction of sample mass decoding to feasible tours (QUBO 0/1 keys or digit strings)."""
+def _histogram_sample_mass_split(
+    samples: dict[str, int], instance: dict[str, Any]
+) -> tuple[float, float, float] | None:
+    """Feasible, infeasible-decoded, and invalid-key sample mass (sum to 1.0).
+
+    QUBO keys: ``(n-1)^2`` binary characters. Native TQUDO: ``n-1`` dash-separated integers.
+    Legacy digit-only keys without dashes are accepted when ``len(key) == n-1`` and
+    ``key.isdigit()``.
+    """
     from experiments.workflow_io import deserialize_problem_instance
     from utils.constraints import qubo_binary_to_sequence, validate_solution_constraints_tqudo
 
@@ -323,27 +389,126 @@ def _histogram_feasible_fraction(samples: dict[str, int], instance: dict[str, An
     except (KeyError, TypeError, ValueError):
         return None
     n_available = inst.n_cities - 1
-    total = sum(samples.values())
+    total = sum(int(v) for v in samples.values() if isinstance(v, (int, float)) and not isinstance(v, bool))
     if total <= 0:
         return None
     feas_mass = 0
-    for key, cnt in samples.items():
+    infeas_mass = 0
+    invalid_mass = 0
+    for key, raw in samples.items():
+        try:
+            if isinstance(raw, bool):
+                raise ValueError
+            cnt = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if cnt <= 0:
+            continue
         if not isinstance(key, str) or not key:
+            invalid_mass += cnt
             continue
         bits = [float(int(c)) for c in key if c in "01"]
-        if len(bits) != n_available * n_available:
-            seq = None
-            if len(key) == n_available and key.isdigit():
-                seq_l = [int(x) for x in key]
-                if validate_solution_constraints_tqudo(inst, seq_l):
-                    feas_mass += cnt
-            continue
-        else:
+        if len(bits) == n_available * n_available:
             x = np.array(bits, dtype=np.float64)
             seq = qubo_binary_to_sequence(x, n_available)
-        if seq is not None and validate_solution_constraints_tqudo(inst, seq):
-            feas_mass += cnt
-    return feas_mass / total
+            if seq is None:
+                invalid_mass += cnt
+            elif validate_solution_constraints_tqudo(inst, seq):
+                feas_mass += cnt
+            else:
+                infeas_mass += cnt
+            continue
+        parts = key.split("-")
+        if (
+            len(parts) == n_available
+            and all(p.isdigit() for p in parts)
+        ):
+            seq_l = [int(p) for p in parts]
+            if validate_solution_constraints_tqudo(inst, seq_l):
+                feas_mass += cnt
+            else:
+                infeas_mass += cnt
+            continue
+        if len(key) == n_available and key.isdigit():
+            seq_l = [int(c) for c in key]
+            if validate_solution_constraints_tqudo(inst, seq_l):
+                feas_mass += cnt
+            else:
+                infeas_mass += cnt
+            continue
+        invalid_mass += cnt
+    den = float(total)
+    return feas_mass / den, infeas_mass / den, invalid_mass / den
+
+
+def _histogram_feasible_fraction(samples: dict[str, int], instance: dict[str, Any]) -> float | None:
+    """Fraction of sample mass decoding to feasible tours (QUBO 0/1 keys or digit strings)."""
+    split = _histogram_sample_mass_split(samples, instance)
+    if split is None:
+        return None
+    return split[0]
+
+
+def _trapz_uniform(y: np.ndarray) -> float:
+    """Trapezoidal integral with unit spacing along the sample index."""
+    if y.size < 2:
+        return float(np.mean(y)) if y.size else float("nan")
+    if hasattr(np, "trapezoid"):
+        return float(np.trapezoid(y))
+    return float(np.trapz(y))
+
+
+def normalized_energy_auc(
+    history: list[float],
+    initial_energy: float | None,
+) -> float | None:
+    """Area under trajectory normalized from initial (1) toward trace minimum (0).
+
+    Uses :math:`s_i = (E_i - E_{\\min}) / (E_0 - E_{\\min})`, clipped to ``[0, 1]``,
+    then the trapezoid sum over optimizer evaluations. ``None`` if history empty,
+    non-finite values, or ``|E_0 - E_{\\min}|`` negligible.
+    """
+    if not history:
+        return None
+    arr = np.asarray([float(x) for x in history], dtype=np.float64)
+    if arr.size == 0 or not np.all(np.isfinite(arr)):
+        return None
+    e0 = (
+        float(initial_energy)
+        if initial_energy is not None and np.isfinite(float(initial_energy))
+        else float(arr[0])
+    )
+    emin = float(np.min(arr))
+    denom = abs(e0 - emin)
+    if denom <= 1e-30:
+        return None
+    s = (arr - emin) / denom
+    s = np.clip(s, 0.0, 1.0)
+    return _trapz_uniform(s)
+
+
+def first_step_within_epsilon_of_ref(
+    history: list[float],
+    ref: float,
+    *,
+    rel_tol: float = 0.01,
+    abs_floor: float | None = None,
+) -> int | None:
+    """First 1-based index with ``|E_i - ref| <= max(abs_floor, rel_tol * |ref|)``."""
+    if not history or not np.isfinite(float(ref)):
+        return None
+    af = abs_floor if abs_floor is not None else 1e-9 * max(1.0, abs(float(ref)))
+    thresh = max(af, float(rel_tol) * abs(float(ref)))
+    for i, e in enumerate(history):
+        try:
+            ef = float(e)
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(ef):
+            return None
+        if abs(ef - float(ref)) <= thresh:
+            return i + 1
+    return None
 
 
 def enrich_sample_quality(df: Any, output_root: Path) -> Any:
@@ -351,27 +516,139 @@ def enrich_sample_quality(df: Any, output_root: Path) -> Any:
     if "solve_ok" not in out.columns:
         out = _coerce_solve_ok(out)
     fracs: list[float | None] = []
+    ent_init: list[float | None] = []
+    ent_fin: list[float | None] = []
+    top1: list[float | None] = []
+    top3: list[float | None] = []
+    top5: list[float | None] = []
+    near_h1: list[float | None] = []
+    infeas: list[float | None] = []
+    invalid: list[float | None] = []
+    bf_cache: dict[tuple[int, int], list[int] | None] = {}
+    root = output_root.resolve()
+
     for _, row in out.iterrows():
-        frac: float | None = None
+        frac = e0 = e1 = t1 = t3 = t5 = nh = infeas_m = inv_m = None
         if row.get("parse_ok") and row.get("solve_ok") and row.get("has_final_samples"):
-            p = output_root / str(row["path"])
+            p = root / str(row["path"])
             try:
                 with open(p, encoding="utf-8") as f:
                     data = json.load(f)
                 meta = (data.get("solver_output") or {}).get("metadata") or {}
                 fs = meta.get("final_samples")
+                init_s = meta.get("initial_samples")
                 inst = data.get("instance")
                 if isinstance(fs, dict) and isinstance(inst, dict):
-                    frac = _histogram_feasible_fraction(fs, inst)
-            except (OSError, json.JSONDecodeError, TypeError):
-                frac = None
+                    split = _histogram_sample_mass_split(fs, inst)
+                    if split is not None:
+                        frac, infeas_m, inv_m = split[0], split[1], split[2]
+                    e1 = histogram_shannon_entropy(fs, base=math.e)
+                    t1 = histogram_top_k_mass(fs, 1)
+                    t3 = histogram_top_k_mass(fs, 3)
+                    t5 = histogram_top_k_mass(fs, 5)
+                if isinstance(init_s, dict):
+                    e0 = histogram_shannon_entropy(init_s, base=math.e)
+                if isinstance(fs, dict) and isinstance(inst, dict):
+                    form = str(row.get("formulation") or "")
+                    n_cities = int(row["n_cities"])
+                    ik = int(row["instance_key"])
+                    seq = load_bruteforce_optimal_sequence(
+                        root, n_cities, ik, cache=bf_cache
+                    )
+                    if seq is not None and form in ("qubo", "tqudo", "tqudo_virtual"):
+                        ck = histogram_key_for_formulation(seq, form, n_cities)
+                        nh = histogram_mass_near_center(fs, ck, form, n_cities, 1)
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                pass
         fracs.append(frac)
+        ent_init.append(e0)
+        ent_fin.append(e1)
+        top1.append(t1)
+        top3.append(t3)
+        top5.append(t5)
+        near_h1.append(nh)
+        infeas.append(infeas_m)
+        invalid.append(inv_m)
+
     out["final_sample_feasible_mass"] = fracs
+    out["initial_sample_entropy_nat"] = ent_init
+    out["final_sample_entropy_nat"] = ent_fin
+    out["final_sample_top_1_mass"] = top1
+    out["final_sample_top_3_mass"] = top3
+    out["final_sample_top_5_mass"] = top5
+    out["final_sample_near_bf_mass_h1"] = near_h1
+    out["final_sample_infeasible_mass"] = infeas
+    out["final_sample_invalid_key_mass"] = invalid
     return out
 
 
-def run_metrics(output_root: Path, sample_quality: bool) -> None:
-    _require_pandas()
+def enrich_energy_trajectory_metrics(
+    df: Any,
+    output_root: Path,
+    *,
+    rel_tol: float = 0.01,
+    abs_floor: float | None = None,
+) -> Any:
+    """Add per-row ``energy_history_auc_norm`` and ``energy_history_steps_to_ref_eps``."""
+    out = df.copy()
+    aucs: list[float | None] = []
+    steps_eps: list[float | None] = []
+    root = output_root.resolve()
+
+    for _, row in out.iterrows():
+        au: float | None = None
+        st: float | None = None
+        if not row.get("parse_ok") or not row.get("solve_ok"):
+            aucs.append(None)
+            steps_eps.append(None)
+            continue
+        if row.get("solver") in ("brute_force", "simulated_annealing"):
+            aucs.append(None)
+            steps_eps.append(None)
+            continue
+        n_steps = row.get("n_energy_steps")
+        try:
+            n_steps_i = int(n_steps) if n_steps is not None and n_steps == n_steps else 0
+        except (TypeError, ValueError):
+            n_steps_i = 0
+        if n_steps_i <= 0:
+            aucs.append(None)
+            steps_eps.append(None)
+            continue
+        ref = row.get("ref_objective_value")
+        if ref is None or (isinstance(ref, float) and np.isnan(ref)) or not np.isfinite(float(ref)):
+            aucs.append(None)
+            steps_eps.append(None)
+            continue
+        rel_p = root / str(row["path"]).strip()
+        h = _read_energy_history(rel_p)
+        if not h:
+            aucs.append(None)
+            steps_eps.append(None)
+            continue
+        init_e_raw = row.get("initial_energy")
+        init_e = float(init_e_raw) if init_e_raw is not None and np.isfinite(float(init_e_raw)) else None
+        au = normalized_energy_auc(h, init_e)
+        st_i = first_step_within_epsilon_of_ref(
+            h, float(ref), rel_tol=rel_tol, abs_floor=abs_floor
+        )
+        st = float(st_i) if st_i is not None else None
+        aucs.append(au)
+        steps_eps.append(st)
+
+    out["energy_history_auc_norm"] = aucs
+    out["energy_history_steps_to_ref_eps"] = steps_eps
+    return out
+
+
+def run_metrics(
+    output_root: Path,
+    sample_quality: bool,
+    *,
+    energy_curve_percentiles: bool = True,
+    energy_trajectory_metrics: bool = False,
+) -> None:
+    require_pandas(context="metrics")
 
     layout = build_output_layout(output_root)
     layout.processed.mkdir(parents=True, exist_ok=True)
@@ -379,6 +656,8 @@ def run_metrics(output_root: Path, sample_quality: bool) -> None:
     paired = build_paired_metrics(df)
     if sample_quality:
         paired = enrich_sample_quality(paired, output_root)
+    if energy_trajectory_metrics:
+        paired = enrich_energy_trajectory_metrics(paired, output_root)
     pq_p = layout.processed / "paired_metrics.parquet"
     paired.to_parquet(pq_p, index=False)
     paired.to_csv(layout.processed / "paired_metrics.csv", index=False)
@@ -386,10 +665,60 @@ def run_metrics(output_root: Path, sample_quality: bool) -> None:
     summary = build_summary_by_config(paired)
     summary.to_csv(layout.processed / "summary_by_config.csv", index=False)
 
-    curves = aggregate_energy_curves(paired, output_root)
+    angle_cohort = build_angle_cohort_stats_table(paired)
+    if not angle_cohort.empty:
+        angle_cohort.to_parquet(layout.processed / "angle_cohort_stats.parquet", index=False)
+        angle_cohort.to_csv(layout.processed / "angle_cohort_stats.csv", index=False)
+
+    paired_angles_cq_cirq = paired_backend_angle_rows(
+        paired,
+        left_solver="cudaq",
+        left_formulation="tqudo_virtual",
+        right_solver="cirq",
+        right_formulation="tqudo",
+    )
+    if not paired_angles_cq_cirq.empty:
+        paired_angles_cq_cirq.to_parquet(
+            layout.processed / "paired_angle_cudaq_tvirt_cirq_tqudo.parquet",
+            index=False,
+        )
+        paired_angles_cq_cirq.to_csv(
+            layout.processed / "paired_angle_cudaq_tvirt_cirq_tqudo.csv",
+            index=False,
+        )
+
+    paired_angles_q_t = paired_backend_angle_rows(
+        paired,
+        left_solver="cudaq",
+        left_formulation="qubo",
+        right_solver="cudaq",
+        right_formulation="tqudo_virtual",
+    )
+    if not paired_angles_q_t.empty:
+        paired_angles_q_t.to_parquet(
+            layout.processed / "paired_angle_cudaq_qubo_tvirt.parquet",
+            index=False,
+        )
+        paired_angles_q_t.to_csv(
+            layout.processed / "paired_angle_cudaq_qubo_tvirt.csv",
+            index=False,
+        )
+
+    curves = aggregate_energy_curves(
+        paired,
+        output_root,
+        include_percentiles=energy_curve_percentiles,
+    )
     if not curves.empty:
         curves.to_parquet(layout.processed / "energy_curves_agg.parquet", index=False)
         curves.to_csv(layout.processed / "energy_curves_agg.csv", index=False)
+        snap_idx = tuple(s - 1 for s in ENERGY_CURVE_SNAPSHOT_STEPS_1BASED if s >= 1)
+        present = {int(x) for x in curves["step"].tolist()}
+        use = tuple(int(s) for s in snap_idx if int(s) in present)
+        if use:
+            snap = curves[curves["step"].isin(use)].copy()
+            snap.to_parquet(layout.processed / "energy_curves_snapshots.parquet", index=False)
+            snap.to_csv(layout.processed / "energy_curves_snapshots.csv", index=False)
 
     print(f"Wrote {pq_p}", flush=True)
 
@@ -400,10 +729,25 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--sample-quality",
         action="store_true",
-        help="Scan JSONs for final_samples feasible mass (slower).",
+        help="Scan JSONs for histogram metrics (entropy, top-k, BF neighborhood, feasible split).",
+    )
+    parser.add_argument(
+        "--no-energy-curve-percentiles",
+        action="store_true",
+        help="Omit p25/p50/p75 from energy_curves_agg (faster; plots use mean/std only).",
+    )
+    parser.add_argument(
+        "--energy-trajectory-metrics",
+        action="store_true",
+        help="Scan JSONs for energy_history AUC and steps-to-epsilon vs BF ref (slower).",
     )
     args = parser.parse_args(argv)
-    run_metrics(args.output_root.resolve(), args.sample_quality)
+    run_metrics(
+        args.output_root.resolve(),
+        args.sample_quality,
+        energy_curve_percentiles=not args.no_energy_curve_percentiles,
+        energy_trajectory_metrics=args.energy_trajectory_metrics,
+    )
 
 
 if __name__ == "__main__":

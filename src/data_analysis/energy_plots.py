@@ -1,4 +1,4 @@
-"""Mean energy-history curves with brute-force optimal objective (analysis excludes SA)."""
+"""Mean energy-history curves per QAOA depth (per-instance E/|E*| then mean over instances); excludes SA."""
 
 from __future__ import annotations
 
@@ -8,6 +8,77 @@ from typing import Any
 import matplotlib.colors as mcolors
 import numpy as np
 
+from data_analysis._plot_typography import (
+    AXIS_LABEL_FONTSIZE,
+    LEGEND_FONTSIZE,
+    LEGEND_FONTSIZE_COMPACT,
+    TICK_LABEL_FONTSIZE,
+)
+
+
+def _optimum_hline_y(
+    paired: Any,
+    *,
+    solver: str,
+    formulation: str,
+    n_cities: int,
+) -> float | None:
+    """Y level of BF optimum after per-instance E/|E*| norm: ``sign(median ref)`` (±1)."""
+    if paired.empty or "ref_objective_value" not in paired.columns:
+        return None
+    m = (
+        paired["parse_ok"].astype(bool)
+        & paired["solve_ok"].astype(bool)
+        & (paired["solver"] == solver)
+        & (paired["formulation"] == formulation)
+        & (paired["n_cities"] == int(n_cities))
+    )
+    sub = paired.loc[m, ["instance_key", "ref_objective_value"]].drop_duplicates(
+        subset=["instance_key"],
+    )
+    vals = sub["ref_objective_value"].dropna().to_numpy(dtype=np.float64)
+    vals = vals[np.isfinite(vals) & (vals != 0.0)]
+    if vals.size == 0:
+        return None
+    med = float(np.median(vals))
+    if np.isfinite(med) and med != 0.0:
+        return float(np.sign(med))
+    pos = int(np.sum(vals > 0))
+    neg = int(np.sum(vals < 0))
+    if pos > neg:
+        return 1.0
+    if neg > pos:
+        return -1.0
+    return None
+
+
+def _sorted_qaoa_depths(
+    curves: Any,
+    *,
+    solver: str | None = None,
+    formulation: str | None = None,
+    n_cities: int | None = None,
+) -> list[int]:
+    """Distinct QAOA depths in ``curves`` for optional cohort filters."""
+    import pandas as pd
+
+    if curves.empty or "qaoa_depth" not in curves.columns:
+        return []
+    m = pd.Series(True, index=curves.index)
+    if solver is not None:
+        m &= curves["solver"] == solver
+    if formulation is not None:
+        m &= curves["formulation"] == formulation
+    if n_cities is not None:
+        m &= curves["n_cities"] == int(n_cities)
+    qd = pd.to_numeric(curves.loc[m, "qaoa_depth"], errors="coerce")
+    out: set[int] = set()
+    for v in qd.dropna().tolist():
+        f = float(v)
+        if np.isfinite(f):
+            out.add(int(f))
+    return sorted(out)
+
 
 def _mean_energy_curve_by_step(
     curves: Any,
@@ -15,11 +86,12 @@ def _mean_energy_curve_by_step(
     solver: str,
     formulation: str,
     n_cities: int,
+    qaoa_depth: int | None = None,
 ) -> Any:
-    """Weighted mean and combined spread over QAOA depths at each optimizer step.
+    """Mean objective trajectory vs optimizer step for one cohort.
 
-    Per-depth ``std`` is sample std (ddof=1) of curves at that step. Across depths,
-    combined band uses ``sum(w * std) / sum(w)`` (same weights ``n_curves`` as the mean).
+    If ``qaoa_depth`` is set, restricts to that QAOA depth. Otherwise aggregates across
+    depths at each step (weighted mean of per-depth means; same for ``std``).
     """
     import pandas as pd
 
@@ -30,6 +102,9 @@ def _mean_energy_curve_by_step(
         & (curves["formulation"] == formulation)
         & (curves["n_cities"] == n_cities)
     )
+    if qaoa_depth is not None:
+        qd = pd.to_numeric(curves["qaoa_depth"], errors="coerce")
+        m &= qd == float(int(qaoa_depth))
     sub = curves.loc[m]
     if sub.empty:
         return pd.DataFrame(columns=["step", "mean", "std"])
@@ -54,6 +129,178 @@ def _mean_energy_curve_by_step(
     return pd.DataFrame(rows).sort_values("step")
 
 
+def _energy_curve_figsize(stem: str) -> tuple[float, float]:
+    if stem.startswith("cudaq_qubo_tvirt_n5"):
+        return (8.0, 4.5)
+    return (9.0, 5.0)
+
+
+def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy: Path) -> None:
+    """Write one Parquet per energy-history figure (series rows: step, mean, std, ref_hline_y)."""
+    import pandas as pd
+
+    if curves is None or getattr(curves, "empty", True):
+        return
+
+    plots_data_energy.mkdir(parents=True, exist_ok=True)
+    for stale in plots_data_energy.glob("cirq_tqudo_vs_cq_tvirt_n5_p*.parquet"):
+        if stale.is_file():
+            stale.unlink()
+
+    depths_cudaq_n5 = sorted(
+        set(_sorted_qaoa_depths(curves, solver="cudaq", formulation="qubo", n_cities=5))
+        | set(
+            _sorted_qaoa_depths(
+                curves, solver="cudaq", formulation="tqudo_virtual", n_cities=5
+            )
+        )
+    )
+    n_cirq_cq_compare = (5, 9)
+    depths_cirq_cudaq: set[int] = set()
+    for n_cc in n_cirq_cq_compare:
+        depths_cirq_cudaq |= set(
+            _sorted_qaoa_depths(curves, solver="cirq", formulation="tqudo", n_cities=n_cc)
+        )
+        depths_cirq_cudaq |= set(
+            _sorted_qaoa_depths(
+                curves, solver="cudaq", formulation="tqudo_virtual", n_cities=n_cc
+            )
+        )
+
+    for depth in depths_cudaq_n5:
+        rows: list[dict[str, float | int | str]] = []
+        df_q = _mean_energy_curve_by_step(
+            curves,
+            solver="cudaq",
+            formulation="qubo",
+            n_cities=5,
+            qaoa_depth=depth,
+        )
+        df_t = _mean_energy_curve_by_step(
+            curves,
+            solver="cudaq",
+            formulation="tqudo_virtual",
+            n_cities=5,
+            qaoa_depth=depth,
+        )
+        if df_q.empty and df_t.empty:
+            continue
+        yq = _optimum_hline_y(paired, solver="cudaq", formulation="qubo", n_cities=5)
+        yt = _optimum_hline_y(paired, solver="cudaq", formulation="tqudo_virtual", n_cities=5)
+        h_q = float(yq) if yq is not None else float("nan")
+        h_t = float(yt) if yt is not None else float("nan")
+        if not df_q.empty:
+            for _, r in df_q.iterrows():
+                rows.append(
+                    {
+                        "series_label": "QUBO",
+                        "step": int(r["step"]),
+                        "mean": float(r["mean"]),
+                        "std": float(r["std"]),
+                        "ref_hline_y": h_q,
+                    }
+                )
+        if not df_t.empty:
+            for _, r in df_t.iterrows():
+                rows.append(
+                    {
+                        "series_label": "TQUDO qubits",
+                        "step": int(r["step"]),
+                        "mean": float(r["mean"]),
+                        "std": float(r["std"]),
+                        "ref_hline_y": h_t,
+                    }
+                )
+        pd.DataFrame(rows).to_parquet(
+            plots_data_energy / f"cudaq_qubo_tvirt_n5_p{depth}.parquet",
+            index=False,
+        )
+
+    series_cq_cirq: tuple[tuple[str, str, str], ...] = (
+        ("cirq", "tqudo", "TQUDO qudits"),
+        ("cudaq", "tqudo_virtual", "TQUDO qubits"),
+    )
+    for depth in sorted(depths_cirq_cudaq):
+        rows = []
+        plotted = False
+        for n_cc in n_cirq_cq_compare:
+            for solver, formulation, base_label in series_cq_cirq:
+                df = _mean_energy_curve_by_step(
+                    curves,
+                    solver=solver,
+                    formulation=formulation,
+                    n_cities=n_cc,
+                    qaoa_depth=depth,
+                )
+                if df.empty:
+                    continue
+                lab = f"{base_label}, n = {n_cc}"
+                yn = _optimum_hline_y(
+                    paired, solver=solver, formulation=formulation, n_cities=n_cc
+                )
+                hy = float(yn) if yn is not None else float("nan")
+                for _, r in df.iterrows():
+                    rows.append(
+                        {
+                            "series_label": lab,
+                            "step": int(r["step"]),
+                            "mean": float(r["mean"]),
+                            "std": float(r["std"]),
+                            "ref_hline_y": hy,
+                        }
+                    )
+                plotted = True
+        if plotted:
+            pd.DataFrame(rows).to_parquet(
+                plots_data_energy / f"cirq_tqudo_vs_cq_tvirt_n5_n9_p{depth}.parquet",
+                index=False,
+            )
+
+    cirq_t = curves[(curves["solver"] == "cirq") & (curves["formulation"] == "tqudo")]
+    if cirq_t.empty:
+        return
+    n_list = sorted({int(x) for x in cirq_t["n_cities"].dropna().tolist()})
+    if not n_list:
+        return
+    depths_by_n = sorted(
+        {int(d) for d in _sorted_qaoa_depths(curves, solver="cirq", formulation="tqudo")}
+    )
+    for depth in depths_by_n:
+        rows = []
+        any_line = False
+        for n_int in n_list:
+            df = _mean_energy_curve_by_step(
+                curves,
+                solver="cirq",
+                formulation="tqudo",
+                n_cities=n_int,
+                qaoa_depth=depth,
+            )
+            if df.empty:
+                continue
+            lab = f"n = {n_int}"
+            yn = _optimum_hline_y(
+                paired, solver="cirq", formulation="tqudo", n_cities=n_int
+            )
+            hy = float(yn) if yn is not None else float("nan")
+            for _, r in df.iterrows():
+                rows.append(
+                    {
+                        "series_label": lab,
+                        "step": int(r["step"]),
+                        "mean": float(r["mean"]),
+                        "std": float(r["std"]),
+                        "ref_hline_y": hy,
+                    }
+                )
+            any_line = True
+        if any_line:
+            pd.DataFrame(rows).to_parquet(
+                plots_data_energy / f"cirq_tqudo_by_n_p{depth}.parquet",
+                index=False,
+            )
+
+
 def _plot_mean_energy_with_std_band(
     ax: Any,
     df: Any,
@@ -62,7 +309,7 @@ def _plot_mean_energy_with_std_band(
     label: str,
     fill_alpha: float = 0.22,
 ) -> None:
-    """Line of mean energy and semitransparent ``mean ± std`` band."""
+    """Line of mean ± std band (values in ``df`` already per-instance normalized upstream)."""
     if df is None or getattr(df, "empty", True):
         return
     steps = df["step"].to_numpy(dtype=np.float64)
@@ -75,171 +322,112 @@ def _plot_mean_energy_with_std_band(
     ax.plot(steps, mean, color=color, linewidth=1.8, label=label, zorder=2)
 
 
-def _mean_ref_objective(
-    paired: Any,
-    *,
-    solver: str,
-    formulation: str,
-    n_cities: int,
-) -> float | None:
-    """Mean ``ref_objective_value`` over distinct ``instance_key`` (requires brute-force ref.)."""
-    if paired.empty or "ref_objective_value" not in paired.columns:
-        return None
-    m = (
-        paired["parse_ok"].astype(bool)
-        & paired["solve_ok"].astype(bool)
-        & (paired["solver"] == solver)
-        & (paired["formulation"] == formulation)
-        & (paired["n_cities"] == n_cities)
-    )
-    sub = paired.loc[m, ["instance_key", "ref_objective_value"]].drop_duplicates(
-        subset=["instance_key"],
-    )
-    vals = sub["ref_objective_value"].dropna().to_numpy(dtype=np.float64)
-    vals = vals[np.isfinite(vals)]
-    if vals.size == 0:
-        return None
-    return float(np.mean(vals))
-
-
-def _mean_ref_tqudo_shared_n(
-    paired: Any,
-    *,
-    n_cities: int,
-) -> float | None:
-    """Single BF TQUDO objective reference: cohort = Cirq native + CUDA-Q virtual on same n."""
-    if paired.empty or "ref_objective_value" not in paired.columns:
-        return None
-    m = (
-        paired["parse_ok"].astype(bool)
-        & paired["solve_ok"].astype(bool)
-        & (paired["n_cities"] == n_cities)
-        & (
-            ((paired["solver"] == "cirq") & (paired["formulation"] == "tqudo"))
-            | ((paired["solver"] == "cudaq") & (paired["formulation"] == "tqudo_virtual"))
-        )
-    )
-    sub = paired.loc[m, ["instance_key", "ref_objective_value"]].drop_duplicates(
-        subset=["instance_key"],
-    )
-    vals = sub["ref_objective_value"].dropna().to_numpy(dtype=np.float64)
-    vals = vals[np.isfinite(vals)]
-    if vals.size == 0:
-        return None
-    return float(np.mean(vals))
-
-
-def run_energy_history_figures(paired: Any, curves: Any, images_dir: Path) -> None:
-    """Write mean energy curves (excluding SA from processed tables upstream)."""
+def run_energy_history_figures_from_disk(
+    plots_data_energy: Path,
+    images_energy: Path,
+) -> None:
+    """Render mean energy curves from ``plots_data/energy_history/*.parquet``."""
     import matplotlib.pyplot as plt
+    import pandas as pd
 
-    if curves is None or getattr(curves, "empty", True):
+    if not plots_data_energy.is_dir():
         return
 
-    images_dir.mkdir(parents=True, exist_ok=True)
+    images_energy.mkdir(parents=True, exist_ok=True)
     prop = plt.rcParams["axes.prop_cycle"].by_key()
     colors = prop["color"]
+    y_label_norm = r"$f\,/\,|f^*|$ (mean ± $\sigma$)"
 
-    # --- 1) CUDA-Q QUBO vs CUDA-Q TQUDO virtual, n=5; separate Y scales (QUBO left, TQUDO right) ---
-    fig, ax_q = plt.subplots(figsize=(8, 4.5))
-    ax_t = ax_q.twinx()
-    c_q = colors[0 % len(colors)]
-    c_t = colors[1 % len(colors)]
+    for stale in images_energy.glob("cirq_tqudo_vs_cq_tvirt_n5_p*.png"):
+        if stale.is_file():
+            stale.unlink()
 
-    df_q = _mean_energy_curve_by_step(
-        curves, solver="cudaq", formulation="qubo", n_cities=5
-    )
-    _plot_mean_energy_with_std_band(
-        ax_q, df_q, color=c_q, label="QUBO"
-    )
-    ref_q = _mean_ref_objective(
-        paired, solver="cudaq", formulation="qubo", n_cities=5
-    )
-    if ref_q is not None:
-        ax_q.axhline(ref_q, color=c_q, linestyle="--", linewidth=1.2, alpha=0.88)
-
-    df_t = _mean_energy_curve_by_step(
-        curves, solver="cudaq", formulation="tqudo_virtual", n_cities=5
-    )
-    _plot_mean_energy_with_std_band(
-        ax_t, df_t, color=c_t, label="TQUDO virt."
-    )
-    ref_t = _mean_ref_objective(
-        paired, solver="cudaq", formulation="tqudo_virtual", n_cities=5
-    )
-    if ref_t is not None:
-        ax_t.axhline(ref_t, color=c_t, linestyle="--", linewidth=1.2, alpha=0.88)
-
-    ax_q.set_xlabel("Step")
-    ax_q.set_ylabel("QUBO", color=c_q)
-    ax_q.tick_params(axis="y", labelcolor=c_q)
-    ax_q.spines["left"].set_edgecolor(c_q)
-
-    ax_t.set_ylabel("TQUDO virt.", color=c_t)
-    ax_t.tick_params(axis="y", labelcolor=c_t)
-    ax_t.spines["right"].set_edgecolor(c_t)
-    ax_t.spines["right"].set_visible(True)
-    h1, lab1 = ax_q.get_legend_handles_labels()
-    h2, lab2 = ax_t.get_legend_handles_labels()
-    ax_q.legend(h1 + h2, lab1 + lab2, fontsize=8, loc="best")
-    fig.tight_layout()
-    fig.savefig(images_dir / "energy_history_mean_cudaq_qubo_vs_tqudo_virtual_n5.png", dpi=150)
-    plt.close(fig)
-
-    # --- 2) Cirq TQUDO vs CUDA-Q TQUDO virtual, n=5; one shared TQUDO ref ---
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    for i, (solver, formulation, label) in enumerate(
-        [
-            ("cirq", "tqudo", "Cirq TQUDO"),
-            ("cudaq", "tqudo_virtual", "CQ virt."),
-        ]
-    ):
-        c = colors[i % len(colors)]
-        df = _mean_energy_curve_by_step(
-            curves, solver=solver, formulation=formulation, n_cities=5
-        )
-        _plot_mean_energy_with_std_band(ax, df, color=c, label=label)
-    ref_shared = _mean_ref_tqudo_shared_n(paired, n_cities=5)
-    if ref_shared is not None:
-        ax.axhline(
-            ref_shared,
-            color="0.35",
-            linestyle="--",
-            linewidth=1.3,
-            label="BF optimum",
-        )
-    ax.set_xlabel("Step")
-    ax.set_ylabel(r"$f$ (mean ± σ)")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    fig.savefig(images_dir / "energy_history_mean_cirq_tqudo_vs_cudaq_tvirt_n5.png", dpi=150)
-    plt.close(fig)
-
-    # --- 3) Cirq TQUDO: each n_cities with matching ref ---
-    cirq_t = curves[(curves["solver"] == "cirq") & (curves["formulation"] == "tqudo")]
-    if cirq_t.empty:
-        return
-    n_list = sorted({int(x) for x in cirq_t["n_cities"].dropna().tolist()})
-    if not n_list:
-        return
-    fig, ax = plt.subplots(figsize=(9, 5))
-    for i, n in enumerate(n_list):
-        n_int = int(n)
-        c = colors[i % len(colors)]
-        df = _mean_energy_curve_by_step(
-            curves, solver="cirq", formulation="tqudo", n_cities=n_int
-        )
+    for pq in sorted(plots_data_energy.glob("*.parquet")):
+        df = pd.read_parquet(pq)
         if df.empty:
             continue
-        _plot_mean_energy_with_std_band(
-            ax, df, color=c, label=f"n = {n_int}"
+        stem = pq.stem
+        w, h = _energy_curve_figsize(stem)
+        fig, ax = plt.subplots(figsize=(w, h))
+        labels: list[str] = []
+        seen: set[str] = set()
+        for lab in df["series_label"].astype(str).tolist():
+            if lab not in seen:
+                seen.add(lab)
+                labels.append(lab)
+        for i, lab in enumerate(labels):
+            sub = df.loc[df["series_label"] == lab, ["step", "mean", "std", "ref_hline_y"]].sort_values(
+                "step"
+            )
+            c = colors[i % len(colors)]
+            _plot_mean_energy_with_std_band(ax, sub, color=c, label=lab)
+            hy = float(sub["ref_hline_y"].iloc[0])
+            if np.isfinite(hy):
+                ax.axhline(hy, color=c, linestyle="--", linewidth=1.2, alpha=0.88)
+        ax.set_xlabel("Step", fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(y_label_norm, fontsize=AXIS_LABEL_FONTSIZE)
+        ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
+        leg_fs = LEGEND_FONTSIZE_COMPACT if len(labels) > 3 else LEGEND_FONTSIZE
+        ax.legend(fontsize=leg_fs, loc="best")
+        fig.tight_layout()
+        fig.savefig(images_energy / f"{stem}.png", dpi=150)
+        plt.close(fig)
+
+
+def run_energy_curve_dispersion_figure(
+    energy_curves_agg_parquet: Path,
+    images_energy: Path,
+) -> None:
+    """Cross-instance std of normalized energy vs optimizer step for selected cohorts (n = 5, p = 1)."""
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    if not energy_curves_agg_parquet.is_file():
+        return
+    curves = pd.read_parquet(energy_curves_agg_parquet)
+    if curves.empty or "std" not in curves.columns or "step" not in curves.columns:
+        return
+    cohorts = [
+        ("cudaq", "qubo", 5, 1),
+        ("cudaq", "tqudo_virtual", 5, 1),
+        ("cirq", "tqudo", 5, 1),
+    ]
+    images_energy.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    prop = plt.rcParams["axes.prop_cycle"].by_key()
+    colors = prop["color"]
+    plotted = False
+    for i, (solver, form, n, d) in enumerate(cohorts):
+        m = (
+            (curves["solver"] == solver)
+            & (curves["formulation"] == form)
+            & (curves["n_cities"] == int(n))
         )
-        ref = _mean_ref_objective(paired, solver="cirq", formulation="tqudo", n_cities=n_int)
-        if ref is not None:
-            ax.axhline(ref, color=c, linestyle="--", linewidth=1.2, alpha=0.88)
-    ax.set_xlabel("Step")
-    ax.set_ylabel(r"$f$ (mean ± σ)")
-    ax.legend(fontsize=7, loc="best")
+        if "qaoa_depth" in curves.columns:
+            qd = pd.to_numeric(curves["qaoa_depth"], errors="coerce")
+            m &= qd == float(int(d))
+        sub = curves.loc[m, ["step", "std"]].drop_duplicates(subset=["step"]).sort_values(
+            "step"
+        )
+        if sub.empty:
+            continue
+        plotted = True
+        lab = f"{solver} / {form}, $n={n}$, $p={d}$"
+        c = colors[i % len(colors)]
+        ax.plot(
+            sub["step"].to_numpy(dtype=np.float64),
+            sub["std"].to_numpy(dtype=np.float64),
+            color=c,
+            linewidth=1.8,
+            label=lab,
+        )
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Step (0-based)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(r"$\sigma$ of $f / |f^*|$ across instances", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
+    ax.legend(fontsize=LEGEND_FONTSIZE_COMPACT, loc="best")
     fig.tight_layout()
-    fig.savefig(images_dir / "energy_history_mean_cirq_tqudo_by_ncities.png", dpi=150)
+    fig.savefig(images_energy / "energy_curve_std_vs_step_n5_p1.png", dpi=150)
     plt.close(fig)

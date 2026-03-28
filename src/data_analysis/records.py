@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from data_analysis.instance_features import instance_features_from_json_dict
+
+
 def manifest_empty_schema_row() -> dict[str, Any]:
     """Single row template so an empty manifest still has predictable columns."""
     return {
@@ -37,6 +40,17 @@ def manifest_empty_schema_row() -> dict[str, Any]:
         "configs_evaluated": None,
         "solver_error": None,
         "error_message": None,
+        "inst_n_precedences": None,
+        "inst_precedence_density": None,
+        "inst_prices_hotels_mean": None,
+        "inst_prices_hotels_std": None,
+        "inst_prices_hotels_range": None,
+        "inst_prices_travels_pos_mean": None,
+        "inst_prices_travels_pos_std": None,
+        "oa_gamma": None,
+        "oa_beta": None,
+        "oa_gamma_json": None,
+        "oa_beta_json": None,
     }
 
 
@@ -112,6 +126,57 @@ def _safe_len_history(meta: dict[str, Any]) -> int:
     return 0
 
 
+def _coerce_float_list(x: Any) -> list[float] | None:
+    if not isinstance(x, list):
+        return None
+    out: list[float] = []
+    for v in x:
+        try:
+            out.append(float(v))
+        except (TypeError, ValueError):
+            return None
+    return out
+
+
+def _optimal_angles_row(
+    meta: dict[str, Any],
+    path_qaoa_depth: int | None,
+    solver_config: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Parse ``metadata.optimal_angles`` into manifest columns."""
+    empty = {
+        "oa_gamma": None,
+        "oa_beta": None,
+        "oa_gamma_json": None,
+        "oa_beta_json": None,
+    }
+    oa = meta.get("optimal_angles")
+    if not isinstance(oa, dict):
+        return empty
+    gamma = _coerce_float_list(oa.get("gamma"))
+    beta = _coerce_float_list(oa.get("beta"))
+    if gamma is None or beta is None or len(gamma) != len(beta) or len(gamma) == 0:
+        return empty
+
+    exp_depth = path_qaoa_depth
+    if exp_depth is None and solver_config is not None:
+        qd = solver_config.get("qaoa_depth")
+        if qd is not None:
+            try:
+                exp_depth = int(qd)
+            except (TypeError, ValueError):
+                exp_depth = None
+    if exp_depth is not None and len(gamma) != exp_depth:
+        return empty
+
+    return {
+        "oa_gamma": gamma,
+        "oa_beta": beta,
+        "oa_gamma_json": json.dumps(gamma),
+        "oa_beta_json": json.dumps(beta),
+    }
+
+
 def json_row(path: Path, output_root: Path) -> dict[str, Any]:
     """Load JSON at *path* and return one manifest row.
 
@@ -152,8 +217,10 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
 
     row["parse_ok"] = True
     inst = data.get("instance")
-    if isinstance(inst, dict) and "n_cities" in inst:
-        row["n_cities_json"] = int(inst["n_cities"])
+    if isinstance(inst, dict):
+        row.update(instance_features_from_json_dict(inst))
+        if "n_cities" in inst:
+            row["n_cities_json"] = int(inst["n_cities"])
 
     sc = data.get("solver_config")
     if isinstance(sc, dict):
@@ -176,10 +243,26 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
     so = data.get("solver_output")
     if not isinstance(so, dict):
         row["solver_error"] = "missing solver_output"
+        row.update(
+            {
+                "oa_gamma": None,
+                "oa_beta": None,
+                "oa_gamma_json": None,
+                "oa_beta_json": None,
+            }
+        )
         return row
 
     if "error" in so:
         row["solver_error"] = str(so.get("error", ""))[:2000]
+        row.update(
+            {
+                "oa_gamma": None,
+                "oa_beta": None,
+                "oa_gamma_json": None,
+                "oa_beta_json": None,
+            }
+        )
         return row
 
     row["feasible"] = so.get("feasible")
@@ -195,10 +278,20 @@ def json_row(path: Path, output_root: Path) -> dict[str, Any]:
         row["best_feasible_objective_value"] = meta.get("best_feasible_objective_value")
         row["best_feasible_real_cost"] = meta.get("best_feasible_real_cost")
         row["configs_evaluated"] = meta.get("configs_evaluated")
+        cfg_for_angles = sc if isinstance(sc, dict) else None
+        row.update(_optimal_angles_row(meta, row.get("qaoa_depth"), cfg_for_angles))
     else:
         row["n_energy_steps"] = 0
         row["has_final_samples"] = False
         row["has_initial_samples"] = False
+        row.update(
+            {
+                "oa_gamma": None,
+                "oa_beta": None,
+                "oa_gamma_json": None,
+                "oa_beta_json": None,
+            }
+        )
 
     if row.get("n_cities") is None and row.get("n_cities_json") is not None:
         row["n_cities"] = row["n_cities_json"]

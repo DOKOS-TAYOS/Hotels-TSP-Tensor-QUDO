@@ -6,23 +6,15 @@ import argparse
 import sys
 from pathlib import Path
 
+from data_analysis._deps import require_pandas
 from data_analysis.records import json_row, manifest_empty_schema_row
 from data_analysis.scan import iter_raw_json_files
 from utils.output_paths import build_output_layout
 
 
-def _require_pandas() -> None:
-    try:
-        import pandas  # noqa: F401
-    except ImportError as exc:
-        raise SystemExit(
-            "ingest requires pandas (install project extra: pip install -e '.[analysis]')."
-        ) from exc
-
-
 def run_ingest(output_root: Path, fmt: str) -> Path:
-    """Build manifest from all JSON under ``raw/`` and write to ``processed/``."""
-    _require_pandas()
+    """Build manifest from ``raw/solutions/**/*.json`` and write to ``processed/``."""
+    require_pandas(context="ingest")
     import pandas as pd
 
     layout = build_output_layout(output_root)

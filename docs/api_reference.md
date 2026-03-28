@@ -658,6 +658,7 @@ class OutputLayout:
     root: Path
     raw: Path
     processed: Path
+    plots_data: Path
     images: Path
 ```
 
@@ -667,7 +668,7 @@ class OutputLayout:
 def build_output_layout(root: Path) -> OutputLayout
 ```
 
-Returns `OutputLayout(root, root/"raw", root/"processed", root/"images")`.
+Returns `OutputLayout(root, root/"raw", root/"processed", root/"processed"/"plots_data", root/"images")`.
 Does not create directories.
 
 ---
@@ -847,10 +848,10 @@ Lazy exports: `process_raw_results`, `run_pipeline` (from `data_analysis.pipelin
 
 ### Pipeline (`data_analysis/pipeline.py`)
 
-- `run_pipeline(output_root, manifest_format=..., sample_quality=..., skip_plots=...)`
-- `process_raw_results(raw_dir, processed_dir)` — requires `processed_dir.name == "processed"`.
+- `run_pipeline(output_root, manifest_format=..., sample_quality=..., skip_plots=..., energy_curve_percentiles=...)` — keyword-only `energy_curve_percentiles` defaults to `True`.
+- `process_raw_results(raw_dir, processed_dir)` — requires `processed_dir.name == "processed"` and `processed_dir.parent == raw_dir.parent` (same output root).
 
-CLI: `python -m data_analysis.pipeline --output-root output [--format parquet|csv] [--sample-quality] [--skip-plots]`
+CLI: `python -m data_analysis.pipeline --output-root output [--format parquet|csv] [--sample-quality] [--skip-plots] [--no-energy-curve-percentiles]`
 
 ### Ingest (`data_analysis/ingest.py`)
 
@@ -865,11 +866,11 @@ older manifests without `solve_ok` infer it from a null `solver_error`.
 
 ### Metrics (`data_analysis/metrics.py`)
 
-CLI: `python -m data_analysis.metrics --output-root output [--sample-quality]` —
-paired metrics, summaries, optional Wilcoxon / energy-curve aggregates.
+CLI: `python -m data_analysis.metrics --output-root output [--sample-quality] [--no-energy-curve-percentiles]` —
+paired metrics, summaries, and energy-curve aggregates.
 
 ### Plots (`data_analysis/plot.py`)
 
-CLI: `python -m data_analysis.plot --output-root output` — PNGs under `images/`.
+CLI: `python -m data_analysis.plot --output-root output` — PNGs under `images/` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`).
 
-Supporting modules: `scan.py`, `records.py`; layout via `utils.output_paths`.
+Supporting modules: `scan.py`, `records.py`; `benchmark/run.py` (dashboards, \(\rho\), \(P(\mathrm{opt})\), energy / \(\Delta P\) comparisons — some series re-read JSON for histograms and `energy_history`); `optimal_sample_mass.py` (brute-force optimal sequence → histogram keys, sample mass); `energy_plots.py`; layout via `utils.output_paths`.

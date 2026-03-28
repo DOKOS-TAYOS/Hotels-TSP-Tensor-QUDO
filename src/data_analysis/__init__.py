@@ -1,4 +1,9 @@
-"""Data analysis: ingest raw JSON, metrics, plots under output/processed and output/images."""
+"""Data analysis: ingest, metrics, ``processed/plots_data``, figures under ``output/images``.
+
+Plots (see ``docs/data_analysis.md``) read only ``plots_data`` (Parquet + small JSON
+metadata), produced by :mod:`data_analysis.prepare_plots` from paired metrics and
+energy aggregates.
+"""
 
 from __future__ import annotations
 

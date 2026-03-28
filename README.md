@@ -24,7 +24,7 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 - Four solver backends: Cirq (native qudits + qubit emulation), CUDA-Q (GPU-accelerated), Simulated Annealing, and **brute force** (exact enumeration over the full QUBO / TQUDO assignment space within documented size limits).
 - Noise simulation framework with 5 noise types and per-gate overrides.
 - Experiment workflow with incremental JSON output and SIGINT handling; disk layout under `output/raw/solutions/<solver>/...`.
-- **Data analysis** pipeline (`src/data_analysis/`): ingest raw JSON → `output/processed/` (manifest, paired metrics, summaries) → figures in `output/images/` (optional extra `analysis`: pandas, pyarrow, matplotlib, scipy).
+- **Data analysis** pipeline (`src/data_analysis/`): ingest → `output/processed/` metrics → `processed/plots_data/` → figures in `output/images/` (optional extra `analysis`: pandas, pyarrow, matplotlib, scipy).
 - **Static results dashboard** ([`webpage_results/`](webpage_results/)): reads summaries and metrics from `output/processed/` over HTTP (not `file://`); use `make -f scripts/makefile results-web` after running the analysis pipeline.
 - Test suite covering models, formulations, solvers, constraints, brute force, and data ingest.
 - Streamlit UI scaffold.
@@ -126,7 +126,7 @@ See [docs/configuration.md](docs/configuration.md) for full reference.
 ## Output policy
 
 - `output/raw/`: instance JSON under `raw/instances/...` and solution JSON under `raw/solutions/<solver>/<formulation>/n_<n>/...`.
-- `output/processed/`: tables produced by `data_analysis` (`manifest.parquet`, `paired_metrics.parquet`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`/`.csv`; SA rows are excluded from summaries and energy aggregates).
-- `output/images/`: PNG figures from `data_analysis.plot` (energy curves, benchmark / ratio comparisons).
+- `output/processed/`: tables from `data_analysis` (`manifest.parquet`, `paired_metrics.parquet`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`/`.csv`; SA rows are excluded from summaries and energy aggregates) plus `processed/plots_data/` (per-figure Parquet inputs produced by `data_analysis.prepare_plots`).
+- `output/images/`: PNG figures from `data_analysis.plot`, which renders only from `processed/plots_data/` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`).
 
 Placeholders may be committed; bulk generated files are typically gitignored.
