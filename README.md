@@ -18,7 +18,7 @@ Cost equations: see [docs/formulations.md](docs/formulations.md).
 
 ## Current status
 
-**Version**: 0.1.0 (alpha, unreleased)
+**Version**: 0.3.0 (beta, unreleased)
 
 - Two mathematical formulations: Tensor-QUDO (native qudits) and QUBO (binary one-hot).
 - Four solver backends: Cirq (native qudits + qubit emulation), CUDA-Q (GPU-accelerated), Simulated Annealing, and **brute force** (exact enumeration over the full QUBO / TQUDO assignment space within documented size limits).
@@ -127,6 +127,6 @@ See [docs/configuration.md](docs/configuration.md) for full reference.
 
 - `output/raw/`: instance JSON under `raw/instances/...` and solution JSON under `raw/solutions/<solver>/<formulation>/n_<n>/...`.
 - `output/processed/`: tables from `data_analysis` (`manifest.parquet`, `paired_metrics.parquet`, `summary_by_config.csv`, optional `energy_curves_agg.parquet`/`.csv`; SA rows are excluded from summaries and energy aggregates) plus `processed/plots_data/` (per-figure Parquet inputs produced by `data_analysis.prepare_plots`).
-- `output/images/`: PNG figures from `data_analysis.plot`, which renders only from `processed/plots_data/` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`).
+- `output/images/`: PNG figures from `data_analysis.plot`, which renders from `processed/plots_data/` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`) and writes `extended/` from `processed/*.parquet` (see `docs/data_analysis.md`).
 
 Placeholders may be committed; bulk generated files are typically gitignored.

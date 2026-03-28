@@ -44,7 +44,7 @@ class ProgressReporter:
         self._n_instances = n_instances
 
     def instance_start(self, i: int) -> None:
-        """Print that instance *i* (0-based) is starting.
+        """Print that instance ``i`` (0-based) is starting.
 
         Args:
             i: Instance index in the batch.
@@ -89,7 +89,7 @@ class ProgressReporter:
             self._emit(msg, newline=False)
 
     def instance_done(self, i: int, path: str) -> None:
-        """Print that instance *i* finished and where results were saved.
+        """Print that instance ``i`` finished and where results were saved.
 
         Args:
             i: Instance index.

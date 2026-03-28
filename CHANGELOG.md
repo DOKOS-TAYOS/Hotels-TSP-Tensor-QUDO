@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ---
 
-## v0.1.0 (unreleased)
+## v0.3.0 (unreleased)
 
 Initial research scaffold for Hotel TSP optimization with Tensor-QUDO and QUBO
 formulations. Development period: March 7 -- March 21, 2026. 65 commits across

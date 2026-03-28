@@ -21,7 +21,17 @@ def run_pipeline(
     energy_curve_percentiles: bool = True,
     energy_trajectory_metrics: bool = False,
 ) -> None:
-    """Run ingest → metrics → prepare_plots → plots on *output_root*."""
+    """Run the full analysis chain on ``output_root``.
+
+    Args:
+        output_root: Experiment root with ``raw/`` and ``processed/``.
+        manifest_format: ``parquet`` or ``csv`` for the manifest.
+        sample_quality: If True, enrich paired metrics from sample histograms.
+        skip_plots: If True, stop after ``prepare_plots`` (no PNG render).
+        energy_curve_percentiles: Forwarded to ``aggregate_energy_curves``.
+        energy_trajectory_metrics: If True, add AUC / steps-to-ref columns.
+
+    """
     root = output_root.resolve()
     run_ingest(root, manifest_format)
     run_metrics(
@@ -36,11 +46,16 @@ def run_pipeline(
 
 
 def process_raw_results(raw_dir: Path, processed_dir: Path) -> None:
-    """Backward-compatible entry: infer output root from *raw_dir* and validate *processed_dir*.
+    """Backward-compatible wrapper that calls ``run_pipeline`` on the inferred root.
 
     Args:
         raw_dir: Typically ``.../output/raw`` (sibling of ``processed``).
-        processed_dir: Must be ``<output_root>/processed`` (name ``processed``, same parent as *raw_dir*).
+        processed_dir: Must be ``<output_root>/processed`` under the same
+            parent as ``raw_dir``.
+
+    Raises:
+        ValueError: If ``processed_dir`` is not a ``processed`` folder under
+            the same output root as ``raw_dir``.
 
     """
     raw_resolved = raw_dir.resolve()
@@ -57,6 +72,7 @@ def process_raw_results(raw_dir: Path, processed_dir: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI for ``python -m data_analysis.pipeline``."""
     parser = argparse.ArgumentParser(description="Full data analysis pipeline.")
     parser.add_argument("--output-root", type=Path, default=Path("output"))
     parser.add_argument("--format", choices=("parquet", "csv"), default="parquet")

@@ -24,7 +24,16 @@ DEFAULT_INSTANCE_GENERATION_CONFIG_PATH = Path(__file__).with_name("instance_gen
 def load_instance_generation_entries(path: Path | str | None = None) -> list[tuple[int, int]]:
     """Load ``(n_cities, n_instances)`` pairs from instance generation config.
 
-    Blocks are sorted by ``n_cities`` for stable ordering.
+    Args:
+        path: YAML path; defaults to ``instance_generation_config.yaml`` beside
+            this module.
+
+    Returns:
+        Blocks sorted by ``n_cities`` for stable ordering.
+
+    Raises:
+        ValueError: If a block is missing required keys or has invalid counts.
+
     """
     config_path = Path(path) if path is not None else DEFAULT_INSTANCE_GENERATION_CONFIG_PATH
     data = load_yaml_mapping(config_path)
@@ -46,7 +55,15 @@ def load_instance_generation_entries(path: Path | str | None = None) -> list[tup
 
 
 def serialize_problem_instance(instance: ProblemInstance) -> dict[str, Any]:
-    """JSON-friendly dict for a :class:`~instance_gen_process.models.ProblemInstance`."""
+    """Serialise ``ProblemInstance`` to a JSON-friendly dict.
+
+    Args:
+        instance: In-memory problem snapshot.
+
+    Returns:
+        Dict with nested lists for NumPy arrays.
+
+    """
     return {
         "n_cities": instance.n_cities,
         "precedences": [list(p) for p in instance.precedences],
@@ -57,7 +74,15 @@ def serialize_problem_instance(instance: ProblemInstance) -> dict[str, Any]:
 
 
 def deserialize_problem_instance(data: dict[str, Any]) -> ProblemInstance:
-    """Reconstruct :class:`~instance_gen_process.models.ProblemInstance` from JSON dict."""
+    """Reconstruct ``ProblemInstance`` from a JSON object dict.
+
+    Args:
+        data: Mapping with ``n_cities``, ``precedences``, price lists, ``seed``.
+
+    Returns:
+        In-memory problem instance with NumPy arrays.
+
+    """
     raw_prec = data["precedences"]
     precedences: tuple[tuple[int, int], ...] = tuple(
         (int(p[0]), int(p[1])) for p in raw_prec
@@ -75,7 +100,18 @@ def deserialize_problem_instance(data: dict[str, Any]) -> ProblemInstance:
 
 
 def load_problem_instance_json(path: Path | str) -> ProblemInstance:
-    """Load a problem instance from a JSON file."""
+    """Load ``ProblemInstance`` from an on-disk JSON file.
+
+    Args:
+        path: Path to ``instance_*.json``.
+
+    Returns:
+        Reconstructed instance.
+
+    Raises:
+        ValueError: If the file does not contain a JSON object.
+
+    """
     p = Path(path)
     with open(p, encoding="utf-8") as f:
         data = json.load(f)
@@ -85,7 +121,16 @@ def load_problem_instance_json(path: Path | str) -> ProblemInstance:
 
 
 def instance_config_for_n_cities(base: InstanceConfig, n_cities: int) -> InstanceConfig:
-    """Copy *base* :class:`InstanceConfig` with a different ``n_cities``."""
+    """Return a copy of ``base`` with a different ``n_cities``.
+
+    Args:
+        base: Template instance-generation config.
+        n_cities: City count for the variant.
+
+    Returns:
+        New ``InstanceConfig``; prices and precedence ranges unchanged.
+
+    """
     return InstanceConfig(
         n_cities=n_cities,
         n_precedences_range=base.n_precedences_range,
@@ -96,20 +141,35 @@ def instance_config_for_n_cities(base: InstanceConfig, n_cities: int) -> Instanc
 
 
 def normalise_n_cities(value: Any) -> list[int]:
-    """Coerce experiment YAML ``n_cities`` (int or list) to a list of ints."""
+    """Coerce experiment YAML ``n_cities`` (int or list) to a list of ints.
+
+    Args:
+        value: Scalar or list from merged experiment YAML.
+
+    Returns:
+        Non-empty list of city counts.
+
+    """
     if isinstance(value, list):
         return [int(x) for x in value]
     return [int(value)]
 
 
 def experiment_depth_iterations(solver: str, raw: Any) -> list[tuple[int | None, int]]:
-    """Pairs ``(depth_for_output_subdir, qaoa_depth_for_solver_config)``.
+    """Build ``(depth_for_output_subdir, qaoa_depth_for_solver_config)`` pairs.
 
-    For ``simulated_annealing`` and ``brute_force``, the output subdir is ``None``
-    (no depth level); *raw* may be int or list (first element used as scalar for
-    run config if list).
-    For Cirq/CUDA-Q, *raw* is int or non-empty list of positive ints; path and
-    run config use the same depth each time.
+    Args:
+        solver: Backend name.
+        raw: ``qaoa_depth`` from YAML: ``None``, int, or list of ints.
+
+    Returns:
+        For ``simulated_annealing`` / ``brute_force``, a single pair with output
+        depth ``None``. For Cirq/CUDA-Q, one pair per requested depth; path and
+        run config share the same depth.
+
+    Raises:
+        ValueError: If lists are empty or depths invalid.
+
     """
     if solver in ("simulated_annealing", "brute_force"):
         if isinstance(raw, list):

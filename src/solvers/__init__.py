@@ -45,7 +45,7 @@ def __getattr__(name: str) -> object:
         The solver class object.
 
     Raises:
-        AttributeError: If *name* is not a known lazy export.
+        AttributeError: If ``name`` is not a known lazy export.
 
     """
     if name in _LAZY_IMPORTS:

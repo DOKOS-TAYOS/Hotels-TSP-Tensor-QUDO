@@ -1,4 +1,4 @@
-"""Map validated solver dicts to :class:`~solvers.base.SolverRunConfig`."""
+"""Map validated solver configuration dicts to ``SolverRunConfig``."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ if TYPE_CHECKING:
 
 
 def solver_config_to_run_config(config: dict[str, Any]) -> SolverRunConfig:
-    """Map a dict from :func:`~instance_gen_process.solver_config_parse.load_solver_config` / :func:`~instance_gen_process.solver_config_parse.parse_solver_config_dict` to run config.
+    """Map a validated solver dict to ``SolverRunConfig``.
 
     Args:
-        config: Validated solver configuration dictionary.
+        config: Output of ``load_solver_config`` or ``parse_solver_config_dict``.
 
     Returns:
-        Frozen run configuration for :meth:`~solvers.base.SolverProtocol.solve`.
+        Immutable run configuration passed to ``SolverProtocol.solve``.
 
     """
     from solvers.base import SolverRunConfig

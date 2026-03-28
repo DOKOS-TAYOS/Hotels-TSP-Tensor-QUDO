@@ -12,13 +12,12 @@ def calculate_qubo_cost_from_sequence(
     sequence: np.ndarray,
     n_available: int,
 ) -> float:
-    """QUBO cost (x^T Q x) for a route in one-hot encoding without building *x*.
+    """QUBO cost ``x^T Q x`` for a route without materialising the binary vector.
 
-    For each timestep *t* exactly one variable is 1 at index ``t * n_available +
-    sequence[t]``. So ``x^T Q x = sum_{t,t'} Q[idx[t], idx[t']]`` with
-    ``idx[t] = t * n_available + sequence[t]``, which is O(n_available^2) in
-    the matrix size (``n_available``) rather than O(n_available^4) in the vector
-    dimension (``n_available``^2).
+    For each timestep ``t`` exactly one bit is 1 at
+    ``idx[t] = t * n_available + sequence[t]``. The energy is the submatrix sum
+    ``sum_{t,t'} Q[idx[t], idx[t']]``, i.e. O(n_available^2) in the route
+    length rather than O(n_vars^2) over the full ``n_vars``-dimensional Q.
 
     Args:
         problem: QUBO problem with ``qubo_matrix`` and ``energy_scale``.

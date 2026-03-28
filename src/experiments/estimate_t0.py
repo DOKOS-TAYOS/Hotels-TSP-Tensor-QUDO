@@ -1,19 +1,11 @@
-"""CLI tool for estimating the SA initial temperature T₀ via the Ben-Ameur method.
+"""CLI for estimating simulated-annealing initial temperature T0 (Ben-Ameur).
 
-Arguments:
-    --instance-config: Path to instance config YAML (default: src/instance_gen_process/config.yaml).
-    --solver-config:   Path to solver config YAML reads formulation, restriction, seed (default: src/instance_gen_process/solver_config.yaml).
-    --n-instances:     Number of random instances to sample over (default: 5).
-    --chi0:            Target acceptance ratio in (0, 1) (default: 0.8).
-    --n-samples:       Uphill transitions to collect per instance (default: 200).
-    --epsilon:         Convergence tolerance on |chi_hat - chi_0| (default: 1e-3).
-    --output:          Output directory for the JSON metadata file (default: output/T0sampling).
+Runs ``solvers.simulated_annealing.estimate_initial_temperature`` over random
+instances and writes JSON under ``output/T0sampling`` by default.
 
-Usage::
-
-    python -m experiments.estimate_t0
-    python -m experiments.estimate_t0 --n-instances 3 --chi0 0.8 --n-samples 100
-    python -m experiments.estimate_t0 --instance-config path/to/config.yaml
+Note:
+    See ``python -m experiments.estimate_t0 --help`` for flags (instance and
+    solver YAML paths, ``--n-instances``, ``--chi0``, ``--n-samples``, etc.).
 
 """
 

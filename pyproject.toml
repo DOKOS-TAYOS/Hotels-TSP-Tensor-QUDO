@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Hotels-TSP-Tensor-QUDO"
-version = "0.1.0"
+version = "0.3.0"
 description = "Travel routing optimization with precedence constraints using Tensor-QUDO and quantum-inspired solvers."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -15,7 +15,7 @@ authors = [
 ]
 keywords = ["quantum", "optimization", "QUBO", "QUDO", "TSP", "travel", "routing"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",

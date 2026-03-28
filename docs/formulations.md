@@ -97,9 +97,11 @@ QAOA ansatz and the key design decisions.
 ### Qudit allocation
 
 Each logical qudit is a single `cirq.LineQid` with `dimension = d = N - 1`
-(the number of available cities).  The total Hilbert space dimension is $d^n$,
-not $2^{n \lceil\log_2 d\rceil}$, which **eliminates all spurious basis states**
-when $d$ is not a power of two.
+(the number of non-depot cities; code: `n_available`). The implementation
+allocates `n_qudits = d` Cirq lines (`Etab.shape[0]` in code), so the native
+Hilbert space dimension is $d^{n_{\text{qudits}}} = d^d$, not
+$2^{n_{\text{qudits}} \lceil\log_2 d\rceil}$, which **eliminates spurious
+basis states** when $d$ is not a power of two.
 
 ### Initial state — `QuditHadamardGate`
 

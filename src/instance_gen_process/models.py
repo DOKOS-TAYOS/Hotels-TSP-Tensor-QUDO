@@ -53,9 +53,15 @@ class ProblemTQUDO:
     See docs/formulations.md for full equations.
 
     Attributes:
-        Etab: 3D tensor (t, origin, destination) for travel and hotel costs.
+        Etab: 3D tensor shaped ``(n_available, d, d)`` with ``d = n_available``.
+            Index ``Etab[t, a, b]`` is the adjacent-step cost from city ``a`` to
+            ``b`` when leaving timestep ``t``; rows ``t = 0 .. n_available - 2``
+            hold data and ``t = n_available - 1`` is zero padding for tensor
+            shape alignment (see ``generate_TQUDO_from_problem``).
             Normalised so that max(|Etab|, |Ettprimeab|) == 1.
-        Ettprimeab: 4D tensor (t, t_prime, origin, destination) for penalties.
+        Ettprimeab: 4D tensor shaped ``(n_available, n_available, d, d)`` for
+            penalties (duplicate route and precedence), indices
+            ``[t, t_prime, a, b]`` with ``t_prime > t``.
             Normalised together with Etab.
         energy_scale: Factor by which the original tensors were divided during
             normalisation.  Multiply any sampled cost by this value to recover

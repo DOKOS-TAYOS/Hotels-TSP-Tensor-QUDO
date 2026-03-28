@@ -1,39 +1,15 @@
-"""CLI tool for grid-searching optimal lambda penalty parameters.
+"""CLI for grid-searching QUBO/TQUDO penalty weights (lambda grid).
 
-Generates small TSP instances, evaluates every combination of lambda values
-on each instance using a chosen solver, and ranks combinations by feasibility
-rate and mean real cost (heuristic solvers), or — with ``solver=brute_force`` —
-by feasibility of the global minimum and mean gap to the combinatorial minimum
-real cost over TQUDO-feasible sequences (reference independent of λ).
+Generates instances, sweeps lambda triples, and scores combinations by
+feasibility and mean real cost. With ``solver=brute_force``, ranks by exact
+global minima and gaps versus combinatorial reference costs.
 
-**Brute force:** requires an instance config that passes
-``validate_solver_instance_compatibility`` for ``solver=brute_force`` (e.g. QUBO
-needs small ``n_cities`` so ``(n_cities-1)² ≤ 30`` binary variables; TQUDO needs
-``n_cities - 1 ≤ 8``). The default ``config.yaml`` with ``n_cities: 9`` fits
-TQUDO brute force but not QUBO brute force.
+Note:
+    Brute force needs instance sizes compatible with ``validate_solver_instance_compatibility``.
+    CPU backends can use ``cpu_max_parallel_instances`` / ``HTSP_CPU_MAX_PARALLEL_INSTANCES``
+    like the main experiment workflow; CUDA-Q stays sequential here.
 
-**CPU parallel instances:** for ``cirq``, ``simulated_annealing``, and
-``brute_force``, different random instances in a λ combo are solved in parallel
-(``multiprocessing`` spawn) when ``cpu_max_parallel_instances`` in the solver YAML
-(or ``HTSP_CPU_MAX_PARALLEL_INSTANCES``) is greater than 1 — same mechanism as
-the on-disk experiment workflow. CUDA-Q stays sequential here (use its own GPU
-parallel settings in the main workflow).
-
-Arguments:
-    --instance-config: Path to instance config YAML (default: src/instance_gen_process/config.yaml)
-    --solver-config:   Path to solver config YAML (default: src/instance_gen_process/solver_config.yaml)
-    --formulation:     Formulation to evaluate (default: qubo, choices: qubo, tqudo)
-    --solver:          Solver backend (default: simulated_annealing; includes brute_force)
-    --n-instances:     Number of random instances per lambda combination (default: 5)
-    --lambda-values:   Comma-separated lambda values to grid-search (default: 10,50,100,500,1000)
-    --output:          Output directory for the JSON file (default: output/lambdasSampling)
-
-Usage::
-
-    python -m experiments.estimate_lambdas
-    python -m experiments.estimate_lambdas --formulation qubo --lambda-values 10,50,100,500
-    python -m experiments.estimate_lambdas --formulation tqudo --solver simulated_annealing
-    python -m experiments.estimate_lambdas --solver brute_force --formulation tqudo --lambda-values 100,500
+    Run ``python -m experiments.estimate_lambdas --help`` for all flags.
 
 """
 

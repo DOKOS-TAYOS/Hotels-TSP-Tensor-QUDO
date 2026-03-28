@@ -1,7 +1,7 @@
 """Output path helpers for raw, processed, and image artifacts.
 
 For on-disk experiment layouts (``raw/instances``, ``raw/solutions``), see
-:mod:`utils.experiment_paths`.
+``utils.experiment_paths``.
 """
 
 from __future__ import annotations

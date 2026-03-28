@@ -436,7 +436,19 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
 
 
 def run_prepare_plots(output_root: Path, *, clean: bool = False) -> Path:
-    """Read processed metrics and write ``plots_data``. Returns ``plots_data`` path."""
+    """Build per-figure Parquet inputs under ``processed/plots_data``.
+
+    Args:
+        output_root: Experiment root; requires ``processed/paired_metrics.parquet``.
+        clean: If True, delete existing ``plots_data`` before writing.
+
+    Returns:
+        Path to the ``plots_data`` directory.
+
+    Raises:
+        FileNotFoundError: If paired metrics are missing.
+
+    """
     require_pandas(context="prepare_plots")
     import pandas as pd
 
@@ -479,6 +491,7 @@ def run_prepare_plots(output_root: Path, *, clean: bool = False) -> Path:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI for the prepare_plots stage."""
     parser = argparse.ArgumentParser(
         description="Build per-figure Parquet tables under processed/plots_data from metrics.",
     )
