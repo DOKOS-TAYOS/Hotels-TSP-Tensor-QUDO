@@ -79,9 +79,17 @@ def _stats_from_rows(merged: Any) -> dict[str, float | int]:
         "right_optimal": 0,
         "right_feasible_subopt": 0,
         "right_infeasible": 0,
+        "n_both_feasible": 0,
+        "cost_left_better_cond": 0,
+        "cost_right_better_cond": 0,
+        "cost_tie_cond": 0,
         "cost_left_better_cond_pct": float("nan"),
         "cost_right_better_cond_pct": float("nan"),
         "cost_tie_cond_pct": float("nan"),
+        "only_left_feasible": 0,
+        "only_right_feasible": 0,
+        "only_left_optimal": 0,
+        "only_right_optimal": 0,
         "only_left_feasible_pct": float("nan"),
         "only_right_feasible_pct": float("nan"),
         "only_left_optimal_pct": float("nan"),
@@ -111,13 +119,18 @@ def _stats_from_rows(merged: Any) -> dict[str, float | int]:
     out["right_feasible_subopt"] = int((r_feas & ~r_opt).sum())
     out["right_infeasible"] = int((~r_feas).sum())
 
-    out["only_left_feasible_pct"] = 100.0 * float((l_feas & ~r_feas).sum()) / float(n)
-    out["only_right_feasible_pct"] = 100.0 * float((r_feas & ~l_feas).sum()) / float(n)
-    out["only_left_optimal_pct"] = 100.0 * float((l_opt & ~r_opt).sum()) / float(n)
-    out["only_right_optimal_pct"] = 100.0 * float((r_opt & ~l_opt).sum()) / float(n)
+    out["only_left_feasible"] = int((l_feas & ~r_feas).sum())
+    out["only_right_feasible"] = int((r_feas & ~l_feas).sum())
+    out["only_left_optimal"] = int((l_opt & ~r_opt).sum())
+    out["only_right_optimal"] = int((r_opt & ~l_opt).sum())
+    out["only_left_feasible_pct"] = 100.0 * float(out["only_left_feasible"]) / float(n)
+    out["only_right_feasible_pct"] = 100.0 * float(out["only_right_feasible"]) / float(n)
+    out["only_left_optimal_pct"] = 100.0 * float(out["only_left_optimal"]) / float(n)
+    out["only_right_optimal_pct"] = 100.0 * float(out["only_right_optimal"]) / float(n)
 
     both_feas = l_feas & r_feas & l_rc.notna() & r_rc.notna()
     n_both = int(both_feas.sum())
+    out["n_both_feasible"] = n_both
     if n_both == 0:
         return out
 
@@ -130,9 +143,12 @@ def _stats_from_rows(merged: Any) -> dict[str, float | int]:
     )
     left_lower = (~tie) & (a < c)
     right_lower = (~tie) & (a > c)
+    out["cost_left_better_cond"] = int(left_lower.sum())
+    out["cost_right_better_cond"] = int(right_lower.sum())
+    out["cost_tie_cond"] = int(tie.sum())
     nn = float(n_both)
-    out["cost_left_better_cond_pct"] = 100.0 * float(left_lower.sum()) / nn
-    out["cost_right_better_cond_pct"] = 100.0 * float(right_lower.sum()) / nn
-    out["cost_tie_cond_pct"] = 100.0 * float(tie.sum()) / nn
+    out["cost_left_better_cond_pct"] = 100.0 * float(out["cost_left_better_cond"]) / nn
+    out["cost_right_better_cond_pct"] = 100.0 * float(out["cost_right_better_cond"]) / nn
+    out["cost_tie_cond_pct"] = 100.0 * float(out["cost_tie_cond"]) / nn
 
     return out

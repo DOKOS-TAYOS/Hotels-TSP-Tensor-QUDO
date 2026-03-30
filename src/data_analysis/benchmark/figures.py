@@ -21,6 +21,33 @@ from data_analysis.benchmark.common import (
     _uniform_superposition_p_opt_qubo,
 )
 
+
+def _dashboard_bar_count(
+    row: dict[str, float | int],
+    *,
+    count_key: str,
+    pct_key: str,
+    denom_key: str,
+) -> float:
+    """Integer instance count for dashboard bars; supports legacy rows with only %% and *denom*."""
+    raw = row.get(count_key)
+    if raw is not None:
+        try:
+            v = float(raw)
+            if math.isfinite(v):
+                return v
+        except (TypeError, ValueError):
+            pass
+    pct = float(row.get(pct_key, float("nan")))
+    d_raw = row.get(denom_key)
+    if d_raw is None:
+        return 0.0
+    d = int(d_raw)
+    if d <= 0 or not math.isfinite(pct):
+        return 0.0
+    return float(round(pct * float(d) / 100.0))
+
+
 def _plot_comparison_dashboard(
     *,
     x_labels: list[str],
@@ -30,6 +57,7 @@ def _plot_comparison_dashboard(
     x_axis_label: str,
 ) -> Any:
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 
@@ -97,9 +125,33 @@ def _plot_comparison_dashboard(
     ax00.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
 
     ax01 = axes[0, 1]
-    cl = [float(s.get("cost_left_better_cond_pct", np.nan)) for s in stats_list]
-    cr = [float(s.get("cost_right_better_cond_pct", np.nan)) for s in stats_list]
-    ct = [float(s.get("cost_tie_cond_pct", np.nan)) for s in stats_list]
+    cl = [
+        _dashboard_bar_count(
+            s,
+            count_key="cost_left_better_cond",
+            pct_key="cost_left_better_cond_pct",
+            denom_key="n_both_feasible",
+        )
+        for s in stats_list
+    ]
+    cr = [
+        _dashboard_bar_count(
+            s,
+            count_key="cost_right_better_cond",
+            pct_key="cost_right_better_cond_pct",
+            denom_key="n_both_feasible",
+        )
+        for s in stats_list
+    ]
+    ct = [
+        _dashboard_bar_count(
+            s,
+            count_key="cost_tie_cond",
+            pct_key="cost_tie_cond_pct",
+            denom_key="n_both_feasible",
+        )
+        for s in stats_list
+    ]
     ww = 0.25
     ax01.bar(x - ww, cl, ww, label=f"Lower cost ({label_left})", color="#1f77b4")
     ax01.bar(x, cr, ww, label=f"Lower cost ({label_right})", color="#ff7f0e")
@@ -107,42 +159,77 @@ def _plot_comparison_dashboard(
     ax01.set_xticks(x)
     ax01.set_xticklabels(x_labels)
     ax01.set_ylabel(
-        "% lower real cost\n(both feasible)",
+        "Instances\n(both feasible, lower real cost / tie)",
         fontsize=AXIS_LABEL_FONTSIZE,
     )
-    ax01.set_ylim(0, 105)
+    ax01.set_ylim(bottom=0)
+    ax01.yaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=4))
     ax01.legend(fontsize=LEGEND_FONTSIZE_COMPACT)
     ax01.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax01.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
 
     ax10 = axes[1, 0]
-    olf = [float(s["only_left_feasible_pct"]) for s in stats_list]
-    orf = [float(s["only_right_feasible_pct"]) for s in stats_list]
+    olf = [
+        _dashboard_bar_count(
+            s,
+            count_key="only_left_feasible",
+            pct_key="only_left_feasible_pct",
+            denom_key="n_paired",
+        )
+        for s in stats_list
+    ]
+    orf = [
+        _dashboard_bar_count(
+            s,
+            count_key="only_right_feasible",
+            pct_key="only_right_feasible_pct",
+            denom_key="n_paired",
+        )
+        for s in stats_list
+    ]
     ax10.bar(x - ww, olf, ww, label=f"{label_left} only", color="#1f77b4")
     ax10.bar(x + ww, orf, ww, label=f"{label_right} only", color="#ff7f0e")
     ax10.set_xticks(x)
     ax10.set_xticklabels(x_labels)
     ax10.set_ylabel(
-        "% feasible\n(one side only)",
+        "Instances\n(feasible on one side only)",
         fontsize=AXIS_LABEL_FONTSIZE,
     )
-    ax10.set_ylim(0, 105)
+    ax10.set_ylim(bottom=0)
+    ax10.yaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=4))
     ax10.legend(fontsize=LEGEND_FONTSIZE)
     ax10.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax10.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
 
     ax11 = axes[1, 1]
-    olo = [float(s["only_left_optimal_pct"]) for s in stats_list]
-    oro = [float(s["only_right_optimal_pct"]) for s in stats_list]
+    olo = [
+        _dashboard_bar_count(
+            s,
+            count_key="only_left_optimal",
+            pct_key="only_left_optimal_pct",
+            denom_key="n_paired",
+        )
+        for s in stats_list
+    ]
+    oro = [
+        _dashboard_bar_count(
+            s,
+            count_key="only_right_optimal",
+            pct_key="only_right_optimal_pct",
+            denom_key="n_paired",
+        )
+        for s in stats_list
+    ]
     ax11.bar(x - ww, olo, ww, label=f"{label_left} only", color="#2ca02c")
     ax11.bar(x + ww, oro, ww, label=f"{label_right} only", color="#d62728")
     ax11.set_xticks(x)
     ax11.set_xticklabels(x_labels)
     ax11.set_ylabel(
-        "% optimal\n(one side only)",
+        "Instances\n(optimal on one side only)",
         fontsize=AXIS_LABEL_FONTSIZE,
     )
-    ax11.set_ylim(0, 105)
+    ax11.set_ylim(bottom=0)
+    ax11.yaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=4))
     ax11.legend(fontsize=LEGEND_FONTSIZE)
     ax11.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax11.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
@@ -421,9 +508,18 @@ def _plot_approx_ratio_boxplots_vs_p(
 
     all_depths = sorted({d for _, dct in active for d in dct})
     n_s = len(active)
-    rank_by_label: dict[str, int] = {lab: r for r, (lab, _) in enumerate(active)}
-    r_tq = rank_by_label.get("TQUDO qudits")
-    r_qb = rank_by_label.get("QUBO")
+    r_tq = next(
+        (
+            r
+            for r, (lab, _) in enumerate(active)
+            if lab == "TQUDO qudits" or lab.startswith("TQUDO qudits")
+        ),
+        None,
+    )
+    r_qb = next(
+        (r for r, (lab, _) in enumerate(active) if lab == "QUBO" or lab.startswith("QUBO")),
+        None,
+    )
     col_tqudo_uni = colors[(r_tq if r_tq is not None else 0) % len(colors)]
     col_qubo_uni = colors[
         (r_qb if r_qb is not None else max(n_s - 1, 0)) % len(colors)

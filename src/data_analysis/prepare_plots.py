@@ -321,17 +321,35 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         output_root=root,
         bf_cache=bf_cache,
     )
-    popt_n5_series = [
-        ("QUBO", popt_q5),
-        ("TQUDO qubits", popt_cq5),
-        ("TQUDO qudits", popt_ci5),
+    popt_ci9 = _p_opt_lists_by_depth_unpaired(
+        paired,
+        solver="cirq",
+        formulation="tqudo",
+        n_cities=9,
+        output_root=root,
+        bf_cache=bf_cache,
+    )
+    popt_cq9 = _p_opt_lists_by_depth_unpaired(
+        paired,
+        solver="cudaq",
+        formulation="tqudo_virtual",
+        n_cities=9,
+        output_root=root,
+        bf_cache=bf_cache,
+    )
+    popt_box_series = [
+        (r"QUBO ($n=5$)", popt_q5),
+        (r"TQUDO qubits ($n=5$)", popt_cq5),
+        (r"TQUDO qudits ($n=5$)", popt_ci5),
+        (r"TQUDO qubits ($n=9$)", popt_cq9),
+        (r"TQUDO qudits ($n=9$)", popt_ci9),
     ]
     _popt_n5_common_kw: dict[str, Any] = {
         "y_label": r"$P(\mathrm{opt})$",
         "y_axis_kind": "generic",
         "y_scale": "log",
         "log_y_clip_upper": 1.0,
-        "figsize": (6.9, 6.9),
+        "figsize": (7.8, 7.8),
         "uniform_p_opt_hline_ns": (5, 9),
         "uniform_qubo_p_opt_hline_ns": (5,),
     }
@@ -340,7 +358,7 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         (False, "n5_cirq_vs_cq_tvirt_popt_vs_p_ydata"),
     ):
         kw = {**_popt_n5_common_kw, "uniform_refs_in_ylim": uniform_refs_in_ylim}
-        write_box_vs_p_long(po_dir / f"{stem}.parquet", popt_n5_series, plot_kwargs=kw)
+        write_box_vs_p_long(po_dir / f"{stem}.parquet", popt_box_series, plot_kwargs=kw)
 
     series_eimp_n_box = _collect_energy_improvement_box_series_vs_ncities(
         paired,
