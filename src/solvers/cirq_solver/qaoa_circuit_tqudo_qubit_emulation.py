@@ -19,7 +19,11 @@ from instance_gen_process.models import ProblemTQUDO
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
-from utils.costs_batch import batch_tqudo_costs, bit_rows_to_qudit_sequences, bitstring_to_qudit_sequence
+from utils.costs_batch import (
+    batch_tqudo_costs,
+    bit_rows_to_qudit_sequences,
+    bitstring_to_qudit_sequence,
+)
 from utils.optimizer import minimize_options
 from solvers.base import OptimizerType
 from utils.progress import reporter
@@ -236,7 +240,9 @@ def evaluate_cost(
 
     rows = np.asarray(result.measurements["m"], dtype=np.float64)
     seqs = bit_rows_to_qudit_sequences(rows, n_qudits, qubits_per_qudit)
-    return float(np.mean(batch_tqudo_costs(problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale)))
+    return float(
+        np.mean(batch_tqudo_costs(problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale))
+    )
 
 
 def sample_solution(
@@ -321,8 +327,15 @@ def optimize_qaoa(
     def cost_fn(x: np.ndarray) -> float:
         raise_if_solver_stop_requested()
         val = evaluate_cost(
-            x, circuit_with_measure, problem, symbols, depth,
-            n_qudits, qubits_per_qudit, n_shots, simulator,
+            x,
+            circuit_with_measure,
+            problem,
+            symbols,
+            depth,
+            n_qudits,
+            qubits_per_qudit,
+            n_shots,
+            simulator,
         )
         energy_history.append(val)
         reporter.opt_step(len(energy_history), max_iter, val)
@@ -330,16 +343,27 @@ def optimize_qaoa(
 
     raise_if_solver_stop_requested()
     initial_energy = evaluate_cost(
-        init_params, circuit_with_measure, problem, symbols, depth,
-        n_qudits, qubits_per_qudit, n_shots, simulator,
+        init_params,
+        circuit_with_measure,
+        problem,
+        symbols,
+        depth,
+        n_qudits,
+        qubits_per_qudit,
+        n_shots,
+        simulator,
     )
 
     initial_samples: dict[str, int] | None = None
     if sample_shots is not None:
         raise_if_solver_stop_requested()
         initial_samples = sample_solution(
-            circuit_with_measure, init_params, symbols, depth,
-            sample_shots, simulator,
+            circuit_with_measure,
+            init_params,
+            symbols,
+            depth,
+            sample_shots,
+            simulator,
         )
 
     raise_if_solver_stop_requested()
@@ -355,8 +379,12 @@ def optimize_qaoa(
     if sample_shots is not None:
         raise_if_solver_stop_requested()
         final_samples = sample_solution(
-            circuit_with_measure, best_params, symbols, depth,
-            sample_shots, simulator,
+            circuit_with_measure,
+            best_params,
+            symbols,
+            depth,
+            sample_shots,
+            simulator,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
 

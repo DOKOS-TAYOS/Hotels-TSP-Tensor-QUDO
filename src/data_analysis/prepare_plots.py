@@ -17,6 +17,7 @@ from data_analysis.benchmark.collectors import (
     _collect_numeric_box_series_vs_ncities,
     _collect_side_opt_step_lists_by_depth,
     _delta_p_opt_from_row,
+    _opt_steps_values_cell,
     _paired_delta_p_opt_lists_by_depth,
     _paired_metric_lists_by_depth,
     _p_opt_final_from_row,
@@ -31,7 +32,13 @@ from data_analysis.benchmark.plot_serde import (
     write_paired_four_vs_p,
     write_triplet_series_long,
 )
-from data_analysis.benchmark.pairing import _merge_paired, _stats_from_rows
+from data_analysis.benchmark.common import _mask_qaoa_depth_eq
+from data_analysis.benchmark.pairing import (
+    _dedupe_solution_rows,
+    _merge_paired,
+    _stats_dashboard_left_only_from_runs,
+    _stats_from_rows,
+)
 from data_analysis.energy_plots import write_energy_history_plot_tables
 from utils.output_paths import build_output_layout
 
@@ -46,6 +53,30 @@ def _stats_list_for_depths(merged: Any, depths: tuple[int, ...]) -> list[dict[st
             sub = merged[merged["qaoa_depth"].astype(int) == int(d)]
             out.append(_stats_from_rows(sub))
     return out
+
+
+def _rows_solver_form_at_depth(
+    paired: Any,
+    *,
+    solver: str,
+    formulation: str,
+    n_cities: int,
+    depth: int,
+) -> Any:
+    """Deduped metrics rows for one (solver, formulation, *n*, *p*)."""
+    m = (
+        paired["parse_ok"]
+        & paired["solve_ok"]
+        & (paired["solver"] == solver)
+        & (paired["formulation"] == formulation)
+        & (paired["n_cities"] == int(n_cities))
+        & _mask_qaoa_depth_eq(paired["qaoa_depth"], int(depth))
+    )
+    sub = paired.loc[m].copy()
+    return _dedupe_solution_rows(
+        sub,
+        ["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
+    )
 
 
 def _ensure_plot_data_subdirs(plots_data: Path) -> None:
@@ -147,18 +178,39 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
 
     db = plots_data / "dashboards"
     for merged, lab_l, lab_r, stem in (
-        (cq_merged, "QUBO", "TQUDO qubits", "cudaq_qubo_vs_tvirt_n5"),
-        (xc_by_n[5], "TQUDO qubits", "TQUDO qudits", "cudaq_tvirt_vs_cirq_n5"),
-        (xc_by_n[9], "TQUDO qubits", "TQUDO qudits", "cudaq_tvirt_vs_cirq_n9"),
+        (cq_merged, "QUBO", "V-QAOA", "cudaq_qubo_vs_tvirt_n5"),
+        (xc_by_n[5], "V-QAOA", "N-QAOA", "cudaq_tvirt_vs_cirq_n5"),
+        (xc_by_n[9], "V-QAOA", "N-QAOA", "cudaq_tvirt_vs_cirq_n9"),
     ):
-        write_dashboard_stats(
-            db / f"{stem}.parquet",
-            _stats_list_for_depths(merged, depths),
-            x_labels=x_labels,
-            label_left=lab_l,
-            label_right=lab_r,
-            x_axis_label=r"$p$",
-        )
+        if stem == "cudaq_tvirt_vs_cirq_n9":
+            stats_top = _stats_list_for_depths(merged, (1, 2))
+            p3_left = _stats_dashboard_left_only_from_runs(
+                _rows_solver_form_at_depth(
+                    paired,
+                    solver="cudaq",
+                    formulation="tqudo_virtual",
+                    n_cities=9,
+                    depth=3,
+                )
+            )
+            write_dashboard_stats(
+                db / f"{stem}.parquet",
+                stats_top + [p3_left],
+                x_labels=x_labels,
+                label_left=lab_l,
+                label_right=lab_r,
+                x_axis_label=r"$p$",
+                other_panels_stats_stop=2,
+            )
+        else:
+            write_dashboard_stats(
+                db / f"{stem}.parquet",
+                _stats_list_for_depths(merged, depths),
+                x_labels=x_labels,
+                label_left=lab_l,
+                label_right=lab_r,
+                x_axis_label=r"$p$",
+            )
 
     ar_dir = plots_data / "approx_ratio"
     rho_q = _approx_ratio_lists_by_depth_unpaired(
@@ -180,10 +232,10 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         ar_dir / "n5_qubo_tvirt_cirq_vs_p.parquet",
         [
             (r"QUBO ($n=5$)", rho_q),
-            (r"TQUDO qubits ($n=5$)", rho_tv5),
-            (r"TQUDO qudits ($n=5$)", rho_ci5),
-            (r"TQUDO qubits ($n=9$)", rho_tv9),
-            (r"TQUDO qudits ($n=9$)", rho_ci9),
+            (r"V-QAOA ($n=5$)", rho_tv5),
+            (r"N-QAOA ($n=5$)", rho_ci5),
+            (r"V-QAOA ($n=9$)", rho_tv9),
+            (r"N-QAOA ($n=9$)", rho_ci9),
         ],
         plot_kwargs={"figsize": (7.8, 7.8)},
     )
@@ -214,7 +266,7 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         st_dir / "cudaq_tvirt_vs_qubo_n5_vs_p.parquet",
         [
             ("QUBO", _step_lists_to_depth_dict(depths, lr_cq)),
-            ("TQUDO qubits", _step_lists_to_depth_dict(depths, ll_cq)),
+            ("V-QAOA", _step_lists_to_depth_dict(depths, ll_cq)),
         ],
         plot_kwargs={
             "y_label": "steps",
@@ -226,13 +278,23 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
 
     ll5, lr5 = _collect_side_opt_step_lists_by_depth(xc_by_n[5], depths=depths, output_root=root)
     ll9, lr9 = _collect_side_opt_step_lists_by_depth(xc_by_n[9], depths=depths, output_root=root)
+    ll9_list = list(ll9)
+    if len(ll9_list) >= 3 and not ll9_list[2]:
+        ll9_list[2] = _opt_steps_values_cell(
+            paired,
+            solver="cudaq",
+            formulation="tqudo_virtual",
+            n_cities=9,
+            qaoa_depth=3,
+            output_root=root,
+        )
     write_box_vs_p_long(
         st_dir / "cudaq_tvirt_vs_cirq_n5_n9_vs_p.parquet",
         [
-            (r"TQUDO qubits ($n=5$)", _step_lists_to_depth_dict(depths, ll5)),
-            (r"TQUDO qudits ($n=5$)", _step_lists_to_depth_dict(depths, lr5)),
-            (r"TQUDO qubits ($n=9$)", _step_lists_to_depth_dict(depths, ll9)),
-            (r"TQUDO qudits ($n=9$)", _step_lists_to_depth_dict(depths, lr9)),
+            (r"V-QAOA ($n=5$)", _step_lists_to_depth_dict(depths, ll5)),
+            (r"N-QAOA ($n=5$)", _step_lists_to_depth_dict(depths, lr5)),
+            (r"V-QAOA ($n=9$)", _step_lists_to_depth_dict(depths, ll9_list)),
+            (r"N-QAOA ($n=9$)", _step_lists_to_depth_dict(depths, lr9)),
         ],
         plot_kwargs={
             "y_label": "steps",
@@ -339,10 +401,10 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
     )
     popt_box_series = [
         (r"QUBO ($n=5$)", popt_q5),
-        (r"TQUDO qubits ($n=5$)", popt_cq5),
-        (r"TQUDO qudits ($n=5$)", popt_ci5),
-        (r"TQUDO qubits ($n=9$)", popt_cq9),
-        (r"TQUDO qudits ($n=9$)", popt_ci9),
+        (r"V-QAOA ($n=5$)", popt_cq5),
+        (r"N-QAOA ($n=5$)", popt_ci5),
+        (r"V-QAOA ($n=9$)", popt_cq9),
+        (r"N-QAOA ($n=9$)", popt_ci9),
     ]
     _popt_n5_common_kw: dict[str, Any] = {
         "y_label": r"$P(\mathrm{opt})$",
@@ -418,10 +480,10 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         im_dir / "paired_n5_cq_cirq_rel_energy_vs_p.parquet",
         x_labels=x_labels,
         series=[
-            (r"TQUDO qubits ($n=5$)", eimp_l5),
-            (r"TQUDO qudits ($n=5$)", eimp_r5),
-            (r"TQUDO qubits ($n=9$)", eimp_l9),
-            (r"TQUDO qudits ($n=9$)", eimp_r9),
+            (r"V-QAOA ($n=5$)", eimp_l5),
+            (r"N-QAOA ($n=5$)", eimp_r5),
+            (r"V-QAOA ($n=9$)", eimp_l9),
+            (r"N-QAOA ($n=9$)", eimp_r9),
         ],
         plot_kwargs={
             "y_label": r"$(E_0 - E^\star) / |E_0|$",
@@ -440,8 +502,8 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         po_dir / "paired_n5_cq_cirq_delta_popt_vs_p.parquet",
         x_labels=x_labels,
         series=[
-            ("TQUDO qubits", dpl5_lists),
-            ("TQUDO qudits", dpr5_lists),
+            ("V-QAOA", dpl5_lists),
+            ("N-QAOA", dpr5_lists),
         ],
         plot_kwargs={
             "y_label": r"$\Delta P(\mathrm{opt})$",
@@ -474,14 +536,10 @@ def run_prepare_plots(output_root: Path, *, clean: bool = False) -> Path:
     proc = layout.processed
     pq_p = proc / "paired_metrics.parquet"
     if not pq_p.is_file():
-        raise FileNotFoundError(
-            f"Missing {pq_p}. Run ingest and metrics before prepare_plots."
-        )
+        raise FileNotFoundError(f"Missing {pq_p}. Run ingest and metrics before prepare_plots.")
     paired = pd.read_parquet(pq_p)
     paired_no_sa = (
-        paired[paired["solver"] != "simulated_annealing"]
-        if "solver" in paired.columns
-        else paired
+        paired[paired["solver"] != "simulated_annealing"] if "solver" in paired.columns else paired
     )
 
     plots_data = layout.plots_data

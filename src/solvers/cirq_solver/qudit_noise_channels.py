@@ -392,20 +392,26 @@ class ConstantQuditNoiseModel(cirq.NoiseModel):
 
         if n == 1:
             ch = _make_single_qudit_channel(
-                self._config.noise_type, self._dimension, prob,
+                self._config.noise_type,
+                self._dimension,
+                prob,
             )
             return [op, ch.on(qids[0])]
 
         if n == 2:
             ch = _make_two_qudit_channel(
-                self._config.noise_type, self._dimension, prob,
+                self._config.noise_type,
+                self._dimension,
+                prob,
             )
             return [op, ch.on(qids[0], qids[1])]
 
         # Fallback: independent single-qudit noise on each qudit.
         noise_ops = [
             _make_single_qudit_channel(
-                self._config.noise_type, self._dimension, prob,
+                self._config.noise_type,
+                self._dimension,
+                prob,
             ).on(q)
             for q in qids
         ]

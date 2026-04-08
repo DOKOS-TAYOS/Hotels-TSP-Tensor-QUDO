@@ -40,9 +40,7 @@ def _ensure_benchmark_image_dirs(images_dir: Path) -> _BenchmarkImageDirs:
     histogram = images_dir / "histogram"
     for p in (dashboards, approx_ratio, steps, improvement, p_opt, histogram):
         p.mkdir(parents=True, exist_ok=True)
-    return _BenchmarkImageDirs(
-        dashboards, approx_ratio, steps, improvement, p_opt, histogram
-    )
+    return _BenchmarkImageDirs(dashboards, approx_ratio, steps, improvement, p_opt, histogram)
 
 
 def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
@@ -62,12 +60,14 @@ def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
         if not pq.is_file():
             continue
         x_labels, stats_list, meta = read_dashboard_stats(pq)
+        ostop = meta.get("other_panels_stats_stop")
         fig = _plot_comparison_dashboard(
             x_labels=x_labels,
             stats_list=stats_list,
             label_left=str(meta["label_left"]),
             label_right=str(meta["label_right"]),
             x_axis_label=str(meta["x_axis_label"]),
+            other_panels_stats_stop=int(ostop) if ostop is not None else None,
         )
         fig.savefig(dest / f"{stem}.png", dpi=150)
         plt.close(fig)

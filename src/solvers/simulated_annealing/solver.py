@@ -84,18 +84,14 @@ def _tqudo_swap_delta(
         if 0 <= t < n - 1:
             affected_t.add(t)
     for t in affected_t:
-        delta_etab += float(
-            Etab[t, x_new[t], x_new[t + 1]] - Etab[t, x[t], x[t + 1]]
-        )
+        delta_etab += float(Etab[t, x_new[t], x_new[t + 1]] - Etab[t, x[t], x[t + 1]])
 
     delta_ett = 0.0
     for a in range(n):
         for b in range(a + 1, n):
             if a not in (i, j) and b not in (i, j):
                 continue
-            delta_ett += float(
-                Ett[a, b, x_new[a], x_new[b]] - Ett[a, b, x[a], x[b]]
-            )
+            delta_ett += float(Ett[a, b, x_new[a], x_new[b]] - Ett[a, b, x[a], x[b]])
 
     return (delta_etab + delta_ett) * es
 
@@ -258,15 +254,24 @@ class SimulatedAnnealingSolver:
                 if diff.size == 2:
                     i0, j0 = int(diff[0]), int(diff[1])
                     neighbor_cost = current_cost + _tqudo_swap_delta(
-                        problem, current, i0, j0,
+                        problem,
+                        current,
+                        i0,
+                        j0,
                     )
                 else:
                     neighbor_cost = evaluate_cost(
-                        formulation, problem, neighbor, n_available,
+                        formulation,
+                        problem,
+                        neighbor,
+                        n_available,
                     )
             else:
                 neighbor_cost = evaluate_cost(
-                    formulation, problem, neighbor, n_available,
+                    formulation,
+                    problem,
+                    neighbor,
+                    n_available,
                 )
 
             delta = neighbor_cost - current_cost
@@ -300,9 +305,7 @@ class SimulatedAnnealingSolver:
             "final_temperature": T,
         }
         if feasible:
-            metadata["real_cost"] = float(
-                calculate_real_cost(instance, best_sequence)
-            )
+            metadata["real_cost"] = float(calculate_real_cost(instance, best_sequence))
 
         return SolverResult(
             solver_name=self.solver_name,

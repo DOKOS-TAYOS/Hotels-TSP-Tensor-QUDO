@@ -25,8 +25,14 @@ __all__ = [
 
 _LAZY: dict[str, tuple[str, str]] = {
     "validate_instance_constraints": ("utils.constraints", "validate_instance_constraints"),
-    "validate_solution_constraints_qubo": ("utils.constraints", "validate_solution_constraints_qubo"),
-    "validate_solution_constraints_tqudo": ("utils.constraints", "validate_solution_constraints_tqudo"),
+    "validate_solution_constraints_qubo": (
+        "utils.constraints",
+        "validate_solution_constraints_qubo",
+    ),
+    "validate_solution_constraints_tqudo": (
+        "utils.constraints",
+        "validate_solution_constraints_tqudo",
+    ),
     "calculate_qubo_cost": ("utils.costs", "calculate_qubo_cost"),
     "calculate_real_cost": ("utils.costs", "calculate_real_cost"),
     "calculate_tqudo_cost": ("utils.costs", "calculate_tqudo_cost"),

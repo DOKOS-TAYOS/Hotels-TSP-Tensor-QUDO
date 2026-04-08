@@ -82,7 +82,7 @@ class ProgressReporter:
             f"  {bar}"
             f"  E={energy:+.4f}"
         )
-        
+
         if is_checkpoint:
             self._emit(msg, newline=True)
         else:

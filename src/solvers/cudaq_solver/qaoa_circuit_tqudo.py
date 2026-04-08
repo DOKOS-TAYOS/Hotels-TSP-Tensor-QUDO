@@ -45,18 +45,13 @@ def _validate_tqudo_shapes(Etab: np.ndarray, Ettprimeab: np.ndarray) -> tuple[in
     if Etab.ndim != 3:
         raise ValueError(f"Etab must be a rank-3 tensor, got shape {Etab.shape}.")
     if Ettprimeab.ndim != 4:
-        raise ValueError(
-            f"Ettprimeab must be a rank-4 tensor, got shape {Ettprimeab.shape}."
-        )
+        raise ValueError(f"Ettprimeab must be a rank-4 tensor, got shape {Ettprimeab.shape}.")
 
     n_qudits = Etab.shape[0]
     dimension_qudits = Etab.shape[1]
     expected_ett_shape = (n_qudits, n_qudits, dimension_qudits, dimension_qudits)
     if Etab.shape[2] != dimension_qudits:
-        raise ValueError(
-            "Etab must be square in its state dimensions, "
-            f"got shape {Etab.shape}."
-        )
+        raise ValueError(f"Etab must be square in its state dimensions, got shape {Etab.shape}.")
     if Ettprimeab.shape != expected_ett_shape:
         raise ValueError(
             "Ettprimeab shape does not match Etab. "
@@ -83,12 +78,9 @@ def _nonzero_etab_terms(Etab: np.ndarray) -> list[tuple[int, int, int, int, floa
 
     """
     n_qudits = Etab.shape[0]
-    adjacent = Etab[:n_qudits - 1]
+    adjacent = Etab[: n_qudits - 1]
     idx = np.argwhere(np.abs(adjacent) > 1e-14)
-    return [
-        (int(t), int(t) + 1, int(xl), int(xr), float(adjacent[t, xl, xr]))
-        for t, xl, xr in idx
-    ]
+    return [(int(t), int(t) + 1, int(xl), int(xr), float(adjacent[t, xl, xr])) for t, xl, xr in idx]
 
 
 def _nonzero_ett_terms(Ettprimeab: np.ndarray) -> list[tuple[int, int, int, int, float]]:
@@ -359,7 +351,11 @@ def optimize_qaoa(
 
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
-            x, kernel, problem, depth, n_shots=n_shots,
+            x,
+            kernel,
+            problem,
+            depth,
+            n_shots=n_shots,
             noise_model=noise_model,
         )
         energy_history.append(val)
@@ -367,14 +363,21 @@ def optimize_qaoa(
         return val
 
     initial_energy = evaluate_cost(
-        init_params, kernel, problem, depth, n_shots=n_shots,
+        init_params,
+        kernel,
+        problem,
+        depth,
+        n_shots=n_shots,
         noise_model=noise_model,
     )
 
     initial_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         initial_samples = sample_solution(
-            kernel, init_params, depth, n_shots=sample_shots,
+            kernel,
+            init_params,
+            depth,
+            n_shots=sample_shots,
             noise_model=noise_model,
         )
 
@@ -387,14 +390,18 @@ def optimize_qaoa(
     if not opt_result.success:
         logger.warning(
             "TQUDO QAOA optimizer (%s) did not converge: %s",
-            optimizer, opt_result.message,
+            optimizer,
+            opt_result.message,
         )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     final_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         final_samples = sample_solution(
-            kernel, best_params, depth, n_shots=sample_shots,
+            kernel,
+            best_params,
+            depth,
+            n_shots=sample_shots,
             noise_model=noise_model,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history
@@ -458,12 +465,8 @@ def run_qaoa(
         )
     )
 
-    best_bitstring = (
-        final_samples.most_probable() if final_samples else "0" * n_qubits_total
-    )
-    best_sequence = bitstring_to_qudit_sequence(
-        best_bitstring, n_qudits, qubits_per_qudit
-    )
+    best_bitstring = final_samples.most_probable() if final_samples else "0" * n_qubits_total
+    best_sequence = bitstring_to_qudit_sequence(best_bitstring, n_qudits, qubits_per_qudit)
 
     return {
         "energy": best_energy,

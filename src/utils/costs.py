@@ -105,9 +105,7 @@ def calculate_tqudo_cost(
     etab_cost = float(np.sum(problem.Etab[ts, x[:-1], x[1:]]))
 
     t_left, t_right = np.triu_indices(n, k=1)
-    ett_cost = float(np.sum(
-        problem.Ettprimeab[t_left, t_right, x[t_left], x[t_right]]
-    ))
+    ett_cost = float(np.sum(problem.Ettprimeab[t_left, t_right, x[t_left], x[t_right]]))
 
     return (etab_cost + ett_cost) * problem.energy_scale
 
@@ -129,19 +127,17 @@ def calculate_real_cost(problem: ProblemInstance, sequence: list[int]) -> float:
     """
     n_available = problem.n_cities - 1
     if len(sequence) != n_available:
-        raise ValueError(
-            f"Sequence length {len(sequence)} must equal n_available={n_available}"
-        )
+        raise ValueError(f"Sequence length {len(sequence)} must equal n_available={n_available}")
 
-    hotel_cost = sum(
-        problem.prices_hotels[t, sequence[t]] for t in range(n_available)
-    )
+    hotel_cost = sum(problem.prices_hotels[t, sequence[t]] for t in range(n_available))
     travel_cost = (
         problem.prices_travels[0, n_available, sequence[0]]  # start -> first
         + sum(
             problem.prices_travels[t + 1, sequence[t], sequence[t + 1]]
             for t in range(n_available - 1)
         )
-        + problem.prices_travels[n_available, sequence[n_available - 1], n_available]  # last -> start
+        + problem.prices_travels[
+            n_available, sequence[n_available - 1], n_available
+        ]  # last -> start
     )
     return float(hotel_cost + travel_cost)

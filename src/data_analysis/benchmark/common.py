@@ -29,7 +29,9 @@ def _uniform_superposition_p_opt_qubo(n_cities: int) -> float:
     return 1.0 / (2.0**exp)
 
 
-def _clip_values_for_log_y(vals: list[float], *, floor: float = _P_OPT_LOG_AXIS_FLOOR) -> list[float]:
+def _clip_values_for_log_y(
+    vals: list[float], *, floor: float = _P_OPT_LOG_AXIS_FLOOR
+) -> list[float]:
     """Same length as *vals*; non-finite and non-positive values become *floor* for log-scale drawing."""
     out: list[float] = []
     for v in vals:
@@ -51,4 +53,3 @@ def _mask_qaoa_depth_eq(qd: Any, depth: int) -> Any:
 
     q = pd.to_numeric(qd, errors="coerce")
     return q == float(depth)
-

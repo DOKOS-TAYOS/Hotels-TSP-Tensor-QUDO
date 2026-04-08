@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Module-level state (reset via ``reset_target_state()`` for tests)
 # ---------------------------------------------------------------------------
-_gpu_noise_support: bool | None = None   # None = not yet probed
-_current_target: str | None = None       # last target set by us
+_gpu_noise_support: bool | None = None  # None = not yet probed
+_current_target: str | None = None  # last target set by us
 
 
 def _gpu_supports_noise() -> bool:

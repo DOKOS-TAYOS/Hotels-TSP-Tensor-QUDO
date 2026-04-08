@@ -7,18 +7,14 @@ def require_pandas(*, context: str) -> None:
     try:
         import pandas as pd  # noqa: F401
     except ImportError as exc:
-        raise SystemExit(
-            f"{context} requires pandas (pip install -e '.[analysis]')."
-        ) from exc
+        raise SystemExit(f"{context} requires pandas (pip install -e '.[analysis]').") from exc
 
 
 def require_matplotlib(*, context: str) -> None:
     try:
         import matplotlib.pyplot as _plt  # noqa: F401
     except ImportError as exc:
-        raise SystemExit(
-            f"{context} requires matplotlib (pip install -e '.[analysis]')."
-        ) from exc
+        raise SystemExit(f"{context} requires matplotlib (pip install -e '.[analysis]').") from exc
 
 
 def require_plot_stack(*, context: str) -> None:

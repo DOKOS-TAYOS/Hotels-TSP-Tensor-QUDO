@@ -149,11 +149,7 @@ def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy
 
     depths_cudaq_n5 = sorted(
         set(_sorted_qaoa_depths(curves, solver="cudaq", formulation="qubo", n_cities=5))
-        | set(
-            _sorted_qaoa_depths(
-                curves, solver="cudaq", formulation="tqudo_virtual", n_cities=5
-            )
-        )
+        | set(_sorted_qaoa_depths(curves, solver="cudaq", formulation="tqudo_virtual", n_cities=5))
     )
     n_cirq_cq_compare = (5, 9)
     depths_cirq_cudaq: set[int] = set()
@@ -162,9 +158,7 @@ def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy
             _sorted_qaoa_depths(curves, solver="cirq", formulation="tqudo", n_cities=n_cc)
         )
         depths_cirq_cudaq |= set(
-            _sorted_qaoa_depths(
-                curves, solver="cudaq", formulation="tqudo_virtual", n_cities=n_cc
-            )
+            _sorted_qaoa_depths(curves, solver="cudaq", formulation="tqudo_virtual", n_cities=n_cc)
         )
 
     for depth in depths_cudaq_n5:
@@ -204,7 +198,7 @@ def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy
             for _, r in df_t.iterrows():
                 rows.append(
                     {
-                        "series_label": "TQUDO qubits",
+                        "series_label": "V-QAOA",
                         "step": int(r["step"]),
                         "mean": float(r["mean"]),
                         "std": float(r["std"]),
@@ -217,8 +211,8 @@ def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy
         )
 
     series_cq_cirq: tuple[tuple[str, str, str], ...] = (
-        ("cirq", "tqudo", "TQUDO qudits"),
-        ("cudaq", "tqudo_virtual", "TQUDO qubits"),
+        ("cirq", "tqudo", "N-QAOA"),
+        ("cudaq", "tqudo_virtual", "V-QAOA"),
     )
     for depth in sorted(depths_cirq_cudaq):
         rows = []
@@ -235,9 +229,7 @@ def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy
                 if df.empty:
                     continue
                 lab = f"{base_label}, n = {n_cc}"
-                yn = _optimum_hline_y(
-                    paired, solver=solver, formulation=formulation, n_cities=n_cc
-                )
+                yn = _optimum_hline_y(paired, solver=solver, formulation=formulation, n_cities=n_cc)
                 hy = float(yn) if yn is not None else float("nan")
                 for _, r in df.iterrows():
                     rows.append(
@@ -279,9 +271,7 @@ def write_energy_history_plot_tables(paired: Any, curves: Any, plots_data_energy
             if df.empty:
                 continue
             lab = f"n = {n_int}"
-            yn = _optimum_hline_y(
-                paired, solver="cirq", formulation="tqudo", n_cities=n_int
-            )
+            yn = _optimum_hline_y(paired, solver="cirq", formulation="tqudo", n_cities=n_int)
             hy = float(yn) if yn is not None else float("nan")
             for _, r in df.iterrows():
                 rows.append(
@@ -356,9 +346,9 @@ def run_energy_history_figures_from_disk(
                 seen.add(lab)
                 labels.append(lab)
         for i, lab in enumerate(labels):
-            sub = df.loc[df["series_label"] == lab, ["step", "mean", "std", "ref_hline_y"]].sort_values(
-                "step"
-            )
+            sub = df.loc[
+                df["series_label"] == lab, ["step", "mean", "std", "ref_hline_y"]
+            ].sort_values("step")
             c = colors[i % len(colors)]
             _plot_mean_energy_with_std_band(ax, sub, color=c, label=lab)
             hy = float(sub["ref_hline_y"].iloc[0])
@@ -406,9 +396,7 @@ def run_energy_curve_dispersion_figure(
         if "qaoa_depth" in curves.columns:
             qd = pd.to_numeric(curves["qaoa_depth"], errors="coerce")
             m &= qd == float(int(d))
-        sub = curves.loc[m, ["step", "std"]].drop_duplicates(subset=["step"]).sort_values(
-            "step"
-        )
+        sub = curves.loc[m, ["step", "std"]].drop_duplicates(subset=["step"]).sort_values("step")
         if sub.empty:
             continue
         plotted = True

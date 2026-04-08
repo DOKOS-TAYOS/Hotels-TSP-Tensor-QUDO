@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
+
 @dataclass(frozen=True, slots=True)
 class InstanceConfig:
     """Configuration that controls random instance generation.
@@ -44,6 +45,7 @@ class ProblemInstance:
     prices_hotels: np.ndarray  # 2 dimensions
     prices_travels: np.ndarray  # 3 dimensions
     seed: int = 0
+
 
 @dataclass(frozen=True, slots=True)
 class ProblemTQUDO:

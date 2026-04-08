@@ -108,9 +108,7 @@ def _reference_bruteforce(df: Any) -> Any:
     tq = tqudo.copy()
     tq["ref_objective_tqudo"] = tq["objective_value"]
     ref = tq.groupby(["n_cities", "instance_key"], as_index=False).last()
-    ref = ref[
-        ["n_cities", "instance_key", "ref_real_cost", "ref_objective_tqudo"]
-    ]
+    ref = ref[["n_cities", "instance_key", "ref_real_cost", "ref_objective_tqudo"]]
 
     qubo = bf[bf["formulation"] == "qubo"]
     if not qubo.empty:
@@ -163,25 +161,18 @@ def build_paired_metrics(df: Any) -> Any:
     ref_o = merged["ref_objective_value"].to_numpy(dtype=np.float64, copy=False)
     init_e = merged["initial_energy"].to_numpy(dtype=np.float64, copy=False)
     merged["approx_ratio_real"] = np.where(
-        (merged["real_cost"].notna())
-        & np.isfinite(ref_r)
-        & (np.abs(ref_r) > _eps),
+        (merged["real_cost"].notna()) & np.isfinite(ref_r) & (np.abs(ref_r) > _eps),
         merged["real_cost"] / merged["ref_real_cost"],
         np.nan,
     )
     merged["approx_ratio_objective"] = np.where(
-        (merged["objective_value"].notna())
-        & np.isfinite(ref_o)
-        & (np.abs(ref_o) > _eps),
+        (merged["objective_value"].notna()) & np.isfinite(ref_o) & (np.abs(ref_o) > _eps),
         merged["objective_value"] / merged["ref_objective_value"],
         np.nan,
     )
     merged["energy_improvement_rel"] = np.where(
-        (merged["objective_value"].notna())
-        & np.isfinite(init_e)
-        & (np.abs(init_e) > _eps),
-        (merged["initial_energy"] - merged["objective_value"])
-        / np.abs(merged["initial_energy"]),
+        (merged["objective_value"].notna()) & np.isfinite(init_e) & (np.abs(init_e) > _eps),
+        (merged["initial_energy"] - merged["objective_value"]) / np.abs(merged["initial_energy"]),
         np.nan,
     )
 
@@ -377,7 +368,7 @@ def _histogram_sample_mass_split(
 ) -> tuple[float, float, float] | None:
     """Feasible, infeasible-decoded, and invalid-key sample mass (sum to 1.0).
 
-    QUBO keys: ``(n-1)^2`` binary characters. Native TQUDO: ``n-1`` dash-separated integers.
+    QUBO keys: ``(n-1)^2`` binary characters. Native N-QAOA / ``tqudo``: ``n-1`` dash-separated integers.
     Legacy digit-only keys without dashes are accepted when ``len(key) == n-1`` and
     ``key.isdigit()``.
     """
@@ -389,7 +380,9 @@ def _histogram_sample_mass_split(
     except (KeyError, TypeError, ValueError):
         return None
     n_available = inst.n_cities - 1
-    total = sum(int(v) for v in samples.values() if isinstance(v, (int, float)) and not isinstance(v, bool))
+    total = sum(
+        int(v) for v in samples.values() if isinstance(v, (int, float)) and not isinstance(v, bool)
+    )
     if total <= 0:
         return None
     feas_mass = 0
@@ -419,10 +412,7 @@ def _histogram_sample_mass_split(
                 infeas_mass += cnt
             continue
         parts = key.split("-")
-        if (
-            len(parts) == n_available
-            and all(p.isdigit() for p in parts)
-        ):
+        if len(parts) == n_available and all(p.isdigit() for p in parts):
             seq_l = [int(p) for p in parts]
             if validate_solution_constraints_tqudo(inst, seq_l):
                 feas_mass += cnt
@@ -552,9 +542,7 @@ def enrich_sample_quality(df: Any, output_root: Path) -> Any:
                     form = str(row.get("formulation") or "")
                     n_cities = int(row["n_cities"])
                     ik = int(row["instance_key"])
-                    seq = load_bruteforce_optimal_sequence(
-                        root, n_cities, ik, cache=bf_cache
-                    )
+                    seq = load_bruteforce_optimal_sequence(root, n_cities, ik, cache=bf_cache)
                     if seq is not None and form in ("qubo", "tqudo", "tqudo_virtual"):
                         ck = histogram_key_for_formulation(seq, form, n_cities)
                         nh = histogram_mass_near_center(fs, ck, form, n_cities, 1)
@@ -627,11 +615,11 @@ def enrich_energy_trajectory_metrics(
             steps_eps.append(None)
             continue
         init_e_raw = row.get("initial_energy")
-        init_e = float(init_e_raw) if init_e_raw is not None and np.isfinite(float(init_e_raw)) else None
-        au = normalized_energy_auc(h, init_e)
-        st_i = first_step_within_epsilon_of_ref(
-            h, float(ref), rel_tol=rel_tol, abs_floor=abs_floor
+        init_e = (
+            float(init_e_raw) if init_e_raw is not None and np.isfinite(float(init_e_raw)) else None
         )
+        au = normalized_energy_auc(h, init_e)
+        st_i = first_step_within_epsilon_of_ref(h, float(ref), rel_tol=rel_tol, abs_floor=abs_floor)
         st = float(st_i) if st_i is not None else None
         aucs.append(au)
         steps_eps.append(st)

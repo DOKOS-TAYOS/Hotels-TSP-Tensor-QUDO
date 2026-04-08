@@ -55,13 +55,27 @@ def _plot_comparison_dashboard(
     label_left: str,
     label_right: str,
     x_axis_label: str,
+    other_panels_stats_stop: int | None = None,
 ) -> Any:
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 
+    if other_panels_stats_stop is not None:
+        stop = int(other_panels_stats_stop)
+        stats_rest = stats_list[:stop]
+        x_labels_rest = x_labels[:stop]
+        if not stats_rest or len(stats_rest) != len(x_labels_rest):
+            raise ValueError(
+                "other_panels_stats_stop must slice stats_list and x_labels to the same positive length"
+            )
+    else:
+        stats_rest = stats_list
+        x_labels_rest = x_labels
+
     x = np.arange(len(x_labels), dtype=np.float64)
+    x_rest = np.arange(len(x_labels_rest), dtype=np.float64)
     w = 0.36
     c_opt, c_sub, c_inf = "#2ca02c", "#ffbb78", "#c7c7c7"
 
@@ -73,9 +87,7 @@ def _plot_comparison_dashboard(
     right_sub = [float(s["right_feasible_subopt"]) for s in stats_list]
     right_inf = [float(s["right_infeasible"]) for s in stats_list]
 
-    ax00.bar(
-        x - w / 2, left_opt, w, label="Optimal", color=c_opt, edgecolor="white", linewidth=0.5
-    )
+    ax00.bar(x - w / 2, left_opt, w, label="Optimal", color=c_opt, edgecolor="white", linewidth=0.5)
     ax00.bar(
         x - w / 2,
         left_sub,
@@ -132,7 +144,7 @@ def _plot_comparison_dashboard(
             pct_key="cost_left_better_cond_pct",
             denom_key="n_both_feasible",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
     cr = [
         _dashboard_bar_count(
@@ -141,7 +153,7 @@ def _plot_comparison_dashboard(
             pct_key="cost_right_better_cond_pct",
             denom_key="n_both_feasible",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
     ct = [
         _dashboard_bar_count(
@@ -150,14 +162,14 @@ def _plot_comparison_dashboard(
             pct_key="cost_tie_cond_pct",
             denom_key="n_both_feasible",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
     ww = 0.25
-    ax01.bar(x - ww, cl, ww, label=f"Lower cost ({label_left})", color="#1f77b4")
-    ax01.bar(x, cr, ww, label=f"Lower cost ({label_right})", color="#ff7f0e")
-    ax01.bar(x + ww, ct, ww, label="Tie", color="#7f7f7f")
-    ax01.set_xticks(x)
-    ax01.set_xticklabels(x_labels)
+    ax01.bar(x_rest - ww, cl, ww, label=f"Lower cost ({label_left})", color="#1f77b4")
+    ax01.bar(x_rest, cr, ww, label=f"Lower cost ({label_right})", color="#ff7f0e")
+    ax01.bar(x_rest + ww, ct, ww, label="Tie", color="#7f7f7f")
+    ax01.set_xticks(x_rest)
+    ax01.set_xticklabels(x_labels_rest)
     ax01.set_ylabel(
         "Instances\n(both feasible, lower real cost / tie)",
         fontsize=AXIS_LABEL_FONTSIZE,
@@ -176,7 +188,7 @@ def _plot_comparison_dashboard(
             pct_key="only_left_feasible_pct",
             denom_key="n_paired",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
     orf = [
         _dashboard_bar_count(
@@ -185,12 +197,12 @@ def _plot_comparison_dashboard(
             pct_key="only_right_feasible_pct",
             denom_key="n_paired",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
-    ax10.bar(x - ww, olf, ww, label=f"{label_left} only", color="#1f77b4")
-    ax10.bar(x + ww, orf, ww, label=f"{label_right} only", color="#ff7f0e")
-    ax10.set_xticks(x)
-    ax10.set_xticklabels(x_labels)
+    ax10.bar(x_rest - ww, olf, ww, label=f"{label_left} only", color="#1f77b4")
+    ax10.bar(x_rest + ww, orf, ww, label=f"{label_right} only", color="#ff7f0e")
+    ax10.set_xticks(x_rest)
+    ax10.set_xticklabels(x_labels_rest)
     ax10.set_ylabel(
         "Instances\n(feasible on one side only)",
         fontsize=AXIS_LABEL_FONTSIZE,
@@ -209,7 +221,7 @@ def _plot_comparison_dashboard(
             pct_key="only_left_optimal_pct",
             denom_key="n_paired",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
     oro = [
         _dashboard_bar_count(
@@ -218,12 +230,12 @@ def _plot_comparison_dashboard(
             pct_key="only_right_optimal_pct",
             denom_key="n_paired",
         )
-        for s in stats_list
+        for s in stats_rest
     ]
-    ax11.bar(x - ww, olo, ww, label=f"{label_left} only", color="#2ca02c")
-    ax11.bar(x + ww, oro, ww, label=f"{label_right} only", color="#d62728")
-    ax11.set_xticks(x)
-    ax11.set_xticklabels(x_labels)
+    ax11.bar(x_rest - ww, olo, ww, label=f"{label_left} only", color="#2ca02c")
+    ax11.bar(x_rest + ww, oro, ww, label=f"{label_right} only", color="#d62728")
+    ax11.set_xticks(x_rest)
+    ax11.set_xticklabels(x_labels_rest)
     ax11.set_ylabel(
         "Instances\n(optimal on one side only)",
         fontsize=AXIS_LABEL_FONTSIZE,
@@ -420,7 +432,11 @@ def _decorate_y_axis_from_values(
                 pad = max(0.05 * edge_max, 0.04 * abs_max, 0.02, 1e-9)
             lo, hi = lo - pad, hi + pad
         if y_scale == "asinh":
-            lw = float(asinh_linear_width) if asinh_linear_width is not None else float(symlog_linthresh)
+            lw = (
+                float(asinh_linear_width)
+                if asinh_linear_width is not None
+                else float(symlog_linthresh)
+            )
             lw = max(lw, 1e-15)
             ax.set_yscale("asinh", linear_width=lw)
             if manual_y_limits:
@@ -480,9 +496,9 @@ def _plot_approx_ratio_boxplots_vs_p(
     ``y_axis_kind="rho"``: limits/ticks for approximation ratio; ``"generic"`` uses
     :func:`_decorate_y_axis_from_values` (e.g. :math:`P(\\mathrm{opt})`).
 
-    ``uniform_p_opt_hline_ns``: draw horizontal reference :math:`1/(n-1)^{n-1}` per :math:`n` (TQUDO basis).
+    ``uniform_p_opt_hline_ns``: draw horizontal reference :math:`1/(n-1)^{n-1}` per :math:`n` (tensor / N-QAOA counting).
     ``uniform_qubo_p_opt_hline_ns``: draw horizontal reference :math:`1/2^{(n-1)^2}` per :math:`n` (QUBO).
-    Uniform lines use the same face color as the **TQUDO qudits** and **QUBO** box series when those
+    Uniform lines use the same face color as the **N-QAOA** and **QUBO** box series when those
     labels exist in *series*.
 
     If ``uniform_refs_in_ylim`` is false (log *y* only), reference masses are not mixed into *y* limits
@@ -512,7 +528,7 @@ def _plot_approx_ratio_boxplots_vs_p(
         (
             r
             for r, (lab, _) in enumerate(active)
-            if lab == "TQUDO qudits" or lab.startswith("TQUDO qudits")
+            if lab == "N-QAOA" or lab.startswith("N-QAOA")
         ),
         None,
     )
@@ -521,9 +537,7 @@ def _plot_approx_ratio_boxplots_vs_p(
         None,
     )
     col_tqudo_uni = colors[(r_tq if r_tq is not None else 0) % len(colors)]
-    col_qubo_uni = colors[
-        (r_qb if r_qb is not None else max(n_s - 1, 0)) % len(colors)
-    ]
+    col_qubo_uni = colors[(r_qb if r_qb is not None else max(n_s - 1, 0)) % len(colors)]
     if_narrow = max(n_s - 1, 1)
     if n_s <= 3:
         dodge = 0.09
@@ -554,7 +568,12 @@ def _plot_approx_ratio_boxplots_vs_p(
             for pos, vals in zip(positions, col_data, strict=True):
                 seed = 9001 + rank * 131 + int(round(pos * 1000)) + len(vals)
                 _scatter_rho_instances_jittered(
-                    ax, pos, vals, color=color, jitter_span=jitter_w, rng=np.random.default_rng(seed)
+                    ax,
+                    pos,
+                    vals,
+                    color=color,
+                    jitter_span=jitter_w,
+                    rng=np.random.default_rng(seed),
                 )
         bp = ax.boxplot(
             col_data,
@@ -575,9 +594,7 @@ def _plot_approx_ratio_boxplots_vs_p(
             ),
         )
         _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
-        legend_handles.append(
-            Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label)
-        )
+        legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label))
 
     if ref_hline is not None and math.isfinite(float(ref_hline)):
         if y_scale != "log" or float(ref_hline) > 0.0:
@@ -644,7 +661,7 @@ def _plot_approx_ratio_boxplots_vs_p(
                 color=col_tqudo_uni,
                 linestyle="--",
                 linewidth=1.25,
-                label=rf"Uniform TQUDO $n={un}$ ($1/{un - 1}^{{{un - 1}}}$)",
+                label=rf"Uniform N-QAOA $n={un}$ ($1/{un - 1}^{{{un - 1}}}$)",
             )
         )
     for un in uniform_qubo_p_opt_hline_ns:
@@ -759,9 +776,7 @@ def _plot_approx_ratio_boxplots_vs_ncities(
             ),
         )
         _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
-        legend_handles.append(
-            Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label)
-        )
+        legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label))
 
     if ref_hline is not None and math.isfinite(float(ref_hline)):
         if y_scale != "log" or float(ref_hline) > 0.0:
@@ -779,9 +794,7 @@ def _plot_approx_ratio_boxplots_vs_ncities(
         fontsize=AXIS_LABEL_FONTSIZE,
     )
     lo, hi = _ylim_rho_plot(all_rho, y_scale=y_scale)
-    _decorate_approx_ratio_y_axis(
-        ax, lo, hi, y_scale=y_scale, symlog_linthresh=symlog_linthresh
-    )
+    _decorate_approx_ratio_y_axis(ax, lo, hi, y_scale=y_scale, symlog_linthresh=symlog_linthresh)
     ax.set_ylim(lo, hi)
     ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
     if legend_handles:
@@ -831,9 +844,7 @@ def _plot_dodged_boxplot_series_vs_ncities(
         if not xs or not datas or len(xs) != len(datas):
             continue
         color = colors[i % len(colors)]
-        draw_lists = (
-            [_clip_values_for_log_y(list(v)) for v in datas] if y_scale == "log" else datas
-        )
+        draw_lists = [_clip_values_for_log_y(list(v)) for v in datas] if y_scale == "log" else datas
         for vals in draw_lists:
             all_y.extend(float(v) for v in vals if np.isfinite(v))
         if strip_jitter:
@@ -866,9 +877,7 @@ def _plot_dodged_boxplot_series_vs_ncities(
             ),
         )
         _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
-        legend_handles.append(
-            Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label)
-        )
+        legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label))
 
     if uniform_p_opt_vline_ns:
         for n in uniform_p_opt_vline_ns:
@@ -964,7 +973,7 @@ def _plot_paired_four_series_boxplots_vs_p(
     y_scale: str = "linear",
     symlog_linthresh: float = 1e-5,
 ) -> Any:
-    """Up to four dodged box/strip series per *p* (e.g. qubits/qudits × two *n*)."""
+    """Up to four dodged box/strip series per *p* (e.g. V-QAOA/N-QAOA × two *n*)."""
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
 
@@ -986,9 +995,7 @@ def _plot_paired_four_series_boxplots_vs_p(
 
     for rank, (leg_label, values_rows) in enumerate(series):
         color = colors[rank % len(colors)]
-        legend_handles.append(
-            Patch(facecolor=color, edgecolor=color, alpha=0.45, label=leg_label)
-        )
+        legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=leg_label))
         for i in range(n_g):
             vals = values_rows[i] if i < len(values_rows) else []
             pos = float(i) + (float(rank) - half) * dodge
@@ -1030,9 +1037,7 @@ def _plot_paired_four_series_boxplots_vs_p(
     ax.set_xticklabels(x_labels)
     ax.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax.set_ylabel(y_label, fontsize=AXIS_LABEL_FONTSIZE)
-    _decorate_y_axis_from_values(
-        ax, all_y, y_scale=y_scale, symlog_linthresh=symlog_linthresh
-    )
+    _decorate_y_axis_from_values(ax, all_y, y_scale=y_scale, symlog_linthresh=symlog_linthresh)
     ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
     ax.legend(handles=legend_handles, fontsize=LEGEND_FONTSIZE_COMPACT)
     fig.tight_layout()

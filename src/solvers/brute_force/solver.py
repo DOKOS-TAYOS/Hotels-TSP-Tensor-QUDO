@@ -108,21 +108,30 @@ class BruteForceSolver:
             i_vals = np.arange(i0, i1, dtype=np.int64)
             seqs = unpack_tqudo_sequences(i_vals, n_available)
             costs = batch_tqudo_costs(
-                problem.Etab, problem.Ettprimeab, seqs, problem.energy_scale,
+                problem.Etab,
+                problem.Ettprimeab,
+                seqs,
+                problem.energy_scale,
             )
             for j in range(i1 - i0):
                 seq_list = seqs[j].tolist()
                 cost = float(costs[j])
-                if best_seq is None or cost < best_cost or (
-                    cost == best_cost and _lex_less_seq(seq_list, best_seq)
+                if (
+                    best_seq is None
+                    or cost < best_cost
+                    or (cost == best_cost and _lex_less_seq(seq_list, best_seq))
                 ):
                     best_cost = cost
                     best_seq = seq_list
 
                 if validate_solution_constraints_tqudo(instance, seq_list):
-                    if best_feasible_seq is None or cost < best_feasible_cost or (
-                        cost == best_feasible_cost
-                        and _lex_less_seq(seq_list, best_feasible_seq)
+                    if (
+                        best_feasible_seq is None
+                        or cost < best_feasible_cost
+                        or (
+                            cost == best_feasible_cost
+                            and _lex_less_seq(seq_list, best_feasible_seq)
+                        )
                     ):
                         best_feasible_cost = cost
                         best_feasible_seq = seq_list
@@ -183,8 +192,10 @@ class BruteForceSolver:
 
                 row = x_batch[j]
                 if validate_solution_constraints_qubo(instance, row):
-                    if best_feasible_i is None or cost < best_feasible_cost or (
-                        cost == best_feasible_cost and i < best_feasible_i
+                    if (
+                        best_feasible_i is None
+                        or cost < best_feasible_cost
+                        or (cost == best_feasible_cost and i < best_feasible_i)
                     ):
                         best_feasible_cost = cost
                         best_feasible_i = i

@@ -90,12 +90,12 @@ def load_bruteforce_optimal_sequence(
 
 
 def native_histogram_key(sequence: list[int]) -> str:
-    """TQUDO qudits (native) sample key: dash-separated qudit values."""
+    """N-QAOA / native ``tqudo`` sample key: dash-separated qudit values."""
     return "-".join(str(int(v)) for v in sequence)
 
 
 def virtual_histogram_key(sequence: list[int], n_cities: int) -> str:
-    """TQUDO qubits (emulation) sample histogram key: contiguous 0/1 string."""
+    """V-QAOA / ``tqudo_virtual`` sample histogram key: contiguous 0/1 string."""
     d = n_cities - 1
     qubits_per_qudit = max(1, int(math.ceil(math.log2(float(d)))))
     return qudit_sequence_to_bitstring(sequence, qubits_per_qudit)

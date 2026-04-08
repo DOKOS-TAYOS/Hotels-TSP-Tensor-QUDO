@@ -58,6 +58,7 @@ def write_dashboard_stats(
     label_left: str,
     label_right: str,
     x_axis_label: str,
+    other_panels_stats_stop: int | None = None,
 ) -> None:
     import pandas as pd
 
@@ -65,15 +66,15 @@ def write_dashboard_stats(
     df.insert(0, "x_label", x_labels)
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(parquet_path, index=False)
-    write_meta(
-        parquet_path,
-        {
-            "kind": "dashboard",
-            "label_left": label_left,
-            "label_right": label_right,
-            "x_axis_label": x_axis_label,
-        },
-    )
+    meta: dict[str, Any] = {
+        "kind": "dashboard",
+        "label_left": label_left,
+        "label_right": label_right,
+        "x_axis_label": x_axis_label,
+    }
+    if other_panels_stats_stop is not None:
+        meta["other_panels_stats_stop"] = int(other_panels_stats_stop)
+    write_meta(parquet_path, meta)
 
 
 def read_dashboard_stats(
@@ -104,9 +105,7 @@ def write_box_vs_p_long(
     for label, depth_vals in series:
         for p in sorted(depth_vals.keys()):
             for v in depth_vals[int(p)]:
-                rows.append(
-                    {"series_label": label, "p": int(p), "value": float(v)}
-                )
+                rows.append({"series_label": label, "p": int(p), "value": float(v)})
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_parquet(parquet_path, index=False)
     write_meta(
@@ -153,9 +152,7 @@ def write_triplet_series_long(
     for label, xs, datas in series:
         for x, vals in zip(xs, datas, strict=True):
             for v in vals:
-                rows.append(
-                    {"series_label": label, "x_pos": float(x), "value": float(v)}
-                )
+                rows.append({"series_label": label, "x_pos": float(x), "value": float(v)})
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_parquet(parquet_path, index=False)
     write_meta(
@@ -207,9 +204,7 @@ def write_paired_four_vs_p(
         for i in range(n_g):
             vals = value_rows[i] if i < len(value_rows) else []
             for v in vals:
-                rows.append(
-                    {"series_label": label, "p_index": int(i), "value": float(v)}
-                )
+                rows.append({"series_label": label, "p_index": int(i), "value": float(v)})
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_parquet(parquet_path, index=False)
     write_meta(

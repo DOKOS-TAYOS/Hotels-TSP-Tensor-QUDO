@@ -53,4 +53,3 @@ def __getattr__(name: str) -> object:
         module = importlib.import_module(module_path)
         return getattr(module, attr)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
