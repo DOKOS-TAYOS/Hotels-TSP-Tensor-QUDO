@@ -19,9 +19,9 @@ def _cohort_label(solver: str, formulation: str) -> str:
     if solver == "cudaq" and formulation == "qubo":
         return "CUDA-Q QUBO"
     if solver == "cudaq" and formulation == "tqudo_virtual":
-        return "CUDA-Q TQUDO (virt.)"
+        return "CUDA-Q V-QAOA"
     if solver == "cirq" and formulation == "tqudo":
-        return "Cirq TQUDO (qudits)"
+        return "Cirq N-QAOA"
     return f"{solver} / {formulation}"
 
 
@@ -51,22 +51,30 @@ def run_extended_analysis_figures(processed: Path, images_extended: Path) -> Non
     paired_q_t = _load_parquet_first(processed, "paired_angle_cudaq_qubo_tvirt")
 
     if paired is not None:
-        _fig_instance_precedence_vs_rho(paired, images_extended / "instance_precedence_density_vs_rho.png")
+        _fig_instance_precedence_vs_rho(
+            paired, images_extended / "instance_precedence_density_vs_rho.png"
+        )
         _fig_efficiency_runtime_vs_rho(paired, images_extended / "efficiency_runtime_vs_rho.png")
-        _fig_efficiency_configs_vs_rho(paired, images_extended / "efficiency_configs_evaluated_vs_rho.png")
+        _fig_efficiency_configs_vs_rho(
+            paired, images_extended / "efficiency_configs_evaluated_vs_rho.png"
+        )
 
     if summary is not None:
-        _fig_efficiency_runtime_by_depth(summary, images_extended / "efficiency_mean_runtime_by_depth.png")
+        _fig_efficiency_runtime_by_depth(
+            summary, images_extended / "efficiency_mean_runtime_by_depth.png"
+        )
 
     if angle_cohort is not None:
-        _fig_angle_cohort_pairwise_cosine(angle_cohort, images_extended / "angles_mean_pairwise_cosine_by_depth.png")
+        _fig_angle_cohort_pairwise_cosine(
+            angle_cohort, images_extended / "angles_mean_pairwise_cosine_by_depth.png"
+        )
 
     if paired_cq_ci is not None and not paired_cq_ci.empty:
         _fig_angle_pair_histogram(
             paired_cq_ci,
             "cosine_pair",
             images_extended / "angles_cudaq_virt_cirq_cosine_hist.png",
-            title="CUDA-Q TQUDO (virt.) vs Cirq TQUDO: angle similarity",
+            title="CUDA-Q V-QAOA vs Cirq N-QAOA: angle similarity",
             xlabel="Cosine similarity of normalized $(\\gamma, \\beta)$ vectors",
             caption="Per instance: inner join on $(n,\\mathrm{inst},p)$. 1 = identical direction.",
         )
@@ -74,7 +82,7 @@ def run_extended_analysis_figures(processed: Path, images_extended: Path) -> Non
             paired_cq_ci,
             "l2_delta",
             images_extended / "angles_cudaq_virt_cirq_l2_hist.png",
-            title="CUDA-Q TQUDO (virt.) vs Cirq TQUDO: $\\|\\mathbf{v}_{\\mathrm{CQ}}-\\mathbf{v}_{\\mathrm{Ci}}\\|_2$",
+            title="CUDA-Q V-QAOA vs Cirq N-QAOA: $\\|\\mathbf{v}_{\\mathrm{CQ}}-\\mathbf{v}_{\\mathrm{Ci}}\\|_2$",
             xlabel="L2 distance (both vectors L2-normalized)",
             caption="0 = identical angles. Larger = more different optimal QAOA parameters.",
         )
@@ -84,7 +92,7 @@ def run_extended_analysis_figures(processed: Path, images_extended: Path) -> Non
             paired_q_t,
             "cosine_pair",
             images_extended / "angles_cudaq_qubo_virt_cosine_hist.png",
-            title="CUDA-Q QUBO vs TQUDO (virt.): angle similarity",
+            title="CUDA-Q QUBO vs V-QAOA: angle similarity",
             xlabel="Cosine similarity of normalized $(\\gamma, \\beta)$ vectors",
             caption="Same instance and depth $p$ on both formulations.",
         )
@@ -306,7 +314,9 @@ def _fig_efficiency_runtime_by_depth(summary: Any, out_path: Path) -> None:
         return
     sub["qaoa_depth"] = sub["qaoa_depth"].astype(int)
     sub["lab"] = sub.apply(
-        lambda r: f"n={int(r['n_cities'])} · {_cohort_label(str(r['solver']), str(r['formulation']))}",
+        lambda r: (
+            f"n={int(r['n_cities'])} · {_cohort_label(str(r['solver']), str(r['formulation']))}"
+        ),
         axis=1,
     )
     fig, ax = plt.subplots(figsize=(11, 6))
@@ -325,7 +335,9 @@ def _fig_efficiency_runtime_by_depth(summary: Any, out_path: Path) -> None:
     ax.set_xticks(sorted(sub["qaoa_depth"].unique()))
     ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
     ax.legend(loc="best", fontsize=LEGEND_FONTSIZE_COMPACT, framealpha=0.92)
-    ax.set_title("Computational cost by configuration (summary_by_config)", fontsize=AXIS_LABEL_FONTSIZE + 1)
+    ax.set_title(
+        "Computational cost by configuration (summary_by_config)", fontsize=AXIS_LABEL_FONTSIZE + 1
+    )
     fig.text(
         0.5,
         0.01,
@@ -354,7 +366,9 @@ def _fig_angle_cohort_pairwise_cosine(angle_cohort: Any, out_path: Path) -> None
         return
     sub["qaoa_depth"] = sub["qaoa_depth"].astype(int)
     sub["lab"] = sub.apply(
-        lambda r: f"n={int(r['n_cities'])} · {_cohort_label(str(r['solver']), str(r['formulation']))}",
+        lambda r: (
+            f"n={int(r['n_cities'])} · {_cohort_label(str(r['solver']), str(r['formulation']))}"
+        ),
         axis=1,
     )
     fig, ax = plt.subplots(figsize=(11, 6))
@@ -409,8 +423,16 @@ def _fig_angle_pair_histogram(
     if vals.size == 0:
         return
     fig, ax = plt.subplots(figsize=(9, 5.5))
-    ax.hist(vals, bins=min(40, max(10, vals.size // 5)), color="#4c72b0", edgecolor="white", alpha=0.9)
-    ax.axvline(float(np.mean(vals)), color="crimson", linestyle="--", linewidth=2, label=f"mean = {np.mean(vals):.3f}")
+    ax.hist(
+        vals, bins=min(40, max(10, vals.size // 5)), color="#4c72b0", edgecolor="white", alpha=0.9
+    )
+    ax.axvline(
+        float(np.mean(vals)),
+        color="crimson",
+        linestyle="--",
+        linewidth=2,
+        label=f"mean = {np.mean(vals):.3f}",
+    )
     ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
     ax.set_ylabel("Count", fontsize=AXIS_LABEL_FONTSIZE)
     ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)

@@ -142,7 +142,7 @@ def _collect_cirq_tqudo_opt_steps_box_series_vs_ncities(
     depth_values: tuple[int, ...],
     output_root: Path,
 ) -> list[tuple[str, list[float], list[list[float]]]]:
-    """Per QAOA depth: dodged *n*, raw step counts for Cirq native TQUDO (optimal runs only)."""
+    """Per QAOA depth: dodged *n*, raw step counts for Cirq N-QAOA (optimal runs only)."""
     depth_union = set(depth_values)
     if not depth_union:
         return []
@@ -213,7 +213,7 @@ def _approx_ratio_lists_by_depth_unpaired(
 
 
 def _solver_form_tqudo_by_n_cities(n_cities: int) -> tuple[str, str]:
-    """TQUDO qudits (Cirq native) for n<9; TQUDO qubits (CUDA-Q) for n=9 (project convention)."""
+    """N-QAOA (Cirq native ``tqudo``) for n<9; V-QAOA (CUDA-Q ``tqudo_virtual``) for n=9 (project convention)."""
     if n_cities == 9:
         return ("cudaq", "tqudo_virtual")
     return ("cirq", "tqudo")
@@ -314,9 +314,7 @@ def _p_opt_final_from_row(
         return None
     n_cities = int(row["n_cities"])
     instance_key = int(row["instance_key"])
-    seq = load_bruteforce_optimal_sequence(
-        output_root, n_cities, instance_key, cache=bf_cache
-    )
+    seq = load_bruteforce_optimal_sequence(output_root, n_cities, instance_key, cache=bf_cache)
     if seq is None:
         return None
     key = histogram_key_for_formulation(seq, formulation, n_cities)
@@ -344,9 +342,7 @@ def _delta_p_opt_from_row(
         return None
     n_cities = int(row["n_cities"])
     instance_key = int(row["instance_key"])
-    seq = load_bruteforce_optimal_sequence(
-        output_root, n_cities, instance_key, cache=bf_cache
-    )
+    seq = load_bruteforce_optimal_sequence(output_root, n_cities, instance_key, cache=bf_cache)
     if seq is None:
         return None
     key = histogram_key_for_formulation(seq, formulation, n_cities)
@@ -442,9 +438,7 @@ def _collect_numeric_by_ncities_depth(
         means: list[float] = []
         stds: list[float] = []
         for n in n_vals:
-            sel = sub0[
-                (sub0["n_cities"] == n) & (sub0["qaoa_depth"] == depth)
-            ].copy()
+            sel = sub0[(sub0["n_cities"] == n) & (sub0["qaoa_depth"] == depth)].copy()
             sel = _dedupe_solution_rows(
                 sel,
                 ["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
@@ -509,9 +503,7 @@ def _collect_numeric_box_series_vs_ncities(
         xs: list[float] = []
         datas: list[list[float]] = []
         for n in n_vals:
-            sel = sub0[
-                (sub0["n_cities"] == n) & (sub0["qaoa_depth"] == depth)
-            ].copy()
+            sel = sub0[(sub0["n_cities"] == n) & (sub0["qaoa_depth"] == depth)].copy()
             sel = _dedupe_solution_rows(
                 sel,
                 ["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
@@ -578,9 +570,7 @@ def _collect_energy_improvement_box_series_vs_ncities(
         xs: list[float] = []
         datas: list[list[float]] = []
         for n in n_vals:
-            sel = sub0[
-                (sub0["n_cities"] == n) & (sub0["qaoa_depth"] == depth)
-            ].copy()
+            sel = sub0[(sub0["n_cities"] == n) & (sub0["qaoa_depth"] == depth)].copy()
             sel = _dedupe_solution_rows(
                 sel,
                 ["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
@@ -595,6 +585,7 @@ def _collect_energy_improvement_box_series_vs_ncities(
         if xs:
             out.append((f"p = {depth}", xs, datas))
     return out
+
 
 def _paired_metric_lists_by_depth(
     merged: Any,
@@ -642,19 +633,13 @@ def _paired_delta_p_opt_lists_by_depth(
                 continue
             n_cities = int(row["n_cities"])
             ik = int(row["instance_key"])
-            seq = load_bruteforce_optimal_sequence(
-                output_root, n_cities, ik, cache=bf_cache
-            )
+            seq = load_bruteforce_optimal_sequence(output_root, n_cities, ik, cache=bf_cache)
             if seq is None:
                 continue
             key_l = histogram_key_for_formulation(seq, "tqudo_virtual", n_cities)
             key_r = histogram_key_for_formulation(seq, "tqudo", n_cities)
-            init_l, fin_l = read_sample_histograms_from_solution_json(
-                output_root / str(pl).strip()
-            )
-            init_r, fin_r = read_sample_histograms_from_solution_json(
-                output_root / str(pr).strip()
-            )
+            init_l, fin_l = read_sample_histograms_from_solution_json(output_root / str(pl).strip())
+            init_r, fin_r = read_sample_histograms_from_solution_json(output_root / str(pr).strip())
             p0l = histogram_mass(init_l, key_l)
             p1l = histogram_mass(fin_l, key_l)
             p0r = histogram_mass(init_r, key_r)

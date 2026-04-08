@@ -35,9 +35,9 @@ One PNG **per QAOA depth** `p` (suffix `_p1`, `_p2`, …). **Y axis:** mean ± �
 
 | PNG pattern | Cohort / use |
 |-------------|----------------|
-| `cudaq_qubo_tvirt_n5_p{p}.png` | QUBO vs **TQUDO qubits** (CUDA-Q `tqudo_virtual`), `n=5`; one axis. |
-| `cirq_tqudo_vs_cq_tvirt_n5_n9_p{p}.png` | **TQUDO qudits** vs **TQUDO qubits** for **`n=5` and `n=9`** (four series); shared axis. |
-| `cirq_tqudo_by_n_p{p}.png` | **TQUDO qudits** only (Cirq `tqudo`); one series per `n_cities` at fixed \(p\). |
+| `cudaq_qubo_tvirt_n5_p{p}.png` | QUBO vs **V-QAOA** (CUDA-Q `tqudo_virtual`), `n=5`; one axis. |
+| `cirq_tqudo_vs_cq_tvirt_n5_n9_p{p}.png` | **N-QAOA** vs **V-QAOA** for **`n=5` and `n=9`** (four series); shared axis. |
+| `cirq_tqudo_by_n_p{p}.png` | **N-QAOA** only (Cirq `tqudo`); one series per `n_cities` at fixed \(p\). |
 
 Dashed lines: optimum level \(\pm 1\) after the same scaling (see `data_analysis.md`). Not raw tour cost.
 
@@ -45,8 +45,8 @@ Dashed lines: optimum level \(\pm 1\) after the same scaling (see `data_analysis
 
 | PNG | Content |
 |-----|---------|
-| `cudaq_qubo_vs_tvirt_n5.png` | QUBO vs **TQUDO qubits** (counts, feasibility, asymmetry by \(p\)). |
-| `cudaq_tvirt_vs_cirq_n5.png` | **TQUDO qubits** vs **TQUDO qudits**, **`n = 5`**. |
+| `cudaq_qubo_vs_tvirt_n5.png` | QUBO vs **V-QAOA** (counts, feasibility, asymmetry by \(p\)). |
+| `cudaq_tvirt_vs_cirq_n5.png` | **V-QAOA** vs **N-QAOA**, **`n = 5`**. |
 | `cudaq_tvirt_vs_cirq_n9.png` | Same layout, **`n = 9`**. |
 
 ### `images/approx_ratio/` (mean \(\rho\), from `paired_metrics`)
@@ -54,31 +54,31 @@ Dashed lines: optimum level \(\pm 1\) after the same scaling (see `data_analysis
 | PNG | Content |
 |-----|---------|
 | `n5_qubo_tvirt_cirq_vs_p.png` | Mean \(\rho\) vs \(p\) for three series (feasible rows), all `n=5`. |
-| `rho_vs_n_by_p.png` | Mean \(\rho\) vs `n` (convention: **TQUDO qudits** up to `n=8`, **TQUDO qubits** at `n=9`). |
+| `rho_vs_n_by_p.png` | Mean \(\rho\) vs `n` (convention: **N-QAOA** up to `n=8`, **V-QAOA** at `n=9`). |
 
 ### `images/steps/` (first minimum in `energy_history`, from `paired_metrics` + JSON)
 
 | PNG | Content |
 |-----|---------|
-| `cudaq_tvirt_vs_qubo_n5_vs_p.png` | Steps to first trace minimum vs \(p\); **TQUDO qubits** vs QUBO, `n = 5`. |
-| `cudaq_tvirt_vs_cirq_n5_n9_vs_p.png` | Two panels \(n = 5\) and \(n = 9\); **TQUDO qubits** vs **TQUDO qudits**. |
-| `cirq_tqudo_firstmin_steps_vs_n_by_p.png` | **TQUDO qudits** only: same step metric vs **`n`**, one series per **`p`** (optional). |
+| `cudaq_tvirt_vs_qubo_n5_vs_p.png` | Steps to first trace minimum vs \(p\); **V-QAOA** vs QUBO, `n = 5`. |
+| `cudaq_tvirt_vs_cirq_n5_n9_vs_p.png` | Two panels \(n = 5\) and \(n = 9\); **V-QAOA** vs **N-QAOA**. |
+| `cirq_tqudo_firstmin_steps_vs_n_by_p.png` | **N-QAOA** only: same step metric vs **`n`**, one series per **`p`** (optional). |
 
 ### `images/improvement/` (`energy_improvement_rel`, from `paired_metrics`)
 
 | PNG | Content |
 |-----|---------|
-| `cirq_tqudo_rel_energy_vs_n_by_p.png` | Mean ± σ of relative energy improvement vs \(n\); **TQUDO qudits**. |
-| `paired_n5_cq_cirq_rel_energy_vs_p.png` | Paired \(n=5\): **TQUDO qubits** vs **TQUDO qudits**, grouped bars vs \(p\). |
+| `cirq_tqudo_rel_energy_vs_n_by_p.png` | Mean ± σ of relative energy improvement vs \(n\); **N-QAOA**. |
+| `paired_n5_cq_cirq_rel_energy_vs_p.png` | Paired \(n=5\): **V-QAOA** vs **N-QAOA**, grouped bars vs \(p\). |
 
 ### `images/p_opt/` (sample histograms + BF key; from `paired_metrics` + JSON)
 
 | PNG | Content |
 |-----|---------|
-| `cirq_tqudo_popt_vs_n_by_p.png` | \(P(\mathrm{opt})\) vs \(n\); **TQUDO qudits**; **log \(y\)**. |
-| `n5_cirq_vs_cq_tvirt_popt_vs_p.png` | \(P(\mathrm{opt})\) vs \(p\) at \(n=5\): **TQUDO qudits** vs **TQUDO qubits**; **log \(y\)**. |
-| `cirq_tqudo_delta_popt_vs_n_by_p.png` | \(\Delta P(\mathrm{opt})\) vs \(n\); **TQUDO qudits**; **symlog \(y\)**. |
-| `paired_n5_cq_cirq_delta_popt_vs_p.png` | Paired \(n=5\): **TQUDO qubits** vs **TQUDO qudits**, \(\Delta P\) vs \(p\); **symlog \(y\)**. |
+| `cirq_tqudo_popt_vs_n_by_p.png` | \(P(\mathrm{opt})\) vs \(n\); **N-QAOA**; **log \(y\)**. |
+| `n5_cirq_vs_cq_tvirt_popt_vs_p.png` | \(P(\mathrm{opt})\) vs \(p\) at \(n=5\): **N-QAOA** vs **V-QAOA**; **log \(y\)**. |
+| `cirq_tqudo_delta_popt_vs_n_by_p.png` | \(\Delta P(\mathrm{opt})\) vs \(n\); **N-QAOA**; **symlog \(y\)**. |
+| `paired_n5_cq_cirq_delta_popt_vs_p.png` | Paired \(n=5\): **V-QAOA** vs **N-QAOA**, \(\Delta P\) vs \(p\); **symlog \(y\)**. |
 
 **Note:** Aggregated summaries and energy curves **drop simulated annealing** rows by design; the manifest may still list SA runs.
 

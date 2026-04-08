@@ -22,11 +22,13 @@ class CudaqSolver(BaseQAOASolver):
     def _get_tqudo_virtual_runner(self) -> Callable[..., dict]:
         """Return emulated TQUDO :func:`run_qaoa` for CUDA-Q."""
         from solvers.cudaq_solver.qaoa_circuit_tqudo import run_qaoa
+
         return run_qaoa
 
     def _get_qubo_runner(self) -> Callable[..., dict]:
         """Return QUBO :func:`run_qaoa` for CUDA-Q."""
         from solvers.cudaq_solver.qaoa_circuit_qubo import run_qaoa
+
         return run_qaoa
 
     def _serialize_samples(self, samples: Any) -> dict[str, int] | None:
@@ -34,7 +36,9 @@ class CudaqSolver(BaseQAOASolver):
         return measurement_histogram_for_json(samples)
 
     def _noise_qubit_count(
-        self, instance: ProblemInstance, formulation: str,
+        self,
+        instance: ProblemInstance,
+        formulation: str,
     ) -> tuple[int, dict[str, Any]]:
         """Return qubit count for noise warnings (virtual TQUDO vs QUBO)."""
         n_available = instance.n_cities - 1

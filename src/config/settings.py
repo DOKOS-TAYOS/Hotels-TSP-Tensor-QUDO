@@ -99,7 +99,9 @@ def load_settings(env_file: Path | str | None = None, project_root: Path | None 
     backend = _get_setting("HTSP_QUANTUM_BACKEND", "simulated_annealing", env_values)
     if backend not in _VALID_BACKENDS:
         supported = ", ".join(sorted(_VALID_BACKENDS))
-        raise ValueError(f"Unsupported HTSP_QUANTUM_BACKEND '{backend}'. Expected one of: {supported}.")
+        raise ValueError(
+            f"Unsupported HTSP_QUANTUM_BACKEND '{backend}'. Expected one of: {supported}."
+        )
 
     output_dir = _resolve_path(_get_setting("HTSP_OUTPUT_DIR", "output", env_values), resolved_root)
     input_dir = _resolve_path(_get_setting("HTSP_INPUT_DIR", "input", env_values), resolved_root)
@@ -118,9 +120,7 @@ def load_settings(env_file: Path | str | None = None, project_root: Path | None 
     try:
         random_seed = int(raw_seed)
     except ValueError:
-        raise ValueError(
-            f"HTSP_RANDOM_SEED must be an integer, got {raw_seed!r}"
-        ) from None
+        raise ValueError(f"HTSP_RANDOM_SEED must be an integer, got {raw_seed!r}") from None
 
     valid_backends: dict[str, BackendName] = {
         "simulated_annealing": "simulated_annealing",

@@ -18,7 +18,9 @@ from utils.experiment_paths import (
 )
 from utils.yaml_tools import load_yaml_mapping
 
-DEFAULT_INSTANCE_GENERATION_CONFIG_PATH = Path(__file__).with_name("instance_generation_config.yaml")
+DEFAULT_INSTANCE_GENERATION_CONFIG_PATH = Path(__file__).with_name(
+    "instance_generation_config.yaml"
+)
 
 
 def load_instance_generation_entries(path: Path | str | None = None) -> list[tuple[int, int]]:
@@ -84,9 +86,7 @@ def deserialize_problem_instance(data: dict[str, Any]) -> ProblemInstance:
 
     """
     raw_prec = data["precedences"]
-    precedences: tuple[tuple[int, int], ...] = tuple(
-        (int(p[0]), int(p[1])) for p in raw_prec
-    )
+    precedences: tuple[tuple[int, int], ...] = tuple((int(p[0]), int(p[1])) for p in raw_prec)
     prices_hotels = np.asarray(data["prices_hotels"], dtype=np.float64)
     prices_travels = np.asarray(data["prices_travels"], dtype=np.float64)
     seed = int(data.get("seed", 0))

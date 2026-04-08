@@ -236,7 +236,9 @@ def run_experiment_from_yaml(
         instances apply. Honors cooperative stop and SIGINT (exit 130).
     """
     base_instance = load_instance_config(instance_config_path)
-    base_solver_path = Path(solver_config_path) if solver_config_path else DEFAULT_SOLVER_CONFIG_PATH
+    base_solver_path = (
+        Path(solver_config_path) if solver_config_path else DEFAULT_SOLVER_CONFIG_PATH
+    )
     base_solver = load_yaml_mapping(base_solver_path)
     experiment = load_yaml_mapping(experiment_yaml_path)
     merged = merge_solver_yaml_dicts(base_solver, experiment)
@@ -342,9 +344,7 @@ def run_experiment_from_yaml(
                         ParallelSolveJob(
                             k=k,
                             instance_json_path=str(src),
-                            status_label=(
-                                f"n_cities={n_cities} depth={path_depth} inst={k}"
-                            ),
+                            status_label=(f"n_cities={n_cities} depth={path_depth} inst={k}"),
                             run_config=run_config,
                             instance_config_dict=serialize_instance_config(icfg),
                             solver_config_serializable=solver_config_serializable,
@@ -441,9 +441,7 @@ def run_experiment_from_yaml(
                                 stop_solve = True
                                 break
                             except Exception:
-                                logger.exception(
-                                    "Solver failed for %s — saving error record.", src
-                                )
+                                logger.exception("Solver failed for %s — saving error record.", src)
                                 n_failed += 1
                                 payload = build_solution_record(
                                     instance=_serialize_instance(instance),

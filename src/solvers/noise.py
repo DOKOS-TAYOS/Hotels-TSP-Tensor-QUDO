@@ -100,18 +100,13 @@ class NoiseConfig:
         """
         if self.noise_type not in VALID_NOISE_TYPES:
             raise ValueError(
-                f"noise_type must be one of {sorted(VALID_NOISE_TYPES)}, "
-                f"got: {self.noise_type!r}"
+                f"noise_type must be one of {sorted(VALID_NOISE_TYPES)}, got: {self.noise_type!r}"
             )
         if not 0.0 <= self.probability <= 1.0:
-            raise ValueError(
-                f"probability must be in [0, 1], got {self.probability}"
-            )
+            raise ValueError(f"probability must be in [0, 1], got {self.probability}")
         for gate, prob in self.gate_noise.items():
             if not 0.0 <= prob <= 1.0:
-                raise ValueError(
-                    f"gate_noise[{gate!r}] probability must be in [0, 1], got {prob}"
-                )
+                raise ValueError(f"gate_noise[{gate!r}] probability must be in [0, 1], got {prob}")
 
     def warn_if_large_system(
         self,

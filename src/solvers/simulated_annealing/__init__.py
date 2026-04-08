@@ -11,4 +11,3 @@ __all__ = [
     "T0EstimationResult",
     "estimate_initial_temperature",
 ]
-

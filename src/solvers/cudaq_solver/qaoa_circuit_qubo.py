@@ -267,7 +267,11 @@ def optimize_qaoa(
 
     def cost_fn(x: np.ndarray) -> float:
         val = evaluate_cost(
-            x, kernel, qubo_matrix, depth, n_shots=n_shots,
+            x,
+            kernel,
+            qubo_matrix,
+            depth,
+            n_shots=n_shots,
             noise_model=noise_model,
         )
         energy_history.append(val)
@@ -275,14 +279,21 @@ def optimize_qaoa(
         return val
 
     initial_energy = evaluate_cost(
-        init_params, kernel, qubo_matrix, depth, n_shots=n_shots,
+        init_params,
+        kernel,
+        qubo_matrix,
+        depth,
+        n_shots=n_shots,
         noise_model=noise_model,
     )
 
     initial_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         initial_samples = sample_solution(
-            kernel, init_params, depth, sample_shots,
+            kernel,
+            init_params,
+            depth,
+            sample_shots,
             noise_model=noise_model,
         )
 
@@ -295,14 +306,18 @@ def optimize_qaoa(
     if not opt_result.success:
         logger.warning(
             "QUBO QAOA optimizer (%s) did not converge: %s",
-            optimizer, opt_result.message,
+            optimizer,
+            opt_result.message,
         )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
     final_samples: "cudaq.SampleResult | None" = None
     if sample_shots is not None:
         final_samples = sample_solution(
-            kernel, best_params, depth, sample_shots,
+            kernel,
+            best_params,
+            depth,
+            sample_shots,
             noise_model=noise_model,
         )
     return best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history

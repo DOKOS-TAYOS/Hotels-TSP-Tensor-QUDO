@@ -12,7 +12,9 @@ def unpack_qubo_bitmatrix(i_vals: np.ndarray, n_vars: int) -> np.ndarray:
     return ((i_vals[:, None] >> b_idx) & 1).astype(np.float64)
 
 
-def batch_qubo_costs(qubo_matrix: np.ndarray, energy_scale: float, x_bits: np.ndarray) -> np.ndarray:
+def batch_qubo_costs(
+    qubo_matrix: np.ndarray, energy_scale: float, x_bits: np.ndarray
+) -> np.ndarray:
     """Vectorized ``x @ Q @ x`` per row; *x_bits* shape ``(B, n_vars)``."""
     q = np.asarray(qubo_matrix, dtype=np.float64)
     return np.sum((x_bits @ q) * x_bits, axis=1) * energy_scale
@@ -72,9 +74,7 @@ def bit_rows_to_qudit_sequences(
     b, n_bits = bits.shape
     expected = n_qudits * qubits_per_qudit
     if n_bits != expected:
-        raise ValueError(
-            f"bit row length {n_bits} != n_qudits * qubits_per_qudit = {expected}"
-        )
+        raise ValueError(f"bit row length {n_bits} != n_qudits * qubits_per_qudit = {expected}")
     flat = bits.reshape(b, n_qudits, qubits_per_qudit)
     weights = (1 << np.arange(qubits_per_qudit, dtype=np.int64)).astype(np.float64)
     weights = weights[None, None, :]

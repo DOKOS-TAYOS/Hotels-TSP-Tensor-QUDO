@@ -107,11 +107,7 @@ def path_context(path: Path, output_root: Path) -> dict[str, Any]:
         return {"layout": "unknown", "path": str(path)}
     parts = rel.parts
     ctx: dict[str, Any] = {"layout": "unknown", "path": str(rel)}
-    if (
-        len(parts) >= 6
-        and parts[0] == "raw"
-        and parts[1] == "solutions"
-    ):
+    if len(parts) >= 6 and parts[0] == "raw" and parts[1] == "solutions":
         sub = _parse_solutions_subpath(parts[2:])
         if sub is not None:
             ctx["layout"] = "disk"

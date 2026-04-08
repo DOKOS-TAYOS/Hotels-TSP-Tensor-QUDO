@@ -70,7 +70,9 @@ class BaseQAOASolver(ABC):
 
     @abstractmethod
     def _noise_qubit_count(
-        self, instance: ProblemInstance, formulation: str,
+        self,
+        instance: ProblemInstance,
+        formulation: str,
     ) -> tuple[int, dict[str, Any]]:
         """Return quantum system count and kwargs for :meth:`NoiseConfig.warn_if_large_system`.
 
@@ -90,7 +92,9 @@ class BaseQAOASolver(ABC):
     # ------------------------------------------------------------------
 
     def solve(
-        self, instance: ProblemInstance, run_config: SolverRunConfig,
+        self,
+        instance: ProblemInstance,
+        run_config: SolverRunConfig,
     ) -> SolverResult:
         """Run QAOA for the configured formulation and return a standard result.
 
@@ -133,7 +137,9 @@ class BaseQAOASolver(ABC):
     # ------------------------------------------------------------------
 
     def _build_metadata(
-        self, result: dict, instance: ProblemInstance,
+        self,
+        result: dict,
+        instance: ProblemInstance,
     ) -> dict[str, Any]:
         """Assemble ``SolverResult.metadata`` from a raw QAOA result dict.
 
@@ -158,13 +164,12 @@ class BaseQAOASolver(ABC):
         if "final_samples" in result:
             metadata["final_samples"] = self._serialize_samples(result["final_samples"])
         if result["feasible"] and result.get("best_sequence") is not None:
-            metadata["real_cost"] = float(
-                calculate_real_cost(instance, result["best_sequence"])
-            )
+            metadata["real_cost"] = float(calculate_real_cost(instance, result["best_sequence"]))
         return metadata
 
     def _run_qaoa_tqudo(
-        self, run_qaoa_fn: Callable[..., dict],
+        self,
+        run_qaoa_fn: Callable[..., dict],
         instance: ProblemInstance,
         restriction: RestrictionConfig,
         run_config: SolverRunConfig,
@@ -198,9 +203,8 @@ class BaseQAOASolver(ABC):
         )
         best_sequence_array = raw["best_sequence"]
         best_sequence = best_sequence_array.tolist() if best_sequence_array is not None else None
-        feasible = (
-            best_sequence is not None
-            and validate_solution_constraints_tqudo(instance, best_sequence)
+        feasible = best_sequence is not None and validate_solution_constraints_tqudo(
+            instance, best_sequence
         )
         depth = run_config.qaoa_depth
         params = raw["params"]
@@ -239,8 +243,7 @@ class BaseQAOASolver(ABC):
             runner = self._get_tqudo_runner()
         if runner is None:
             raise ValueError(
-                f"Formulation '{formulation}' is not supported by the "
-                f"'{self.solver_name}' backend."
+                f"Formulation '{formulation}' is not supported by the '{self.solver_name}' backend."
             )
         return self._run_qaoa_tqudo(runner, instance, restriction, run_config)
 
@@ -259,8 +262,7 @@ class BaseQAOASolver(ABC):
         runner = self._get_qubo_runner()
         if runner is None:
             raise ValueError(
-                f"Formulation 'qubo' is not supported by the "
-                f"'{self.solver_name}' backend."
+                f"Formulation 'qubo' is not supported by the '{self.solver_name}' backend."
             )
         problem = generate_QUBO_from_problem(instance, restriction)
         raw = runner(
@@ -278,9 +280,8 @@ class BaseQAOASolver(ABC):
         n_available = instance.n_cities - 1
         best_binary = raw["best_binary"]
         best_sequence = qubo_binary_to_sequence(best_binary, n_available)
-        feasible = (
-            best_sequence is not None
-            and validate_solution_constraints_qubo(instance, best_binary)
+        feasible = best_sequence is not None and validate_solution_constraints_qubo(
+            instance, best_binary
         )
         depth = run_config.qaoa_depth
         params = raw["params"]

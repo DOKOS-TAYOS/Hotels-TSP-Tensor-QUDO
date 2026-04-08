@@ -17,6 +17,7 @@ OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
 def _default_noise_config() -> NoiseConfig:
     """Return default ``NoiseConfig`` with noise simulation disabled."""
     from solvers.noise import NoiseConfig
+
     return NoiseConfig()
 
 
@@ -66,9 +67,9 @@ class SolverRunConfig:
     # Noise simulation (optional, disabled by default)
     noise_config: NoiseConfig = field(default_factory=_default_noise_config)
     # Simulated annealing parameters
-    sa_t_initial: float = 1000.0    # Initial temperature
-    sa_t_final: float = 1e-6        # Final (minimum) temperature
-    sa_alpha: float = 0.995         # Geometric cooling factor (T *= alpha each step)
+    sa_t_initial: float = 1000.0  # Initial temperature
+    sa_t_final: float = 1e-6  # Final (minimum) temperature
+    sa_alpha: float = 0.995  # Geometric cooling factor (T *= alpha each step)
     # Brute-force enumeration caps (solver ``brute_force`` only; defaults = full allowed spaces)
     brute_force_max_assignments_tqudo: int = 8**8
     brute_force_max_assignments_qubo: int = 2**30

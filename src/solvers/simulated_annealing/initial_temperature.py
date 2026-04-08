@@ -217,9 +217,7 @@ def estimate_initial_temperature(
 
     """
     if formulation not in ("tqudo", "qubo"):
-        raise ValueError(
-            f"formulation must be 'tqudo' or 'qubo', got {formulation!r}"
-        )
+        raise ValueError(f"formulation must be 'tqudo' or 'qubo', got {formulation!r}")
     if not (0.0 < chi_0 < 1.0):
         raise ValueError(f"chi_0 must be in (0, 1), got {chi_0}")
 
@@ -230,14 +228,19 @@ def estimate_initial_temperature(
     # Build formulation tensors / matrix.
     if formulation == "tqudo":
         problem: ProblemQUBO | ProblemTQUDO = generate_TQUDO_from_problem(
-            instance, restriction,
+            instance,
+            restriction,
         )
     else:
         problem = generate_QUBO_from_problem(instance, restriction)
 
     # Step 1: collect uphill transitions.
     e_min, e_max = _collect_uphill_transitions(
-        formulation, problem, n_available, n_samples, rng,
+        formulation,
+        problem,
+        n_available,
+        n_samples,
+        rng,
     )
 
     if len(e_min) == 0:
@@ -257,7 +260,13 @@ def estimate_initial_temperature(
 
     # Step 2: iterative refinement.
     t0, chi_achieved, iterations, converged = _refine_temperature(
-        e_min, e_max, chi_0, t_1, epsilon, p_initial, max_iter,
+        e_min,
+        e_max,
+        chi_0,
+        t_1,
+        epsilon,
+        p_initial,
+        max_iter,
     )
 
     return T0EstimationResult(

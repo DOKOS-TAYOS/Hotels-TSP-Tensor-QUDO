@@ -228,12 +228,12 @@ Source: `energy_curves_agg.parquet` (`mean` and `std` per step, per `(n_cities, 
 
 #### `images/energy_history/cudaq_qubo_tvirt_n5_p{p}.png`
 
-- **Cohort:** `n_cities = 5`; CUDA-Q `qubo` and `tqudo_virtual`; fixed \(p\). Legend: “QUBO” and **“TQUDO qubits”**.
+- **Cohort:** `n_cities = 5`; CUDA-Q `qubo` and `tqudo_virtual`; fixed \(p\). Legend: “QUBO” and **“V-QAOA”**.
 - **X axis:** Step. **Y axis:** shared; each series is per-instance \(f/|f^*|\) for its formulation (comparable after normalization).
 
 #### `images/energy_history/cirq_tqudo_vs_cq_tvirt_n5_n9_p{p}.png`
 
-- **Cohort:** Cirq `tqudo` (**TQUDO qudits**) and CUDA-Q `tqudo_virtual` (**TQUDO qubits**) at **`n \in \{5,9\}`** (up to four series); fixed \(p\). Missing \((n,\text{solver})\) cells are skipped.
+- **Cohort:** Cirq `tqudo` (**N-QAOA**) and CUDA-Q `tqudo_virtual` (**V-QAOA**) at **`n \in \{5,9\}`** (up to four series); fixed \(p\). Missing \((n,\text{solver})\) cells are skipped.
 - **Y axis:** \(f/|f^*|\); each series uses its cohort’s BF objective as \(f^*\).
 
 #### `images/energy_history/cirq_tqudo_by_n_p{p}.png`
@@ -247,7 +247,7 @@ Requires `paired_metrics.parquet`. **2×2 dashboards use paired rows**: same `in
 
 #### 2×2 dashboard — `images/dashboards/cudaq_qubo_vs_tvirt_n5.png`
 
-- **Pair:** left QUBO, right **TQUDO qubits** (CUDA-Q `tqudo_virtual`); `n_cities = 5`; grouped bars for \(p \in \{1,2,3\}\).
+- **Pair:** left QUBO, right **V-QAOA** (CUDA-Q `tqudo_virtual`); `n_cities = 5`; grouped bars for \(p \in \{1,2,3\}\).
 - **Top-left:** **stacked** counts (optimal / feasible suboptimal / infeasible) per side; Y “Instances”.
 - **Top-right:** among instances **feasible on both sides**, percentage where **real cost** is lower on left, right, or tie; Y “% (both feasible)”.
 - **Bottom-left:** percent of **paired** total where only one side is feasible (short legend labels).
@@ -256,7 +256,7 @@ Requires `paired_metrics.parquet`. **2×2 dashboards use paired rows**: same `in
 
 #### 2×2 dashboard — `images/dashboards/cudaq_tvirt_vs_cirq_n5.png`
 
-Same layout; pair **TQUDO qubits** (left) vs **TQUDO qudits** (right), `n_cities = 5`.
+Same layout; pair **V-QAOA** (left) vs **N-QAOA** (right), `n_cities = 5`.
 
 #### 2×2 dashboard — `images/dashboards/cudaq_tvirt_vs_cirq_n9.png`
 
@@ -266,7 +266,7 @@ Same layout and pairing as above, but **`n_cities = 9`**. This needs an **inner 
 
 - **Not** paired cohorts: three **independent** series (feasible rows with finite `approx_ratio_real` each), one deduped row per `(instance_key, p)` per formulation; BF TQUDO reference.
 - **X:** \(p\); **Y:** \(\rho\) (mean ± σ); gray “ρ = 1” = reference optimum.
-- **Series labels:** “QUBO”, “TQUDO qubits”, “TQUDO qudits” (all `n_cities = 5`).
+- **Series labels:** “QUBO”, “V-QAOA”, “N-QAOA” (all `n_cities = 5`).
 - Error bars are sample std (`ddof=1`) within each \(p\).
 
 #### Mean ratio vs \(n\) — `images/approx_ratio/rho_vs_n_by_p.png`
@@ -283,12 +283,12 @@ Same layout and pairing as above, but **`n_cities = 9`**. This needs an **inner 
 
 #### `images/steps/cudaq_tvirt_vs_qubo_n5_vs_p.png`
 
-- **Pair:** CUDA-Q `tqudo_virtual` vs CUDA-Q `qubo`, `n_cities = 5` (merge order: left **“TQUDO qubits”**, right “QUBO”).
+- **Pair:** CUDA-Q `tqudo_virtual` vs CUDA-Q `qubo`, `n_cities = 5` (merge order: left **“V-QAOA”**, right “QUBO”).
 - **X:** \(p\); **Y:** mean ± σ (sample std, `ddof=1`) of step counts; **markers + error bars** with slight horizontal dodge between series at each \(p\).
 
 #### `images/steps/cudaq_tvirt_vs_cirq_n5_n9_vs_p.png`
 
-- **Two subplots:** \(n = 5\) and \(n = 9\); same pair as the qubits-vs-qudits dashboards (**TQUDO qubits** vs **TQUDO qudits**); **shared** vertical scale.
+- **Two subplots:** \(n = 5\) and \(n = 9\); same pair as the V-QAOA vs N-QAOA dashboards (**V-QAOA** vs **N-QAOA**); **shared** vertical scale.
 - **X:** \(p\); **Y:** same step definition and per-side optimality filter as above.
 
 #### `images/steps/cirq_tqudo_firstmin_steps_vs_n_by_p.png`
@@ -334,7 +334,7 @@ These figures re-open solution JSON at plot time (in addition to `paired_metrics
 
 #### `images/improvement/paired_n5_cq_cirq_rel_energy_vs_p.png`
 
-- **Inner join** on `(n_cities, instance_key, qaoa_depth)` with **`n = 5`**: **TQUDO qubits** (left) vs **TQUDO qudits** (right), same pairing as the 2×2 qubits-vs-qudits dashboard.
+- **Inner join** on `(n_cities, instance_key, qaoa_depth)` with **`n = 5`**: **V-QAOA** (left) vs **N-QAOA** (right), same pairing as the 2×2 V-QAOA vs N-QAOA dashboard.
 - **X:** \(p\); **Y:** mean ± σ of **`energy_improvement_rel`** on each side (grouped bars).
 
 #### `images/p_opt/paired_n5_cq_cirq_delta_popt_vs_p.png`

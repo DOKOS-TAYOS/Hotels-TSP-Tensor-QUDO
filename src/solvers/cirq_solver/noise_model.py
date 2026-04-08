@@ -109,9 +109,7 @@ class ConstantQubitNoiseModelWithOverrides(cirq.NoiseModel):
         prob = self._get_probability(op.gate)
         factory = _CHANNEL_FACTORIES.get(self._config.noise_type)
         if factory is None:
-            raise ValueError(
-                f"Unknown noise type for Cirq: {self._config.noise_type!r}"
-            )
+            raise ValueError(f"Unknown noise type for Cirq: {self._config.noise_type!r}")
 
         noise_gate = factory(prob)
         noise_ops = [noise_gate.on(q) for q in op.qubits]

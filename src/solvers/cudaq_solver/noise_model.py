@@ -164,9 +164,7 @@ def build_noise_model(config: NoiseConfig) -> cudaq.NoiseModel:
         if two_q_channel is not None:
             for op, num_controls in _DEFAULT_TWO_QUBIT_NOISE:
                 if (op, num_controls) not in overridden_two_qubit:
-                    noise.add_all_qubit_channel(
-                        op, two_q_channel, num_controls=num_controls
-                    )
+                    noise.add_all_qubit_channel(op, two_q_channel, num_controls=num_controls)
 
     return noise
 

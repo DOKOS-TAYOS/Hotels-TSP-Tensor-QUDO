@@ -95,9 +95,7 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
 
     optimizer = data.get("optimizer", "COBYLA")
     if optimizer not in VALID_OPTIMIZERS:
-        raise ValueError(
-            f"optimizer must be one of {sorted(VALID_OPTIMIZERS)}, got: {optimizer!r}"
-        )
+        raise ValueError(f"optimizer must be one of {sorted(VALID_OPTIMIZERS)}, got: {optimizer!r}")
 
     restriction_data = data.get("restriction") or {}
     restriction = RestrictionConfig(
@@ -107,9 +105,7 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
     )
 
     qaoa_depth = _parse_int_setting(data.get("qaoa_depth", 1), "qaoa_depth", minimum=1)
-    qaoa_max_iter = _parse_int_setting(
-        data.get("qaoa_max_iter", 100), "qaoa_max_iter", minimum=1
-    )
+    qaoa_max_iter = _parse_int_setting(data.get("qaoa_max_iter", 100), "qaoa_max_iter", minimum=1)
     qaoa_delta_t = float(data.get("qaoa_delta_t", 0.55))
     if qaoa_delta_t <= 0:
         raise ValueError("qaoa_delta_t must be positive")
@@ -168,8 +164,7 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
     noise_type_raw = noise_data.get("noise_type", "depolarizing")
     if noise_type_raw not in VALID_NOISE_TYPES:
         raise ValueError(
-            f"noise.noise_type must be one of {sorted(VALID_NOISE_TYPES)}, "
-            f"got: {noise_type_raw!r}"
+            f"noise.noise_type must be one of {sorted(VALID_NOISE_TYPES)}, got: {noise_type_raw!r}"
         )
     noise_type: NoiseModelType = noise_type_raw  # validated above
     noise_probability = float(noise_data.get("probability", 0.01))

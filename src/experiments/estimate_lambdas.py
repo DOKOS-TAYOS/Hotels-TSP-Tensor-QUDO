@@ -70,6 +70,7 @@ def _parallel_fields_from_solver_yaml(path: Path | str | None) -> dict[str, Any]
     raw = read_solver_yaml_as_mapping(p)
     return {k: raw[k] for k in _PARALLEL_SOLVER_YAML_KEYS if k in raw}
 
+
 # Recovery of combinatorial optimal real cost (brute-force ranking only).
 _GAP_RECOVERY_EPS = 1e-6
 _REFERENCE_CHUNK = 8192
@@ -174,11 +175,7 @@ def _solve_instances_for_combo(
     if n == 0:
         return []
 
-    use_parallel = (
-        max_parallel_instances > 1
-        and n > 1
-        and solver_name in _CPU_PARALLEL_SOLVERS
-    )
+    use_parallel = max_parallel_instances > 1 and n > 1 and solver_name in _CPU_PARALLEL_SOLVERS
 
     if not use_parallel:
         solver = _get_solver(solver_name)
@@ -212,8 +209,7 @@ def _solve_instances_for_combo(
     raw_by_idx: dict[int, dict[str, Any]] = {}
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         future_to_idx = {
-            executor.submit(_estimate_lambdas_solve_one_worker, job): job[0]
-            for job in jobs
+            executor.submit(_estimate_lambdas_solve_one_worker, job): job[0] for job in jobs
         }
         for fut in as_completed(future_to_idx):
             idx = future_to_idx[fut]
@@ -311,15 +307,9 @@ def _evaluate_lambda_combo(
     n_feasible = len(feasible_results)
     feasibility_rate = n_feasible / n_total if n_total > 0 else 0.0
 
-    feasible_costs = [
-        r["real_cost"] for r in feasible_results if r["real_cost"] is not None
-    ]
-    mean_real_cost = (
-        statistics.mean(feasible_costs) if feasible_costs else float("inf")
-    )
-    std_real_cost = (
-        statistics.stdev(feasible_costs) if len(feasible_costs) > 1 else 0.0
-    )
+    feasible_costs = [r["real_cost"] for r in feasible_results if r["real_cost"] is not None]
+    mean_real_cost = statistics.mean(feasible_costs) if feasible_costs else float("inf")
+    std_real_cost = statistics.stdev(feasible_costs) if len(feasible_costs) > 1 else 0.0
 
     out: dict[str, Any] = {
         "lambda_0": restriction.lambda_0,
@@ -356,9 +346,7 @@ def _evaluate_lambda_combo(
         mean_gap = statistics.mean(gaps_eligible) if gaps_eligible else float("inf")
         finite_gaps = [g for g in gaps_eligible if math.isfinite(g)]
         std_gap = statistics.stdev(finite_gaps) if len(finite_gaps) > 1 else 0.0
-        optimal_recovery_rate = (
-            n_recovered / n_ref_eligible if n_ref_eligible > 0 else 0.0
-        )
+        optimal_recovery_rate = n_recovered / n_ref_eligible if n_ref_eligible > 0 else 0.0
 
         out["mean_gap_to_reference"] = mean_gap
         out["std_gap_to_reference"] = std_gap
@@ -449,7 +437,9 @@ def run_lambda_sampling(
 
     # --- Generate instances (same set for all combos) -----------------------
     instances = generate_random_set_instances(
-        instance_config, n_instances, seed=seed or 42,
+        instance_config,
+        n_instances,
+        seed=seed or 42,
     )
 
     use_brute_force_metrics = solver_name == "brute_force"
@@ -528,9 +518,7 @@ def run_lambda_sampling(
     print("\u2500" * 40)
     print("Top 5 Lambda Combinations:")
     for rank, r in enumerate(ranked[:5], start=1):
-        cost_str = (
-            f"{r['mean_real_cost']:.1f}" if r["mean_real_cost"] != float("inf") else "N/A"
-        )
+        cost_str = f"{r['mean_real_cost']:.1f}" if r["mean_real_cost"] != float("inf") else "N/A"
         std_str = f"{r['std_real_cost']:.1f}" if r["std_real_cost"] > 0 else "0.0"
         extra = ""
         if use_brute_force_metrics:

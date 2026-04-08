@@ -144,10 +144,7 @@ def _check_precedences(
 
     """
     pos: dict[int, int] = {int(seq[t]): t for t in range(len(seq))}
-    return all(
-        a in pos and b in pos and pos[a] < pos[b]
-        for a, b in precedences
-    )
+    return all(a in pos and b in pos and pos[a] < pos[b] for a, b in precedences)
 
 
 def validate_solution_constraints_tqudo(
@@ -263,4 +260,3 @@ def validate_solution_constraints_qubo(
         return False
 
     return _check_precedences(seq, instance.precedences)
-

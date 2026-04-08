@@ -229,7 +229,7 @@ message suggesting alternatives.
 
 ### Scaling examples
 
-| `n_cities` | `n_available` | TQUDO qudits | TQUDO virtual qubits | QUBO qubits |
+| `n_cities` | `n_available` | N-QAOA (native `tqudo`) | V-QAOA (`tqudo_virtual`) | QUBO qubits |
 |------------|---------------|-------------:|---------------------:|------------:|
 | 3          | 2             | 2            | 2                    | 4           |
 | 5          | 4             | 4            | 8                    | 16          |
