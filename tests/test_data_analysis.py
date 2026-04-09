@@ -40,17 +40,7 @@ def test_path_context_disk_no_depth(tmp_path: Path) -> None:
 def test_path_context_disk_duplicate_solver_dir(tmp_path: Path) -> None:
     """Workflows may emit raw/solutions/{solver}/{solver}/formulation/..."""
     out = tmp_path / "output"
-    p = (
-        out
-        / "raw"
-        / "solutions"
-        / "cudaq"
-        / "cudaq"
-        / "qubo"
-        / "n_5"
-        / "2"
-        / "instance_3.json"
-    )
+    p = out / "raw" / "solutions" / "cudaq" / "cudaq" / "qubo" / "n_5" / "2" / "instance_3.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text("{}", encoding="utf-8")
     ctx = path_context(p, out)
@@ -264,7 +254,7 @@ def test_plot_renders_from_minimal_plots_data(tmp_path: Path) -> None:
     dash.mkdir(parents=True)
     empty = _stats_from_rows(pd.DataFrame())
     write_dashboard_stats(
-        dash / "cudaq_qubo_vs_tvirt_n5.parquet",
+        dash / "cudaq_qubo_vs_cirq_tqudo_n5.parquet",
         [empty, empty, empty],
         x_labels=["1", "2", "3"],
         label_left="L",
@@ -272,7 +262,7 @@ def test_plot_renders_from_minimal_plots_data(tmp_path: Path) -> None:
         x_axis_label="p",
     )
     run_plots(out)
-    png = out / "images" / "dashboards" / "cudaq_qubo_vs_tvirt_n5.png"
+    png = out / "images" / "dashboards" / "cudaq_qubo_vs_cirq_tqudo_n5.png"
     assert png.is_file()
 
 
@@ -326,3 +316,291 @@ def test_run_ingest_writes_manifest(tmp_path: Path, fmt: str) -> None:
     )
     manifest = run_ingest(out, fmt)
     assert manifest.is_file()
+
+
+def test_merge_qubo_vs_tqudo_n5_prefers_cirq_tensor_rows() -> None:
+    pytest.importorskip("pandas")
+    import pandas as pd
+
+    from data_analysis.prepare_plots import _merge_qubo_vs_tqudo_n5
+
+    paired = pd.DataFrame(
+        [
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cudaq",
+                "formulation": "qubo",
+                "n_cities": 5,
+                "instance_key": 1,
+                "qaoa_depth": 1,
+                "feasible": True,
+                "real_cost": 11.0,
+                "ref_real_cost": 10.0,
+            },
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cirq",
+                "formulation": "tqudo",
+                "n_cities": 5,
+                "instance_key": 1,
+                "qaoa_depth": 1,
+                "feasible": True,
+                "real_cost": 9.0,
+                "ref_real_cost": 9.0,
+            },
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cudaq",
+                "formulation": "tqudo_virtual",
+                "n_cities": 5,
+                "instance_key": 1,
+                "qaoa_depth": 1,
+                "feasible": False,
+                "real_cost": 15.0,
+                "ref_real_cost": 9.0,
+            },
+        ]
+    )
+
+    merged = _merge_qubo_vs_tqudo_n5(paired)
+
+    assert len(merged) == 1
+    assert merged.iloc[0]["solver_left"] == "cudaq"
+    assert merged.iloc[0]["formulation_left"] == "qubo"
+    assert merged.iloc[0]["solver_right"] == "cirq"
+    assert merged.iloc[0]["formulation_right"] == "tqudo"
+    assert bool(merged.iloc[0]["feasible_right"]) is True
+    assert float(merged.iloc[0]["real_cost_right"]) == 9.0
+
+
+def test_benchmark_renderer_supports_new_rho_and_popt_stems(tmp_path: Path) -> None:
+    pytest.importorskip("pandas")
+    pytest.importorskip("matplotlib")
+    pytest.importorskip("pyarrow")
+
+    from data_analysis.benchmark.plot_serde import write_box_vs_p_long
+    from data_analysis.benchmark.run import run_benchmark_plots_from_disk
+
+    plots_data = tmp_path / "processed" / "plots_data"
+    images = tmp_path / "images"
+
+    write_box_vs_p_long(
+        plots_data / "approx_ratio" / "rho_vs_p_n5_qubo_vqaoa_nqaoa.parquet",
+        [
+            (r"QUBO ($n=5$)", {1: [1.02], 2: [1.03], 3: [1.01]}),
+            (r"V-QAOA ($n=5$)", {1: [1.04], 2: [1.02], 3: [1.02]}),
+            (r"N-QAOA ($n=5$)", {1: [1.01], 2: [1.01], 3: [1.03]}),
+        ],
+        plot_kwargs={"figsize": (6.9, 4.8)},
+    )
+    write_box_vs_p_long(
+        plots_data / "p_opt" / "n5_qubo_vqaoa_nqaoa_popt_vs_p.parquet",
+        [
+            (r"QUBO ($n=5$)", {1: [1.0e-3], 2: [2.0e-3], 3: [3.0e-3]}),
+            (r"V-QAOA ($n=5$)", {1: [2.0e-2], 2: [4.0e-2], 3: [5.0e-2]}),
+            (r"N-QAOA ($n=5$)", {1: [2.5e-2], 2: [4.2e-2], 3: [6.5e-2]}),
+        ],
+        plot_kwargs={
+            "y_label": r"$P(\mathrm{opt})$",
+            "y_axis_kind": "generic",
+            "y_scale": "log",
+            "log_y_clip_upper": 1.0,
+            "figsize": (6.9, 4.8),
+            "uniform_p_opt_hline_ns": (5,),
+            "uniform_qubo_p_opt_hline_ns": (5,),
+            "uniform_refs_in_ylim": True,
+        },
+    )
+
+    run_benchmark_plots_from_disk(plots_data, images)
+
+    assert (images / "approx_ratio" / "rho_vs_p_n5_qubo_vqaoa_nqaoa.png").is_file()
+    assert (images / "p_opt" / "n5_qubo_vqaoa_nqaoa_popt_vs_p.png").is_file()
+
+
+def test_p_opt_lists_by_depth_unpaired_discards_zero_mass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("pandas")
+    import pandas as pd
+
+    from data_analysis.benchmark import collectors
+
+    paired = pd.DataFrame(
+        [
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cudaq",
+                "formulation": "tqudo_virtual",
+                "n_cities": 9,
+                "instance_key": 1,
+                "qaoa_depth": 1,
+                "has_final_samples": True,
+            },
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cudaq",
+                "formulation": "tqudo_virtual",
+                "n_cities": 9,
+                "instance_key": 2,
+                "qaoa_depth": 1,
+                "has_final_samples": True,
+            },
+        ]
+    )
+
+    values = iter([0.0, 1.25e-5])
+
+    def _fake_p_opt_final_from_row(*args: object, **kwargs: object) -> float:
+        return float(next(values))
+
+    monkeypatch.setattr(collectors, "_p_opt_final_from_row", _fake_p_opt_final_from_row)
+
+    out = collectors._p_opt_lists_by_depth_unpaired(
+        paired,
+        solver="cudaq",
+        formulation="tqudo_virtual",
+        n_cities=9,
+        output_root=Path("."),
+        bf_cache={},
+    )
+
+    assert out == {1: [pytest.approx(1.25e-5)]}
+
+
+def test_energy_improvement_lists_by_depth_unpaired_keeps_vqaoa_n9_p3() -> None:
+    pytest.importorskip("pandas")
+    import pandas as pd
+
+    from data_analysis.benchmark.collectors import _metric_lists_by_depth_unpaired
+
+    paired = pd.DataFrame(
+        [
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cudaq",
+                "formulation": "tqudo_virtual",
+                "n_cities": 9,
+                "instance_key": 1,
+                "qaoa_depth": 3,
+                "energy_improvement_rel": 0.41,
+            },
+            {
+                "parse_ok": True,
+                "solve_ok": True,
+                "solver": "cudaq",
+                "formulation": "tqudo_virtual",
+                "n_cities": 9,
+                "instance_key": 2,
+                "qaoa_depth": 3,
+                "energy_improvement_rel": 0.52,
+            },
+        ]
+    )
+
+    out = _metric_lists_by_depth_unpaired(
+        paired,
+        solver="cudaq",
+        formulation="tqudo_virtual",
+        n_cities=9,
+        metric_col="energy_improvement_rel",
+    )
+
+    assert out == {3: [pytest.approx(0.41), pytest.approx(0.52)]}
+
+
+def test_dashboard_hides_empty_optimal_panel_and_simplifies_cost_label() -> None:
+    pytest.importorskip("matplotlib")
+
+    from data_analysis.benchmark.figures import _plot_comparison_dashboard
+
+    stats = [
+        {
+            "left_optimal": 0,
+            "left_feasible_subopt": 4,
+            "left_infeasible": 96,
+            "right_optimal": 0,
+            "right_feasible_subopt": 3,
+            "right_infeasible": 97,
+            "cost_left_better_cond": 2,
+            "cost_right_better_cond": 2,
+            "cost_tie_cond": 0,
+            "n_both_feasible": 4,
+            "only_left_feasible": 1,
+            "only_right_feasible": 0,
+            "n_paired": 100,
+            "only_left_optimal": 0,
+            "only_right_optimal": 0,
+        },
+        {
+            "left_optimal": 0,
+            "left_feasible_subopt": 8,
+            "left_infeasible": 92,
+            "right_optimal": 0,
+            "right_feasible_subopt": 6,
+            "right_infeasible": 94,
+            "cost_left_better_cond": 3,
+            "cost_right_better_cond": 3,
+            "cost_tie_cond": 0,
+            "n_both_feasible": 6,
+            "only_left_feasible": 2,
+            "only_right_feasible": 1,
+            "n_paired": 100,
+            "only_left_optimal": 0,
+            "only_right_optimal": 0,
+        },
+        {
+            "left_optimal": 0,
+            "left_feasible_subopt": 5,
+            "left_infeasible": 95,
+            "right_optimal": 0,
+            "right_feasible_subopt": 0,
+            "right_infeasible": 0,
+            "cost_left_better_cond": 0,
+            "cost_right_better_cond": 0,
+            "cost_tie_cond": 0,
+            "n_both_feasible": 0,
+            "only_left_feasible": 0,
+            "only_right_feasible": 0,
+            "n_paired": 100,
+            "only_left_optimal": 0,
+            "only_right_optimal": 0,
+        },
+    ]
+
+    fig = _plot_comparison_dashboard(
+        x_labels=["1", "2", "3"],
+        stats_list=stats,
+        label_left="V-QAOA",
+        label_right="N-QAOA",
+        x_axis_label="p",
+        other_panels_stats_stop=2,
+    )
+
+    assert fig.axes[1].get_ylabel() == "Instances"
+    assert fig.axes[3].axison is False
+
+
+def test_values_outside_boxplot_whiskers_keeps_only_true_outliers() -> None:
+    import numpy as np
+
+    from data_analysis.benchmark.figures import _values_outside_boxplot_whiskers
+
+    visible = _values_outside_boxplot_whiskers([1.0, 2.0, 3.0, 4.0, 5.0, 100.0])
+
+    assert np.allclose(visible, np.array([100.0]))
+
+
+def test_scatter_points_render_above_box_artists() -> None:
+    from data_analysis.benchmark.figures import (
+        _ZORDER_BOX_ARTISTS,
+        _ZORDER_STRIP_SCATTER_POINTS,
+    )
+
+    assert _ZORDER_STRIP_SCATTER_POINTS > _ZORDER_BOX_ARTISTS

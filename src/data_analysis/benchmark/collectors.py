@@ -172,15 +172,17 @@ def _collect_cirq_tqudo_opt_steps_box_series_vs_ncities(
     return out
 
 
-def _approx_ratio_lists_by_depth_unpaired(
+def _metric_lists_by_depth_unpaired(
     paired: Any,
     *,
     solver: str,
     formulation: str,
     n_cities: int,
+    metric_col: str,
+    require_feasible: bool = False,
 ) -> dict[int, list[float]]:
-    """Per QAOA depth: list of ``approx_ratio_real`` (feasible rows only, deduped)."""
-    if "approx_ratio_real" not in paired.columns:
+    """Per QAOA depth: raw finite values from one metric column on deduped unpaired rows."""
+    if metric_col not in paired.columns:
         return {}
 
     m = (
@@ -198,18 +200,37 @@ def _approx_ratio_lists_by_depth_unpaired(
         sub,
         ["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
     )
-    feas = sub["feasible"].map(coerce_bool_scalar)
-    ar = sub["approx_ratio_real"]
-    sub = sub.loc[feas & ar.notna()].copy()
+    if require_feasible:
+        sub = sub.loc[sub["feasible"].map(coerce_bool_scalar)].copy()
+    col = sub[metric_col]
+    sub = sub.loc[col.notna()].copy()
     if sub.empty:
         return {}
     sub["qaoa_depth"] = sub["qaoa_depth"].astype(int)
     out: dict[int, list[float]] = {}
     for depth, grp in sub.groupby("qaoa_depth", sort=True):
-        vals = [float(v) for v in grp["approx_ratio_real"].to_numpy() if np.isfinite(v)]
+        vals = [float(v) for v in grp[metric_col].to_numpy(dtype=np.float64) if np.isfinite(v)]
         if vals:
             out[int(depth)] = vals
     return out
+
+
+def _approx_ratio_lists_by_depth_unpaired(
+    paired: Any,
+    *,
+    solver: str,
+    formulation: str,
+    n_cities: int,
+) -> dict[int, list[float]]:
+    """Per QAOA depth: list of ``approx_ratio_real`` (feasible rows only, deduped)."""
+    return _metric_lists_by_depth_unpaired(
+        paired,
+        solver=solver,
+        formulation=formulation,
+        n_cities=n_cities,
+        metric_col="approx_ratio_real",
+        require_feasible=True,
+    )
 
 
 def _solver_form_tqudo_by_n_cities(n_cities: int) -> tuple[str, str]:
@@ -319,7 +340,13 @@ def _p_opt_final_from_row(
         return None
     key = histogram_key_for_formulation(seq, formulation, n_cities)
     _, fin = read_sample_histograms_from_solution_json(output_root / s)
-    return histogram_mass(fin, key)
+    mass = histogram_mass(fin, key)
+    if mass is None:
+        return None
+    mass_f = float(mass)
+    if not np.isfinite(mass_f) or mass_f <= 0.0:
+        return None
+    return mass_f
 
 
 def _delta_p_opt_from_row(
@@ -387,7 +414,7 @@ def _p_opt_lists_by_depth_unpaired(
         if p is None:
             continue
         pf = float(p)
-        if not np.isfinite(pf):
+        if not np.isfinite(pf) or pf <= 0.0:
             continue
         d = int(row["qaoa_depth"])
         vals_by_d.setdefault(d, []).append(pf)

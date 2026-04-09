@@ -8,7 +8,10 @@ import pytest
 from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from solvers.base import SolverRunConfig
 from solvers.brute_force import BruteForceSolver
-from utils.constraints import validate_solution_constraints_qubo, validate_solution_constraints_tqudo
+from utils.constraints import (
+    validate_solution_constraints_qubo,
+    validate_solution_constraints_tqudo,
+)
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
 
 from instance_gen_process import generate_QUBO_from_problem, generate_TQUDO_from_problem
@@ -27,7 +30,9 @@ def _tiny_instance() -> ProblemInstance:
     )
 
 
-def _reference_min_tqudo(instance: ProblemInstance, restriction: RestrictionConfig) -> tuple[float, list[int]]:
+def _reference_min_tqudo(
+    instance: ProblemInstance, restriction: RestrictionConfig
+) -> tuple[float, list[int]]:
     problem = generate_TQUDO_from_problem(instance, restriction)
     n_available = instance.n_cities - 1
     best_c = float("inf")
@@ -43,7 +48,9 @@ def _reference_min_tqudo(instance: ProblemInstance, restriction: RestrictionConf
     return best_c, best_s
 
 
-def _reference_min_qubo(instance: ProblemInstance, restriction: RestrictionConfig) -> tuple[float, np.ndarray]:
+def _reference_min_qubo(
+    instance: ProblemInstance, restriction: RestrictionConfig
+) -> tuple[float, np.ndarray]:
     problem = generate_QUBO_from_problem(instance, restriction)
     n_available = instance.n_cities - 1
     n_vars = n_available * n_available

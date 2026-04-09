@@ -17,9 +17,9 @@ from data_analysis.benchmark.collectors import (
     _collect_numeric_box_series_vs_ncities,
     _collect_side_opt_step_lists_by_depth,
     _delta_p_opt_from_row,
+    _metric_lists_by_depth_unpaired,
     _opt_steps_values_cell,
     _paired_delta_p_opt_lists_by_depth,
-    _paired_metric_lists_by_depth,
     _p_opt_final_from_row,
     _p_opt_lists_by_depth_unpaired,
     _step_lists_to_depth_dict,
@@ -41,6 +41,28 @@ from data_analysis.benchmark.pairing import (
 )
 from data_analysis.energy_plots import write_energy_history_plot_tables
 from utils.output_paths import build_output_layout
+
+
+_PAIRED_DEDUPE_KEYS: list[str] = [
+    "n_cities",
+    "instance_key",
+    "qaoa_depth",
+    "solver",
+    "formulation",
+]
+_PAIRED_MERGE_ON: list[str] = ["n_cities", "instance_key", "qaoa_depth"]
+
+
+def _merge_qubo_vs_tqudo_n5(paired: Any) -> Any:
+    """Direct n=5 formulation comparison: CUDA-Q QUBO versus Cirq N-QAOA."""
+    return _merge_paired(
+        paired,
+        left=("cudaq", "qubo"),
+        right=("cirq", "tqudo"),
+        dedupe_keys=_PAIRED_DEDUPE_KEYS,
+        merge_on=_PAIRED_MERGE_ON,
+        n_cities_filter=5,
+    )
 
 
 def _stats_list_for_depths(merged: Any, depths: tuple[int, ...]) -> list[dict[str, float | int]]:
@@ -156,21 +178,14 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
     depths = (1, 2, 3)
     x_labels = [str(d) for d in depths]
 
-    cq_merged = _merge_paired(
-        paired,
-        left=("cudaq", "qubo"),
-        right=("cudaq", "tqudo_virtual"),
-        dedupe_keys=["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
-        merge_on=["n_cities", "instance_key", "qaoa_depth"],
-        n_cities_filter=5,
-    )
+    cq_merged = _merge_qubo_vs_tqudo_n5(paired)
     xc_by_n = {
         n: _merge_paired(
             paired,
             left=("cudaq", "tqudo_virtual"),
             right=("cirq", "tqudo"),
-            dedupe_keys=["n_cities", "instance_key", "qaoa_depth", "solver", "formulation"],
-            merge_on=["n_cities", "instance_key", "qaoa_depth"],
+            dedupe_keys=_PAIRED_DEDUPE_KEYS,
+            merge_on=_PAIRED_MERGE_ON,
             n_cities_filter=n,
         )
         for n in (5, 9)
@@ -178,7 +193,7 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
 
     db = plots_data / "dashboards"
     for merged, lab_l, lab_r, stem in (
-        (cq_merged, "QUBO", "V-QAOA", "cudaq_qubo_vs_tvirt_n5"),
+        (cq_merged, "QUBO", "N-QAOA", "cudaq_qubo_vs_cirq_tqudo_n5"),
         (xc_by_n[5], "V-QAOA", "N-QAOA", "cudaq_tvirt_vs_cirq_n5"),
         (xc_by_n[9], "V-QAOA", "N-QAOA", "cudaq_tvirt_vs_cirq_n9"),
     ):
@@ -216,28 +231,28 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
     rho_q = _approx_ratio_lists_by_depth_unpaired(
         paired, solver="cudaq", formulation="qubo", n_cities=5
     )
-    rho_tv5 = _approx_ratio_lists_by_depth_unpaired(
+    rho_cq5 = _approx_ratio_lists_by_depth_unpaired(
         paired, solver="cudaq", formulation="tqudo_virtual", n_cities=5
     )
     rho_ci5 = _approx_ratio_lists_by_depth_unpaired(
         paired, solver="cirq", formulation="tqudo", n_cities=5
     )
-    rho_tv9 = _approx_ratio_lists_by_depth_unpaired(
+    rho_cq9 = _approx_ratio_lists_by_depth_unpaired(
         paired, solver="cudaq", formulation="tqudo_virtual", n_cities=9
     )
     rho_ci9 = _approx_ratio_lists_by_depth_unpaired(
         paired, solver="cirq", formulation="tqudo", n_cities=9
     )
     write_box_vs_p_long(
-        ar_dir / "n5_qubo_tvirt_cirq_vs_p.parquet",
+        ar_dir / "rho_vs_p_n5_qubo_vqaoa_nqaoa.parquet",
         [
             (r"QUBO ($n=5$)", rho_q),
-            (r"V-QAOA ($n=5$)", rho_tv5),
+            (r"V-QAOA ($n=5$)", rho_cq5),
             (r"N-QAOA ($n=5$)", rho_ci5),
-            (r"V-QAOA ($n=9$)", rho_tv9),
+            (r"V-QAOA ($n=9$)", rho_cq9),
             (r"N-QAOA ($n=9$)", rho_ci9),
         ],
-        plot_kwargs={"figsize": (7.8, 7.8)},
+        plot_kwargs={"figsize": (7.8, 4.8)},
     )
 
     n_multi = [5, 6, 7, 8, 9]
@@ -399,28 +414,26 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
         output_root=root,
         bf_cache=bf_cache,
     )
-    popt_box_series = [
-        (r"QUBO ($n=5$)", popt_q5),
-        (r"V-QAOA ($n=5$)", popt_cq5),
-        (r"N-QAOA ($n=5$)", popt_ci5),
-        (r"V-QAOA ($n=9$)", popt_cq9),
-        (r"N-QAOA ($n=9$)", popt_ci9),
-    ]
-    _popt_n5_common_kw: dict[str, Any] = {
-        "y_label": r"$P(\mathrm{opt})$",
-        "y_axis_kind": "generic",
-        "y_scale": "log",
-        "log_y_clip_upper": 1.0,
-        "figsize": (7.8, 7.8),
-        "uniform_p_opt_hline_ns": (5, 9),
-        "uniform_qubo_p_opt_hline_ns": (5,),
-    }
-    for uniform_refs_in_ylim, stem in (
-        (True, "n5_cirq_vs_cq_tvirt_popt_vs_p"),
-        (False, "n5_cirq_vs_cq_tvirt_popt_vs_p_ydata"),
-    ):
-        kw = {**_popt_n5_common_kw, "uniform_refs_in_ylim": uniform_refs_in_ylim}
-        write_box_vs_p_long(po_dir / f"{stem}.parquet", popt_box_series, plot_kwargs=kw)
+    write_box_vs_p_long(
+        po_dir / "n5_qubo_vqaoa_nqaoa_popt_vs_p.parquet",
+        [
+            (r"QUBO ($n=5$)", popt_q5),
+            (r"V-QAOA ($n=5$)", popt_cq5),
+            (r"N-QAOA ($n=5$)", popt_ci5),
+            (r"V-QAOA ($n=9$)", popt_cq9),
+            (r"N-QAOA ($n=9$)", popt_ci9),
+        ],
+        plot_kwargs={
+            "y_label": r"$P(\mathrm{opt})$",
+            "y_axis_kind": "generic",
+            "y_scale": "log",
+            "log_y_clip_upper": 1.0,
+            "figsize": (7.8, 7.8),
+            "uniform_p_opt_hline_ns": (5, 9),
+            "uniform_qubo_p_opt_hline_ns": (5,),
+            "uniform_refs_in_ylim": True,
+        },
+    )
 
     series_eimp_n_box = _collect_energy_improvement_box_series_vs_ncities(
         paired,
@@ -464,26 +477,42 @@ def write_benchmark_plot_tables(paired: Any, output_root: Path, plots_data: Path
             kind="triplet_vs_x",
         )
 
-    eimp_l5, eimp_r5 = _paired_metric_lists_by_depth(
-        xc_by_n[5],
-        depths=depths,
-        col_left="energy_improvement_rel_left",
-        col_right="energy_improvement_rel_right",
+    eimp_cq5 = _metric_lists_by_depth_unpaired(
+        paired,
+        solver="cudaq",
+        formulation="tqudo_virtual",
+        n_cities=5,
+        metric_col="energy_improvement_rel",
     )
-    eimp_l9, eimp_r9 = _paired_metric_lists_by_depth(
-        xc_by_n[9],
-        depths=depths,
-        col_left="energy_improvement_rel_left",
-        col_right="energy_improvement_rel_right",
+    eimp_ci5 = _metric_lists_by_depth_unpaired(
+        paired,
+        solver="cirq",
+        formulation="tqudo",
+        n_cities=5,
+        metric_col="energy_improvement_rel",
+    )
+    eimp_cq9 = _metric_lists_by_depth_unpaired(
+        paired,
+        solver="cudaq",
+        formulation="tqudo_virtual",
+        n_cities=9,
+        metric_col="energy_improvement_rel",
+    )
+    eimp_ci9 = _metric_lists_by_depth_unpaired(
+        paired,
+        solver="cirq",
+        formulation="tqudo",
+        n_cities=9,
+        metric_col="energy_improvement_rel",
     )
     write_paired_four_vs_p(
         im_dir / "paired_n5_cq_cirq_rel_energy_vs_p.parquet",
         x_labels=x_labels,
         series=[
-            (r"V-QAOA ($n=5$)", eimp_l5),
-            (r"N-QAOA ($n=5$)", eimp_r5),
-            (r"V-QAOA ($n=9$)", eimp_l9),
-            (r"N-QAOA ($n=9$)", eimp_r9),
+            (r"V-QAOA ($n=5$)", [list(eimp_cq5.get(d, [])) for d in depths]),
+            (r"N-QAOA ($n=5$)", [list(eimp_ci5.get(d, [])) for d in depths]),
+            (r"V-QAOA ($n=9$)", [list(eimp_cq9.get(d, [])) for d in depths]),
+            (r"N-QAOA ($n=9$)", [list(eimp_ci9.get(d, [])) for d in depths]),
         ],
         plot_kwargs={
             "y_label": r"$(E_0 - E^\star) / |E_0|$",

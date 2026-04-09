@@ -33,7 +33,11 @@ def test_load_instance_config_and_generate() -> None:
         assert len(instance.precedences) <= 5
         n_available = instance.n_cities - 1
         assert instance.prices_hotels.shape == (n_available, n_available)
-        assert instance.prices_travels.shape == (instance.n_cities, instance.n_cities, instance.n_cities)
+        assert instance.prices_travels.shape == (
+            instance.n_cities,
+            instance.n_cities,
+            instance.n_cities,
+        )
     finally:
         cleanup_workspace_tmp_dir(tmp_path)
 

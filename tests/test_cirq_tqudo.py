@@ -48,6 +48,7 @@ sample_solution = _mod.sample_solution
 # QuditHadamardGate
 # ---------------------------------------------------------------------------
 
+
 class TestQuditHadamardGate:
     """Tests for the d-dim Hadamard (DFT) gate."""
 
@@ -81,6 +82,7 @@ class TestQuditHadamardGate:
 # ---------------------------------------------------------------------------
 # QuditDiagonalCostGate
 # ---------------------------------------------------------------------------
+
 
 class TestQuditDiagonalCostGate:
     """Tests for the two-qudit diagonal cost gate."""
@@ -117,6 +119,7 @@ class TestQuditDiagonalCostGate:
 
     def test_parameterized_returns_none_unitary(self) -> None:
         import sympy
+
         d = 3
         cost = np.zeros((d, d))
         gate = QuditDiagonalCostGate(d, gamma=sympy.Symbol("g"), cost_matrix=cost)
@@ -125,6 +128,7 @@ class TestQuditDiagonalCostGate:
 
     def test_resolve_parameters(self) -> None:
         import sympy
+
         d = 2
         cost = np.array([[1.0, 0.0], [0.0, 1.0]])
         g = sympy.Symbol("g")
@@ -138,6 +142,7 @@ class TestQuditDiagonalCostGate:
 # ---------------------------------------------------------------------------
 # QuditRingMixerGate
 # ---------------------------------------------------------------------------
+
 
 class TestQuditRingMixerGate:
     """Tests for the ring mixer exp(-i·angle·X_d)."""
@@ -171,6 +176,7 @@ class TestQuditRingMixerGate:
 # ---------------------------------------------------------------------------
 # Circuit construction
 # ---------------------------------------------------------------------------
+
 
 class TestCreateQaoaCircuit:
     """Tests for the QAOA circuit builder with native qudits."""
@@ -207,10 +213,12 @@ class TestCreateQaoaCircuit:
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
             depth=1, Etab=Etab, Ettprimeab=Ettprimeab
         )
-        resolver = cirq.ParamResolver({
-            symbols["gamma_0"]: 0.3,
-            symbols["beta_0"]: 0.2,
-        })
+        resolver = cirq.ParamResolver(
+            {
+                symbols["gamma_0"]: 0.3,
+                symbols["beta_0"]: 0.2,
+            }
+        )
         circuit_m = circuit + cirq.measure(*qudits, key="m")
         sim = cirq.Simulator(seed=42)
         result = sim.run(circuit_m, resolver, repetitions=10)
@@ -223,6 +231,7 @@ class TestCreateQaoaCircuit:
 # ---------------------------------------------------------------------------
 # Measurement helpers
 # ---------------------------------------------------------------------------
+
 
 class TestMeasurementHelpers:
     """Tests for qudit-key encoding/decoding."""
@@ -255,6 +264,7 @@ class TestMeasurementHelpers:
 # Evaluate cost
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluateCost:
     """Smoke test for cost evaluation."""
 
@@ -272,8 +282,14 @@ class TestEvaluateCost:
         circuit_with_measure = circuit + cirq.measure(*qudits, key="m")
         params = np.array([0.3, 0.2])
         val = evaluate_cost(
-            params, circuit_with_measure, problem, symbols, 1,
-            n_qudits, 20, simulator,
+            params,
+            circuit_with_measure,
+            problem,
+            symbols,
+            1,
+            n_qudits,
+            20,
+            simulator,
         )
         assert isinstance(val, float)
 
@@ -282,6 +298,7 @@ class TestEvaluateCost:
 # End-to-end run_qaoa
 # ---------------------------------------------------------------------------
 
+
 class TestRunQaoa:
     """Integration tests for the full QAOA pipeline."""
 
@@ -289,7 +306,8 @@ class TestRunQaoa:
     def test_run_qaoa_returns_expected_keys(self, d: int) -> None:
         Etab, Ettprimeab = _synthetic_tqudo_tensors(n_qudits=3, dimension=d)
         result = run_qaoa(
-            Etab, Ettprimeab,
+            Etab,
+            Ettprimeab,
             depth=1,
             max_iter=4,
             n_shots=16,
@@ -307,7 +325,11 @@ class TestRunQaoa:
 
     def test_run_qaoa_with_real_instance(self) -> None:
         """Use generate_TQUDO_from_problem for a realistic smoke test."""
-        from instance_gen_process import InstanceConfig, generate_random_instance, generate_TQUDO_from_problem
+        from instance_gen_process import (
+            InstanceConfig,
+            generate_random_instance,
+            generate_TQUDO_from_problem,
+        )
         from instance_gen_process.models import RestrictionConfig
 
         config = InstanceConfig(

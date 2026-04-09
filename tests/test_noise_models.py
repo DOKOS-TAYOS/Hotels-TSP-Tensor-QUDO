@@ -89,6 +89,7 @@ class TestNoiseConfigWarning:
     def test_warning_large_system(self, caplog: pytest.LogCaptureFixture) -> None:
         cfg = NoiseConfig(enabled=True)
         import logging
+
         with caplog.at_level(logging.WARNING):
             cfg.warn_if_large_system(20)
         assert "Noise simulation enabled" in caplog.text
@@ -106,12 +107,14 @@ class TestCirqNoiseModelBuilder:
 
     def test_get_simulator_noiseless_returns_state_vector(self) -> None:
         from solvers.cirq_solver.noise_model import get_simulator
+
         sim, noise = get_simulator(None, seed=42)
         assert isinstance(sim, self.cirq.Simulator)
         assert noise is None
 
     def test_get_simulator_disabled_returns_state_vector(self) -> None:
         from solvers.cirq_solver.noise_model import get_simulator
+
         cfg = NoiseConfig(enabled=False)
         sim, noise = get_simulator(cfg, seed=0)
         assert isinstance(sim, self.cirq.Simulator)
@@ -119,6 +122,7 @@ class TestCirqNoiseModelBuilder:
 
     def test_get_simulator_enabled_returns_density_matrix(self) -> None:
         from solvers.cirq_solver.noise_model import get_simulator
+
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         sim, noise = get_simulator(cfg, seed=0)
         assert isinstance(sim, self.cirq.DensityMatrixSimulator)
@@ -127,12 +131,14 @@ class TestCirqNoiseModelBuilder:
     @pytest.mark.parametrize("noise_type", sorted(VALID_NOISE_TYPES))
     def test_build_all_noise_types(self, noise_type: str) -> None:
         from solvers.cirq_solver.noise_model import build_noise_model
+
         cfg = NoiseConfig(enabled=True, noise_type=noise_type, probability=0.05)
         model = build_noise_model(cfg)
         assert model is not None
 
     def test_qudit_noise_returns_model(self) -> None:
         from solvers.cirq_solver.noise_model import build_noise_model
+
         cfg = NoiseConfig(enabled=True, probability=0.01)
         model = build_noise_model(cfg, qudit_dimension=3)
         assert model is not None
@@ -153,18 +159,20 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join([
-                    "n_instances: 1",
-                    "solver: cirq",
-                    "formulation: qubo",
-                    "optimizer: COBYLA",
-                    "noise:",
-                    "  enabled: true",
-                    "  noise_type: amplitude_damping",
-                    "  probability: 0.03",
-                    "  gate_noise:",
-                    "    x: 0.05",
-                ]),
+                "\n".join(
+                    [
+                        "n_instances: 1",
+                        "solver: cirq",
+                        "formulation: qubo",
+                        "optimizer: COBYLA",
+                        "noise:",
+                        "  enabled: true",
+                        "  noise_type: amplitude_damping",
+                        "  probability: 0.03",
+                        "  gate_noise:",
+                        "    x: 0.05",
+                    ]
+                ),
                 encoding="utf-8",
             )
             config = load_solver_config(cfg_path)
@@ -187,12 +195,14 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join([
-                    "n_instances: 1",
-                    "solver: cirq",
-                    "formulation: qubo",
-                    "optimizer: COBYLA",
-                ]),
+                "\n".join(
+                    [
+                        "n_instances: 1",
+                        "solver: cirq",
+                        "formulation: qubo",
+                        "optimizer: COBYLA",
+                    ]
+                ),
                 encoding="utf-8",
             )
             config = load_solver_config(cfg_path)
@@ -213,16 +223,18 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join([
-                    "n_instances: 1",
-                    "solver: cirq",
-                    "formulation: qubo",
-                    "optimizer: COBYLA",
-                    "noise:",
-                    "  enabled: true",
-                    "  noise_type: invalid_channel",
-                    "  probability: 0.01",
-                ]),
+                "\n".join(
+                    [
+                        "n_instances: 1",
+                        "solver: cirq",
+                        "formulation: qubo",
+                        "optimizer: COBYLA",
+                        "noise:",
+                        "  enabled: true",
+                        "  noise_type: invalid_channel",
+                        "  probability: 0.01",
+                    ]
+                ),
                 encoding="utf-8",
             )
             with pytest.raises(ValueError, match="noise.noise_type"):
@@ -237,16 +249,18 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join([
-                    "n_instances: 1",
-                    "solver: cirq",
-                    "formulation: qubo",
-                    "optimizer: COBYLA",
-                    "noise:",
-                    "  enabled: true",
-                    "  noise_type: depolarizing",
-                    "  probability: 2.5",
-                ]),
+                "\n".join(
+                    [
+                        "n_instances: 1",
+                        "solver: cirq",
+                        "formulation: qubo",
+                        "optimizer: COBYLA",
+                        "noise:",
+                        "  enabled: true",
+                        "  noise_type: depolarizing",
+                        "  probability: 2.5",
+                    ]
+                ),
                 encoding="utf-8",
             )
             with pytest.raises(ValueError, match="noise.probability"):
@@ -274,8 +288,13 @@ class TestCirqNoisyQAOARun:
         from solvers.cirq_solver.qaoa_circuit_qubo import run_qaoa
 
         result = run_qaoa(
-            self._small_qubo(), depth=1, max_iter=5, n_shots=50,
-            sample_shots=50, seed=42, noise_config=None,
+            self._small_qubo(),
+            depth=1,
+            max_iter=5,
+            n_shots=50,
+            sample_shots=50,
+            seed=42,
+            noise_config=None,
         )
         assert "energy" in result
         assert "best_binary" in result
@@ -286,8 +305,13 @@ class TestCirqNoisyQAOARun:
 
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         result = run_qaoa(
-            self._small_qubo(), depth=1, max_iter=5, n_shots=50,
-            sample_shots=50, seed=42, noise_config=cfg,
+            self._small_qubo(),
+            depth=1,
+            max_iter=5,
+            n_shots=50,
+            sample_shots=50,
+            seed=42,
+            noise_config=cfg,
         )
         assert "energy" in result
         assert "best_binary" in result
@@ -297,8 +321,13 @@ class TestCirqNoisyQAOARun:
 
         cfg = NoiseConfig(enabled=True, noise_type="amplitude_damping", probability=0.02)
         result = run_qaoa(
-            self._small_qubo(), depth=1, max_iter=5, n_shots=50,
-            sample_shots=50, seed=42, noise_config=cfg,
+            self._small_qubo(),
+            depth=1,
+            max_iter=5,
+            n_shots=50,
+            sample_shots=50,
+            seed=42,
+            noise_config=cfg,
         )
         assert "energy" in result
 
@@ -308,13 +337,23 @@ class TestCirqNoisyQAOARun:
 
         qubo = self._small_qubo()
         result_none = run_qaoa(
-            qubo, depth=1, max_iter=5, n_shots=100,
-            sample_shots=100, seed=42, noise_config=None,
+            qubo,
+            depth=1,
+            max_iter=5,
+            n_shots=100,
+            sample_shots=100,
+            seed=42,
+            noise_config=None,
         )
         cfg_off = NoiseConfig(enabled=False, noise_type="depolarizing", probability=0.5)
         result_off = run_qaoa(
-            qubo, depth=1, max_iter=5, n_shots=100,
-            sample_shots=100, seed=42, noise_config=cfg_off,
+            qubo,
+            depth=1,
+            max_iter=5,
+            n_shots=100,
+            sample_shots=100,
+            seed=42,
+            noise_config=cfg_off,
         )
         assert result_none["energy"] == pytest.approx(result_off["energy"])
         assert result_none["best_bitstring"] == result_off["best_bitstring"]
@@ -338,8 +377,14 @@ class TestCirqNoisyTQUDOQubitEmulation:
         Etab, Ettprimeab = self._small_tensors()
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         result = run_qaoa(
-            Etab, Ettprimeab, depth=1, max_iter=5, n_shots=50,
-            sample_shots=50, seed=42, noise_config=cfg,
+            Etab,
+            Ettprimeab,
+            depth=1,
+            max_iter=5,
+            n_shots=50,
+            sample_shots=50,
+            seed=42,
+            noise_config=cfg,
         )
         assert "energy" in result
         assert "best_sequence" in result
@@ -412,10 +457,12 @@ class TestConstantQuditNoiseModel:
         noise_model = build_noise_model(cfg, qudit_dimension=3)
 
         q = self.cirq.LineQid(0, dimension=3)
-        circuit = self.cirq.Circuit([
-            QuditHadamardGate(3).on(q),
-            self.cirq.measure(q, key="m"),
-        ])
+        circuit = self.cirq.Circuit(
+            [
+                QuditHadamardGate(3).on(q),
+                self.cirq.measure(q, key="m"),
+            ]
+        )
         noisy = circuit.with_noise(noise_model)
         sim = self.cirq.DensityMatrixSimulator(seed=42)
         result = sim.run(noisy, repetitions=20)
@@ -426,7 +473,9 @@ class TestConstantQuditNoiseModel:
         from solvers.cirq_solver.qudit_noise_channels import ConstantQuditNoiseModel
 
         cfg = NoiseConfig(
-            enabled=True, noise_type="depolarizing", probability=0.01,
+            enabled=True,
+            noise_type="depolarizing",
+            probability=0.01,
             gate_noise={"qudit_hadamard": 0.5},
         )
         model = ConstantQuditNoiseModel(cfg, dimension=3)
@@ -455,26 +504,41 @@ class TestCirqNativeQuditNoisyRun:
         Etab, Ettprimeab = self._small_tensors(d=3)
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         result = run_qaoa(
-            Etab, Ettprimeab, depth=1, max_iter=5, n_shots=30,
-            sample_shots=30, seed=42, noise_config=cfg,
+            Etab,
+            Ettprimeab,
+            depth=1,
+            max_iter=5,
+            n_shots=30,
+            sample_shots=30,
+            seed=42,
+            noise_config=cfg,
         )
         assert "energy" in result
         assert "best_sequence" in result
         assert result["best_sequence"].shape == (2,)
 
-    @pytest.mark.parametrize("noise_type", [
-        "amplitude_damping", "phase_damping", "bit_flip", "phase_flip",
-    ])
+    @pytest.mark.parametrize(
+        "noise_type",
+        [
+            "amplitude_damping",
+            "phase_damping",
+            "bit_flip",
+            "phase_flip",
+        ],
+    )
     def test_all_noise_types_evaluate_cost(self, noise_type: str) -> None:
         from instance_gen_process.models import ProblemTQUDO
         from solvers.cirq_solver.qaoa_circuit_tqudo import (
-            evaluate_cost, create_qaoa_circuit,
+            evaluate_cost,
+            create_qaoa_circuit,
         )
         from solvers.cirq_solver.noise_model import get_simulator
 
         Etab, Ettprimeab = self._small_tensors(d=3)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
-            1, Etab, Ettprimeab,
+            1,
+            Etab,
+            Ettprimeab,
         )
         problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
         cfg = NoiseConfig(enabled=True, noise_type=noise_type, probability=0.02)
@@ -485,21 +549,30 @@ class TestCirqNativeQuditNoisyRun:
             circuit_m = circuit_m.with_noise(noise_model)
         params = np.array([0.5, 0.5])
         val = evaluate_cost(
-            params, circuit_m, problem, symbols, 1,
-            n_qudits, 10, simulator,
+            params,
+            circuit_m,
+            problem,
+            symbols,
+            1,
+            n_qudits,
+            10,
+            simulator,
         )
         assert isinstance(val, float)
 
     def test_disabled_noise_matches_noiseless(self) -> None:
         from instance_gen_process.models import ProblemTQUDO
         from solvers.cirq_solver.qaoa_circuit_tqudo import (
-            evaluate_cost, create_qaoa_circuit,
+            evaluate_cost,
+            create_qaoa_circuit,
         )
         from solvers.cirq_solver.noise_model import get_simulator
 
         Etab, Ettprimeab = self._small_tensors(d=3)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
-            1, Etab, Ettprimeab,
+            1,
+            Etab,
+            Ettprimeab,
         )
         problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ettprimeab)
         params = np.array([0.3, 0.2])
@@ -507,16 +580,28 @@ class TestCirqNativeQuditNoisyRun:
         sim_none, _ = get_simulator(None, qudit_dimension=dimension, seed=42)
         circuit_m_none = circuit + self.cirq.measure(*qudits, key="m")
         val_none = evaluate_cost(
-            params, circuit_m_none, problem, symbols, 1,
-            n_qudits, 50, sim_none,
+            params,
+            circuit_m_none,
+            problem,
+            symbols,
+            1,
+            n_qudits,
+            50,
+            sim_none,
         )
 
         cfg_off = NoiseConfig(enabled=False, noise_type="depolarizing", probability=0.5)
         sim_off, _ = get_simulator(cfg_off, qudit_dimension=dimension, seed=42)
         circuit_m_off = circuit + self.cirq.measure(*qudits, key="m")
         val_off = evaluate_cost(
-            params, circuit_m_off, problem, symbols, 1,
-            n_qudits, 50, sim_off,
+            params,
+            circuit_m_off,
+            problem,
+            symbols,
+            1,
+            n_qudits,
+            50,
+            sim_off,
         )
         assert val_none == pytest.approx(val_off)
 
@@ -527,8 +612,14 @@ class TestCirqNativeQuditNoisyRun:
         Etab, Ettprimeab = self._small_tensors(d=d)
         cfg = NoiseConfig(enabled=True, noise_type="depolarizing", probability=0.01)
         result = run_qaoa(
-            Etab, Ettprimeab, depth=1, max_iter=5, n_shots=20,
-            sample_shots=20, seed=42, noise_config=cfg,
+            Etab,
+            Ettprimeab,
+            depth=1,
+            max_iter=5,
+            n_shots=20,
+            sample_shots=20,
+            seed=42,
+            noise_config=cfg,
         )
         assert isinstance(result["energy"], float)
         assert result["best_sequence"].shape == (2,)

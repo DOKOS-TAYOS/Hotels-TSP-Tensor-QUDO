@@ -40,7 +40,9 @@ def test_cudaq_solver_requires_nvidia_gpu(
     pytest.importorskip("cudaq")
     from solvers.cudaq_solver import cudaq_target
 
-    instance_config = _cudaq_qubo_test_config() if formulation == "qubo" else _contract_test_config()
+    instance_config = (
+        _cudaq_qubo_test_config() if formulation == "qubo" else _contract_test_config()
+    )
     instance = generate_random_instance(instance_config, instance_config.seed)
     run_config = SolverRunConfig(
         formulation=formulation,

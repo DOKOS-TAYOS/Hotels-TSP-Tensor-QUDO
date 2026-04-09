@@ -51,7 +51,7 @@ def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
     root = plots_data.resolve()
 
     dashboard_specs: tuple[tuple[str, Path], ...] = (
-        ("cudaq_qubo_vs_tvirt_n5", imgs.dashboards),
+        ("cudaq_qubo_vs_cirq_tqudo_n5", imgs.dashboards),
         ("cudaq_tvirt_vs_cirq_n5", imgs.dashboards),
         ("cudaq_tvirt_vs_cirq_n9", imgs.dashboards),
     )
@@ -73,11 +73,10 @@ def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
         plt.close(fig)
 
     box_vs_p_specs: tuple[str, Path] = (
-        ("approx_ratio/n5_qubo_tvirt_cirq_vs_p", imgs.approx_ratio),
+        ("approx_ratio/rho_vs_p_n5_qubo_vqaoa_nqaoa", imgs.approx_ratio),
         ("steps/cudaq_tvirt_vs_qubo_n5_vs_p", imgs.steps),
         ("steps/cudaq_tvirt_vs_cirq_n5_n9_vs_p", imgs.steps),
-        ("p_opt/n5_cirq_vs_cq_tvirt_popt_vs_p", imgs.p_opt),
-        ("p_opt/n5_cirq_vs_cq_tvirt_popt_vs_p_ydata", imgs.p_opt),
+        ("p_opt/n5_qubo_vqaoa_nqaoa_popt_vs_p", imgs.p_opt),
     )
     for rel, dest in box_vs_p_specs:
         pq = root / f"{rel}.parquet"

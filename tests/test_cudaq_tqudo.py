@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 
 from conftest import synthetic_tqudo_tensors as _synthetic_tqudo_tensors
-from instance_gen_process import InstanceConfig, generate_TQUDO_from_problem, generate_random_instance
+from instance_gen_process import (
+    InstanceConfig,
+    generate_TQUDO_from_problem,
+    generate_random_instance,
+)
 from instance_gen_process.models import RestrictionConfig
 
 
