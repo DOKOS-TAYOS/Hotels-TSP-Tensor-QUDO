@@ -584,7 +584,12 @@ def test_dashboard_hides_empty_optimal_panel_and_simplifies_cost_label() -> None
     )
 
     assert fig.axes[1].get_ylabel() == "Instances"
-    assert fig.axes[3].axison is False
+    assert len(fig.axes) == 3
+    assert all(ax.axison for ax in fig.axes)
+    y_positions = [ax.get_position().y0 for ax in fig.axes]
+    assert max(y_positions) - min(y_positions) < 0.05
+    x_positions = [ax.get_position().x0 for ax in fig.axes]
+    assert x_positions == sorted(x_positions)
 
 
 def test_values_outside_boxplot_whiskers_keeps_only_true_outliers() -> None:
