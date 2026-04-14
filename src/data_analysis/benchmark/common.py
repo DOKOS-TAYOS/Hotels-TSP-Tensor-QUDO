@@ -10,7 +10,7 @@ _RTOL_REAL = 1e-6
 _ATOL_REAL = 1e-8
 _LOG_Y_FLOOR = 1e-20
 # Display floor for probabilities on a log *y* axis (exact zeros are not plottable on log).
-_P_OPT_LOG_AXIS_FLOOR = 1e-4
+_P_OPT_LOG_AXIS_FLOOR = 1e-9
 
 
 def _uniform_superposition_p_opt_htsp(n_cities: int) -> float:

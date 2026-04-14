@@ -33,9 +33,7 @@ def test_tqudo_naive_matches_vectorised_random(n_qudits: int, seed: int) -> None
     es = float(rng.uniform(0.5, 2.0))
     problem = ProblemTQUDO(Etab=Etab, Ettprimeab=Ett, energy_scale=es)
 
-    seqs: list[np.ndarray] = [
-        np.array(p, dtype=np.int64) for p in itertools.permutations(range(d))
-    ]
+    seqs: list[np.ndarray] = [np.array(p, dtype=np.int64) for p in itertools.permutations(range(d))]
     for extra in _duplicate_sequences(n_qudits):
         if len(extra) == n_qudits:
             seqs.append(np.array(extra, dtype=np.int64))

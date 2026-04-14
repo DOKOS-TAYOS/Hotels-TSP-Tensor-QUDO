@@ -44,6 +44,7 @@ from conftest import zero_penalty_restriction as _zero_penalty_restriction
 # QUBO constraint penalty tests (regression for the lambda_0/2 bug)
 # ---------------------------------------------------------------------------
 
+
 class TestQUBOConstraintPenalties:
     """Verify that QUBO penalties correctly distinguish feasible from infeasible."""
 
@@ -119,7 +120,9 @@ class TestQUBOConstraintPenalties:
         x_bad[idx(0, 1, 3)] = 1
 
         gap_low = calculate_qubo_cost(qubo_low, x_bad) - calculate_qubo_cost(qubo_low, x_feasible)
-        gap_high = calculate_qubo_cost(qubo_high, x_bad) - calculate_qubo_cost(qubo_high, x_feasible)
+        gap_high = calculate_qubo_cost(qubo_high, x_bad) - calculate_qubo_cost(
+            qubo_high, x_feasible
+        )
 
         assert gap_high > gap_low > 0, (
             f"Gap should grow with lambda. low={gap_low}, high={gap_high}"
@@ -159,14 +162,15 @@ class TestQUBOConstraintPenalties:
             penalty_costs.append(calculate_qubo_cost(qubo_zero_cost, x))
 
         # All feasible permutations should have identical penalty cost
-        assert all(
-            abs(c - penalty_costs[0]) < 1e-10 for c in penalty_costs
-        ), f"Feasible permutations should have equal penalty costs, got: {penalty_costs}"
+        assert all(abs(c - penalty_costs[0]) < 1e-10 for c in penalty_costs), (
+            f"Feasible permutations should have equal penalty costs, got: {penalty_costs}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # QUBO precedence penalty tests
 # ---------------------------------------------------------------------------
+
 
 class TestQUBOPrecedencePenalty:
     """Verify that precedence penalties correctly penalize violated orderings."""
@@ -195,6 +199,7 @@ class TestQUBOPrecedencePenalty:
 # TQUDO generation tests
 # ---------------------------------------------------------------------------
 
+
 class TestTQUDOGeneration:
     """Verify TQUDO tensor construction and cost consistency."""
 
@@ -213,6 +218,7 @@ class TestTQUDOGeneration:
 
         # Test all 4! = 24 permutations of 4 available cities
         import itertools
+
         n_available = instance.n_cities - 1
         for perm in itertools.permutations(range(n_available)):
             seq = list(perm)
@@ -252,6 +258,7 @@ class TestTQUDOGeneration:
 # ---------------------------------------------------------------------------
 # QUBO feasible-route algebraic identity (decoupled from TQUDO)
 # ---------------------------------------------------------------------------
+
 
 class TestQuboFeasibleRouteAlgebraicIdentity:
     """For one-hot permutations with no precedences: QUBO = real - (λ₀+λ₁)·n_available."""
@@ -319,6 +326,7 @@ class TestQuboFeasibleRouteAlgebraicIdentity:
 # Cross-formulation consistency
 # ---------------------------------------------------------------------------
 
+
 class TestCrossFormulationConsistency:
     """Verify that QUBO and TQUDO agree on the ranking of feasible solutions."""
 
@@ -360,8 +368,7 @@ class TestCrossFormulationConsistency:
                 best_tqudo_seq = seq
 
         assert best_qubo_seq == best_tqudo_seq, (
-            f"QUBO optimal route {best_qubo_seq} differs from "
-            f"TQUDO optimal route {best_tqudo_seq}"
+            f"QUBO optimal route {best_qubo_seq} differs from TQUDO optimal route {best_tqudo_seq}"
         )
         # Both optimal routes should also be feasible
         assert validate_solution_constraints_tqudo(instance, best_tqudo_seq)
@@ -370,6 +377,7 @@ class TestCrossFormulationConsistency:
 # ---------------------------------------------------------------------------
 # Config validation regression
 # ---------------------------------------------------------------------------
+
 
 class TestConfigValidation:
     """Regression tests for config loader validation changes."""
@@ -382,13 +390,16 @@ class TestConfigValidation:
         import yaml
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump({
-                "n_cities": 2,
-                "n_precedences_range": [0, 0],
-                "prices_range_hotels": [10.0, 50.0],
-                "prices_range_travels": [10.0, 50.0],
-                "seed": 42,
-            }, f)
+            yaml.dump(
+                {
+                    "n_cities": 2,
+                    "n_precedences_range": [0, 0],
+                    "prices_range_hotels": [10.0, 50.0],
+                    "prices_range_travels": [10.0, 50.0],
+                    "seed": 42,
+                },
+                f,
+            )
             f.flush()
             with pytest.raises(ValueError, match="at least 3"):
                 load_instance_config(Path(f.name))
@@ -401,13 +412,16 @@ class TestConfigValidation:
         import yaml
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump({
-                "n_cities": 3,
-                "n_precedences_range": [0, 1],
-                "prices_range_hotels": [10.0, 50.0],
-                "prices_range_travels": [10.0, 50.0],
-                "seed": 42,
-            }, f)
+            yaml.dump(
+                {
+                    "n_cities": 3,
+                    "n_precedences_range": [0, 1],
+                    "prices_range_hotels": [10.0, 50.0],
+                    "prices_range_travels": [10.0, 50.0],
+                    "seed": 42,
+                },
+                f,
+            )
             f.flush()
             config = load_instance_config(Path(f.name))
             assert config.n_cities == 3

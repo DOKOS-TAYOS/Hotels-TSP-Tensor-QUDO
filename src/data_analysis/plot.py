@@ -41,7 +41,7 @@ _LEGACY_FLAT_FIGURE_NAMES: tuple[str, ...] = (
 
 
 def _remove_legacy_flat_figures(images_root: Path) -> None:
-    """Drop pre–subfolder PNGs at ``images/`` root so reruns do not leave stale duplicates."""
+    """Drop preâ€“subfolder PNGs at ``images/`` root so reruns do not leave stale duplicates."""
     for name in _LEGACY_FLAT_FIGURE_NAMES:
         p = images_root / name
         if p.is_file():
@@ -55,7 +55,7 @@ def _plots_data_ready(plots_data: Path) -> bool:
     paired_block = any(
         (plots_data / "dashboards" / f"{s}.parquet").is_file()
         for s in (
-            "cudaq_qubo_vs_tvirt_n5",
+            "cudaq_qubo_vs_cirq_tqudo_n5",
             "cudaq_tvirt_vs_cirq_n5",
             "cudaq_tvirt_vs_cirq_n9",
         )

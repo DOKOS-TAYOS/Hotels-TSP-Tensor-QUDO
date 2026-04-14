@@ -175,7 +175,8 @@ class _ExecutorFutureRaises:
 
 
 def test_run_cudaq_parallel_batch_future_failure_writes_error_payload(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When ``fut.result()`` raises, still write a JSON error record (regression)."""
     import experiments.cudaq_parallel as cqp
@@ -465,7 +466,8 @@ def test_run_brute_force_parallel_batch_two_instances_inline(
 
 
 def test_run_sa_parallel_batch_two_instances_inline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """simulated_annealing path with inline executor (CPU)."""
     import experiments.cudaq_parallel as cqp
@@ -1024,7 +1026,8 @@ def test_run_experiment_brute_force_parallel_path_not_used_when_workers_one(
 
 
 def test_run_experiment_sa_parallel_path_not_used_when_workers_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With cpu_max_parallel_instances=1, ProcessPoolExecutor must not start (SA)."""
     import experiments.cudaq_parallel as cqp

@@ -47,4 +47,3 @@ def test_load_settings_defaults_without_env_file() -> None:
         assert settings.random_seed == 42
     finally:
         cleanup_workspace_tmp_dir(tmp_path)
-

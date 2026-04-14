@@ -37,7 +37,9 @@ def small_instance():
 @pytest.mark.parametrize("formulation", ["tqudo", "qubo"])
 def test_estimate_returns_positive_temperature(small_instance, formulation: str):
     result = estimate_initial_temperature(
-        small_instance, formulation=formulation, seed=99,
+        small_instance,
+        formulation=formulation,
+        seed=99,
     )
     assert isinstance(result, T0EstimationResult)
     assert result.t0 > 0

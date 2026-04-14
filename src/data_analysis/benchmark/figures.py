@@ -60,7 +60,16 @@ def _plot_comparison_dashboard(
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+    if other_panels_stats_stop is not None:
+        fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
+        ax00, ax01, ax10 = axes
+        ax11 = None
+    else:
+        fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+        ax00 = axes[0, 0]
+        ax01 = axes[0, 1]
+        ax10 = axes[1, 0]
+        ax11 = axes[1, 1]
 
     if other_panels_stats_stop is not None:
         stop = int(other_panels_stats_stop)
@@ -79,7 +88,6 @@ def _plot_comparison_dashboard(
     w = 0.36
     c_opt, c_sub, c_inf = "#2ca02c", "#ffbb78", "#c7c7c7"
 
-    ax00 = axes[0, 0]
     left_opt = [float(s["left_optimal"]) for s in stats_list]
     left_sub = [float(s["left_feasible_subopt"]) for s in stats_list]
     left_inf = [float(s["left_infeasible"]) for s in stats_list]
@@ -136,7 +144,6 @@ def _plot_comparison_dashboard(
     ax00.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax00.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
 
-    ax01 = axes[0, 1]
     cl = [
         _dashboard_bar_count(
             s,
@@ -170,17 +177,13 @@ def _plot_comparison_dashboard(
     ax01.bar(x_rest + ww, ct, ww, label="Tie", color="#7f7f7f")
     ax01.set_xticks(x_rest)
     ax01.set_xticklabels(x_labels_rest)
-    ax01.set_ylabel(
-        "Instances\n(both feasible, lower real cost / tie)",
-        fontsize=AXIS_LABEL_FONTSIZE,
-    )
+    ax01.set_ylabel("Instances", fontsize=AXIS_LABEL_FONTSIZE)
     ax01.set_ylim(bottom=0)
     ax01.yaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=4))
     ax01.legend(fontsize=LEGEND_FONTSIZE_COMPACT)
     ax01.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax01.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
 
-    ax10 = axes[1, 0]
     olf = [
         _dashboard_bar_count(
             s,
@@ -213,45 +216,48 @@ def _plot_comparison_dashboard(
     ax10.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
     ax10.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
 
-    ax11 = axes[1, 1]
-    olo = [
-        _dashboard_bar_count(
-            s,
-            count_key="only_left_optimal",
-            pct_key="only_left_optimal_pct",
-            denom_key="n_paired",
-        )
-        for s in stats_rest
-    ]
-    oro = [
-        _dashboard_bar_count(
-            s,
-            count_key="only_right_optimal",
-            pct_key="only_right_optimal_pct",
-            denom_key="n_paired",
-        )
-        for s in stats_rest
-    ]
-    ax11.bar(x_rest - ww, olo, ww, label=f"{label_left} only", color="#2ca02c")
-    ax11.bar(x_rest + ww, oro, ww, label=f"{label_right} only", color="#d62728")
-    ax11.set_xticks(x_rest)
-    ax11.set_xticklabels(x_labels_rest)
-    ax11.set_ylabel(
-        "Instances\n(optimal on one side only)",
-        fontsize=AXIS_LABEL_FONTSIZE,
-    )
-    ax11.set_ylim(bottom=0)
-    ax11.yaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=4))
-    ax11.legend(fontsize=LEGEND_FONTSIZE)
-    ax11.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
-    ax11.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
+    if ax11 is not None:
+        olo = [
+            _dashboard_bar_count(
+                s,
+                count_key="only_left_optimal",
+                pct_key="only_left_optimal_pct",
+                denom_key="n_paired",
+            )
+            for s in stats_rest
+        ]
+        oro = [
+            _dashboard_bar_count(
+                s,
+                count_key="only_right_optimal",
+                pct_key="only_right_optimal_pct",
+                denom_key="n_paired",
+            )
+            for s in stats_rest
+        ]
+        if any(float(v) > 0.0 for v in olo + oro):
+            ax11.bar(x_rest - ww, olo, ww, label=f"{label_left} only", color="#2ca02c")
+            ax11.bar(x_rest + ww, oro, ww, label=f"{label_right} only", color="#d62728")
+            ax11.set_xticks(x_rest)
+            ax11.set_xticklabels(x_labels_rest)
+            ax11.set_ylabel(
+                "Instances\n(optimal on one side only)",
+                fontsize=AXIS_LABEL_FONTSIZE,
+            )
+            ax11.set_ylim(bottom=0)
+            ax11.yaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=4))
+            ax11.legend(fontsize=LEGEND_FONTSIZE)
+            ax11.set_xlabel(x_axis_label, fontsize=AXIS_LABEL_FONTSIZE)
+            ax11.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
+        else:
+            ax11.axis("off")
 
     fig.tight_layout()
     return fig
 
 
 # Strip / jitter under box patches so boxes read on top (matplotlib paints higher z-order later).
-_ZORDER_STRIP_SCATTER_POINTS = 1.0
+_ZORDER_STRIP_SCATTER_POINTS = 4.0
 _ZORDER_BOX_ARTISTS = 3.0
 
 
@@ -271,6 +277,20 @@ def _style_boxplot_patches_and_zorder(
         patch.set_alpha(face_alpha)
 
 
+def _values_outside_boxplot_whiskers(values: list[float] | np.ndarray) -> np.ndarray:
+    """Finite values strictly outside the default boxplot whiskers, preserving input order."""
+    arr = np.asarray(values, dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return arr
+    q1, q3 = np.quantile(arr, [0.25, 0.75])
+    iqr = float(q3 - q1)
+    lo = float(q1 - 1.5 * iqr)
+    hi = float(q3 + 1.5 * iqr)
+    mask = (arr < lo) | (arr > hi)
+    return arr[mask]
+
+
 def _scatter_rho_instances_jittered(
     ax: Any,
     x_center: float,
@@ -280,11 +300,10 @@ def _scatter_rho_instances_jittered(
     jitter_span: float,
     rng: np.random.Generator,
 ) -> None:
-    """Jittered semi-transparent markers so stacked :math:`\\rho=1` instances remain visible."""
+    """Jittered markers for boxplot outliers only, avoiding dense in-box visual clutter."""
     if not values:
         return
-    arr = np.asarray(values, dtype=np.float64)
-    arr = arr[np.isfinite(arr)]
+    arr = _values_outside_boxplot_whiskers(values)
     if arr.size == 0:
         return
     j = (rng.random(arr.size) - 0.5) * jitter_span
@@ -525,19 +544,24 @@ def _plot_approx_ratio_boxplots_vs_p(
     all_depths = sorted({d for _, dct in active for d in dct})
     n_s = len(active)
     r_tq = next(
-        (
-            r
-            for r, (lab, _) in enumerate(active)
-            if lab == "N-QAOA" or lab.startswith("N-QAOA")
-        ),
+        (r for r, (lab, _) in enumerate(active) if lab == "N-QAOA" or lab.startswith("N-QAOA")),
         None,
     )
     r_qb = next(
         (r for r, (lab, _) in enumerate(active) if lab == "QUBO" or lab.startswith("QUBO")),
         None,
     )
-    col_tqudo_uni = colors[(r_tq if r_tq is not None else 0) % len(colors)]
-    col_qubo_uni = colors[(r_qb if r_qb is not None else max(n_s - 1, 0)) % len(colors)]
+
+    def _series_color_for_prefix_n(prefix: str, n_value: int, *, fallback_rank: int) -> str:
+        n_token = rf"($n={n_value}$)"
+        for rank, (lab, _) in enumerate(active):
+            if lab.startswith(prefix) and n_token in lab:
+                return colors[rank % len(colors)]
+        for rank, (lab, _) in enumerate(active):
+            if lab.startswith(prefix):
+                return colors[rank % len(colors)]
+        return colors[fallback_rank % len(colors)]
+
     if_narrow = max(n_s - 1, 1)
     if n_s <= 3:
         dodge = 0.09
@@ -642,13 +666,18 @@ def _plot_approx_ratio_boxplots_vs_p(
                 y_lo = float(_P_OPT_LOG_AXIS_FLOOR)
             _, cur_hi = ax.get_ylim()
             ax.set_ylim(y_lo, cur_hi)
-    for un in uniform_p_opt_hline_ns:
+    for idx, un in enumerate(uniform_p_opt_hline_ns):
         pu = _uniform_superposition_p_opt_htsp(int(un))
         if not (np.isfinite(pu) and pu > 0.0):
             continue
+        line_color = _series_color_for_prefix_n(
+            "N-QAOA",
+            int(un),
+            fallback_rank=(r_tq if r_tq is not None else idx),
+        )
         ax.axhline(
             float(pu),
-            color=col_tqudo_uni,
+            color=line_color,
             linestyle="--",
             linewidth=1.25,
             alpha=0.9,
@@ -658,19 +687,24 @@ def _plot_approx_ratio_boxplots_vs_p(
             Line2D(
                 [0],
                 [0],
-                color=col_tqudo_uni,
+                color=line_color,
                 linestyle="--",
                 linewidth=1.25,
                 label=rf"Uniform N-QAOA $n={un}$ ($1/{un - 1}^{{{un - 1}}}$)",
             )
         )
-    for un in uniform_qubo_p_opt_hline_ns:
+    for idx, un in enumerate(uniform_qubo_p_opt_hline_ns):
         pq = _uniform_superposition_p_opt_qubo(int(un))
         if not (np.isfinite(pq) and pq > 0.0):
             continue
+        line_color = _series_color_for_prefix_n(
+            "QUBO",
+            int(un),
+            fallback_rank=(r_qb if r_qb is not None else idx),
+        )
         ax.axhline(
             float(pq),
-            color=col_qubo_uni,
+            color=line_color,
             linestyle=":",
             linewidth=1.4,
             alpha=0.95,
@@ -681,7 +715,7 @@ def _plot_approx_ratio_boxplots_vs_p(
             Line2D(
                 [0],
                 [0],
-                color=col_qubo_uni,
+                color=line_color,
                 linestyle=":",
                 linewidth=1.4,
                 label=rf"Uniform QUBO $n={un}$ ($1/2^{{{exp}}}$)",

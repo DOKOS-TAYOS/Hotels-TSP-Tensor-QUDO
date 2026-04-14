@@ -9,6 +9,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _reset_and_import(monkeypatch: pytest.MonkeyPatch):
     """Import cudaq_target and reset its module-level cache."""
     pytest.importorskip("cudaq")
@@ -75,7 +76,8 @@ class TestNoisyTarget:
     """Noisy (``noise_config.enabled=True``) target selection."""
 
     def test_gpu_trajectory_when_probe_succeeds(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """When the GPU probe succeeds, noisy mode stays on ``nvidia``."""
         cudaq_target = _reset_and_import(monkeypatch)
@@ -100,7 +102,8 @@ class TestNoisyTarget:
         assert set_target_calls == [("nvidia", "fp64")]
 
     def test_density_matrix_fallback_when_probe_fails(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """When the GPU probe fails, noisy mode falls back to ``density-matrix-cpu``."""
         cudaq_target = _reset_and_import(monkeypatch)
@@ -126,7 +129,8 @@ class TestNoisyTarget:
         assert "density-matrix-cpu" in set_target_calls
 
     def test_raises_when_probe_fails_and_density_matrix_unavailable(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """No GPU trajectory AND no density-matrix-cpu must raise."""
         cudaq_target = _reset_and_import(monkeypatch)
@@ -193,7 +197,8 @@ class TestIdempotency:
         assert call_count == 2, "set_target must be called again after reset"
 
     def test_get_current_target_reflects_state(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         cudaq_target = _reset_and_import(monkeypatch)
 
