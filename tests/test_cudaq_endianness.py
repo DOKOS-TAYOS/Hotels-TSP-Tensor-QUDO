@@ -12,7 +12,6 @@ Requires a working CUDA-Q installation with GPU access.
 
 from __future__ import annotations
 
-
 import pytest
 
 cudaq = pytest.importorskip("cudaq")
@@ -22,7 +21,7 @@ def _has_gpu() -> bool:
     """Return True if CUDA-Q can detect an NVIDIA GPU."""
     try:
         return cudaq.num_available_gpus() >= 1 and cudaq.has_target("nvidia")
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 

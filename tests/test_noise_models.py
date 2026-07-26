@@ -11,13 +11,11 @@ Covers:
 
 from __future__ import annotations
 
-
 import numpy as np
 import pytest
-
 from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
-from solvers.noise import NoiseConfig, VALID_NOISE_TYPES
 
+from solvers.noise import VALID_NOISE_TYPES, NoiseConfig
 
 # ---------------------------------------------------------------------------
 # NoiseConfig dataclass tests
@@ -159,20 +157,7 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join(
-                    [
-                        "n_instances: 1",
-                        "solver: cirq",
-                        "formulation: qubo",
-                        "optimizer: COBYLA",
-                        "noise:",
-                        "  enabled: true",
-                        "  noise_type: amplitude_damping",
-                        "  probability: 0.03",
-                        "  gate_noise:",
-                        "    x: 0.05",
-                    ]
-                ),
+                "n_instances: 1\nsolver: cirq\nformulation: qubo\noptimizer: COBYLA\nnoise:\n  enabled: true\n  noise_type: amplitude_damping\n  probability: 0.03\n  gate_noise:\n    x: 0.05",
                 encoding="utf-8",
             )
             config = load_solver_config(cfg_path)
@@ -195,14 +180,7 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join(
-                    [
-                        "n_instances: 1",
-                        "solver: cirq",
-                        "formulation: qubo",
-                        "optimizer: COBYLA",
-                    ]
-                ),
+                "n_instances: 1\nsolver: cirq\nformulation: qubo\noptimizer: COBYLA",
                 encoding="utf-8",
             )
             config = load_solver_config(cfg_path)
@@ -223,18 +201,7 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join(
-                    [
-                        "n_instances: 1",
-                        "solver: cirq",
-                        "formulation: qubo",
-                        "optimizer: COBYLA",
-                        "noise:",
-                        "  enabled: true",
-                        "  noise_type: invalid_channel",
-                        "  probability: 0.01",
-                    ]
-                ),
+                "n_instances: 1\nsolver: cirq\nformulation: qubo\noptimizer: COBYLA\nnoise:\n  enabled: true\n  noise_type: invalid_channel\n  probability: 0.01",
                 encoding="utf-8",
             )
             with pytest.raises(ValueError, match="noise.noise_type"):
@@ -249,18 +216,7 @@ class TestSolverConfigNoiseRoundTrip:
         try:
             cfg_path = tmp / "solver_config.yaml"
             cfg_path.write_text(
-                "\n".join(
-                    [
-                        "n_instances: 1",
-                        "solver: cirq",
-                        "formulation: qubo",
-                        "optimizer: COBYLA",
-                        "noise:",
-                        "  enabled: true",
-                        "  noise_type: depolarizing",
-                        "  probability: 2.5",
-                    ]
-                ),
+                "n_instances: 1\nsolver: cirq\nformulation: qubo\noptimizer: COBYLA\nnoise:\n  enabled: true\n  noise_type: depolarizing\n  probability: 2.5",
                 encoding="utf-8",
             )
             with pytest.raises(ValueError, match="noise.probability"):
@@ -528,11 +484,11 @@ class TestCirqNativeQuditNoisyRun:
     )
     def test_all_noise_types_evaluate_cost(self, noise_type: str) -> None:
         from instance_gen_process.models import ProblemTQUDO
-        from solvers.cirq_solver.qaoa_circuit_tqudo import (
-            evaluate_cost,
-            create_qaoa_circuit,
-        )
         from solvers.cirq_solver.noise_model import get_simulator
+        from solvers.cirq_solver.qaoa_circuit_tqudo import (
+            create_qaoa_circuit,
+            evaluate_cost,
+        )
 
         Etab, Ettprimeab = self._small_tensors(d=3)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
@@ -562,11 +518,11 @@ class TestCirqNativeQuditNoisyRun:
 
     def test_disabled_noise_matches_noiseless(self) -> None:
         from instance_gen_process.models import ProblemTQUDO
-        from solvers.cirq_solver.qaoa_circuit_tqudo import (
-            evaluate_cost,
-            create_qaoa_circuit,
-        )
         from solvers.cirq_solver.noise_model import get_simulator
+        from solvers.cirq_solver.qaoa_circuit_tqudo import (
+            create_qaoa_circuit,
+            evaluate_cost,
+        )
 
         Etab, Ettprimeab = self._small_tensors(d=3)
         circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(

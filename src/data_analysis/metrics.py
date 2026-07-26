@@ -391,7 +391,7 @@ def _histogram_sample_mass_split(
     for key, raw in samples.items():
         try:
             if isinstance(raw, bool):
-                raise ValueError
+                raise TypeError
             cnt = int(raw)
         except (TypeError, ValueError):
             continue
@@ -596,7 +596,11 @@ def enrich_energy_trajectory_metrics(
             continue
         n_steps = row.get("n_energy_steps")
         try:
-            n_steps_i = int(n_steps) if n_steps is not None and n_steps == n_steps else 0
+            n_steps_i = (
+                int(n_steps)
+                if n_steps is not None and not (isinstance(n_steps, float) and math.isnan(n_steps))
+                else 0
+            )
         except (TypeError, ValueError):
             n_steps_i = 0
         if n_steps_i <= 0:

@@ -157,7 +157,7 @@ def parse_solver_config_dict(data: dict[str, Any]) -> dict[str, Any]:
     if solver != "brute_force":
         _validate_cobyla_budget(qaoa_depth, qaoa_max_iter, optimizer)
 
-    from solvers.noise import NoiseConfig, NoiseModelType, VALID_NOISE_TYPES
+    from solvers.noise import VALID_NOISE_TYPES, NoiseConfig, NoiseModelType
 
     noise_data = data.get("noise") or {}
     noise_enabled = bool(noise_data.get("enabled", False))

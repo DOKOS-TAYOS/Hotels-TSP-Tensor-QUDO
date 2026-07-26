@@ -2,11 +2,11 @@
 
 import numpy as np
 import pytest
-
 from conftest import make_problem_instance as _minimal_instance
+
 from instance_gen_process.models import ProblemInstance, ProblemQUBO, ProblemTQUDO
-from utils.constraints import sequence_to_qubo_binary
 from solvers.simulated_annealing.solver import _tqudo_swap_delta
+from utils.constraints import sequence_to_qubo_binary
 from utils.costs import (
     calculate_qubo_cost,
     calculate_qubo_cost_from_sequence,

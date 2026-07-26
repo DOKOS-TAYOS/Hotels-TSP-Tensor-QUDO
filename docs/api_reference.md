@@ -17,11 +17,11 @@ Configuration for random instance generation.
 ```python
 @dataclass(frozen=True, slots=True)
 class InstanceConfig:
-    n_cities: int                              # Total cities including depot (>= 3)
-    n_precedences_range: tuple[int, int]       # [low, high] range for precedence count
-    prices_range_hotels: tuple[float, float]   # [low, high] uniform range for hotel prices
+    n_cities: int  # Total cities including depot (>= 3)
+    n_precedences_range: tuple[int, int]  # [low, high] range for precedence count
+    prices_range_hotels: tuple[float, float]  # [low, high] uniform range for hotel prices
     prices_range_travels: tuple[float, float]  # [low, high] uniform range for travel prices
-    seed: int = 42                             # Master seed for reproducibility
+    seed: int = 42  # Master seed for reproducibility
 ```
 
 #### ProblemInstance
@@ -31,11 +31,11 @@ Canonical in-memory problem representation consumed by all solvers.
 ```python
 @dataclass(frozen=True, slots=True)
 class ProblemInstance:
-    n_cities: int                                  # Total cities including depot
-    precedences: tuple[tuple[int, int], ...]       # (origin, destination) precedence pairs
-    prices_hotels: np.ndarray                      # shape (n_available, n_available)
-    prices_travels: np.ndarray                     # shape (n_cities, n_cities, n_cities)
-    seed: int = 0                                  # Seed used to generate this instance
+    n_cities: int  # Total cities including depot
+    precedences: tuple[tuple[int, int], ...]  # (origin, destination) precedence pairs
+    prices_hotels: np.ndarray  # shape (n_available, n_available)
+    prices_travels: np.ndarray  # shape (n_cities, n_cities, n_cities)
+    seed: int = 0  # Seed used to generate this instance
 ```
 
 - `n_available = n_cities - 1` (depot excluded from decision variables).
@@ -50,9 +50,9 @@ Tensor-QUDO formulation for quantum backends.
 ```python
 @dataclass(frozen=True, slots=True)
 class ProblemTQUDO:
-    Etab: np.ndarray          # 3D tensor, shape (n_available, d, d)
-    Ettprimeab: np.ndarray    # 4D tensor, shape (n_available, n_available, d, d)
-    energy_scale: float = 1.0 # Normalisation factor
+    Etab: np.ndarray  # 3D tensor, shape (n_available, d, d)
+    Ettprimeab: np.ndarray  # 4D tensor, shape (n_available, n_available, d, d)
+    energy_scale: float = 1.0  # Normalisation factor
 ```
 
 - `d = n_available` (qudit dimension). The first axis length is `n_qudits =
@@ -70,8 +70,8 @@ QUBO formulation for quantum/classical backends.
 ```python
 @dataclass(frozen=True, slots=True)
 class ProblemQUBO:
-    qubo_matrix: np.ndarray   # Symmetric, shape (n_vars, n_vars), n_vars = n_available^2
-    energy_scale: float = 1.0 # Normalisation factor
+    qubo_matrix: np.ndarray  # Symmetric, shape (n_vars, n_vars), n_vars = n_available^2
+    energy_scale: float = 1.0  # Normalisation factor
 ```
 
 - Normalised so all entries lie in `[-1, 1]`.
@@ -230,24 +230,24 @@ OptimizerType = Literal["COBYLA", "Powell", "L-BFGS-B", "SLSQP", "Nelder-Mead"]
 ```python
 @dataclass(frozen=True, slots=True)
 class SolverRunConfig:
-    max_iterations: int = 1_000              # SA max iterations
-    timeout_seconds: float | None = None     # Optional timeout
-    formulation: str = "tqudo"               # "qubo" | "tqudo" | "tqudo_virtual"
+    max_iterations: int = 1_000  # SA max iterations
+    timeout_seconds: float | None = None  # Optional timeout
+    formulation: str = "tqudo"  # "qubo" | "tqudo" | "tqudo_virtual"
     restriction_config: RestrictionConfig | None = None  # Penalty coefficients
-    qaoa_depth: int = 1                      # QAOA circuit depth (p)
-    qaoa_max_iter: int = 100                 # Optimizer max iterations
-    qaoa_shots: int = 500                    # Shots per cost evaluation
-    qaoa_sample_shots: int = 1000            # Shots for final solution sampling
-    seed: int | None = None                  # Random seed
-    optimizer: OptimizerType = "COBYLA"      # scipy optimizer method
-    delta_t: float = 0.55                    # TQA parameter scheduling scale
-    optimizer_tol: float = 1e-6              # QAOA classical optimizer tolerance
+    qaoa_depth: int = 1  # QAOA circuit depth (p)
+    qaoa_max_iter: int = 100  # Optimizer max iterations
+    qaoa_shots: int = 500  # Shots per cost evaluation
+    qaoa_sample_shots: int = 1000  # Shots for final solution sampling
+    seed: int | None = None  # Random seed
+    optimizer: OptimizerType = "COBYLA"  # scipy optimizer method
+    delta_t: float = 0.55  # TQA parameter scheduling scale
+    optimizer_tol: float = 1e-6  # QAOA classical optimizer tolerance
     noise_config: NoiseConfig = NoiseConfig()  # Noise simulation settings
-    sa_t_initial: float = 1000.0             # SA initial temperature
-    sa_t_final: float = 1e-6                 # SA final temperature
-    sa_alpha: float = 0.995                  # SA geometric cooling factor
-    brute_force_max_assignments_tqudo: int = 8**8   # brute_force: max n^n
-    brute_force_max_assignments_qubo: int = 2**30   # brute_force: max 2^n_vars
+    sa_t_initial: float = 1000.0  # SA initial temperature
+    sa_t_final: float = 1e-6  # SA final temperature
+    sa_alpha: float = 0.995  # SA geometric cooling factor
+    brute_force_max_assignments_tqudo: int = 8**8  # brute_force: max n^n
+    brute_force_max_assignments_qubo: int = 2**30  # brute_force: max 2^n_vars
 ```
 
 #### SolverResult
@@ -255,11 +255,11 @@ class SolverRunConfig:
 ```python
 @dataclass(frozen=True, slots=True)
 class SolverResult:
-    solver_name: str           # e.g. "cirq", "cudaq", "simulated_annealing", "brute_force"
-    objective_value: float     # Raw objective in original problem units
-    feasible: bool             # Whether solution satisfies all constraints
-    runtime_seconds: float     # Wall-clock time for solve()
-    metadata: dict[str, Any]   # Best sequence, energy history, angles, samples, real_cost
+    solver_name: str  # e.g. "cirq", "cudaq", "simulated_annealing", "brute_force"
+    objective_value: float  # Raw objective in original problem units
+    feasible: bool  # Whether solution satisfies all constraints
+    runtime_seconds: float  # Wall-clock time for solve()
+    metadata: dict[str, Any]  # Best sequence, energy history, angles, samples, real_cost
 ```
 
 Metadata keys (when available):
@@ -276,6 +276,7 @@ Metadata keys (when available):
 ```python
 class SolverProtocol(Protocol):
     solver_name: str
+
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult: ...
 ```
 
@@ -290,8 +291,8 @@ class SolverProtocol(Protocol):
 class NoiseConfig:
     enabled: bool = False
     noise_type: NoiseModelType = "depolarizing"
-    probability: float = 0.01           # Error probability in [0, 1]
-    gate_noise: dict[str, float] = {}   # Per-gate overrides, e.g. {"rx": 0.02}
+    probability: float = 0.01  # Error probability in [0, 1]
+    gate_noise: dict[str, float] = {}  # Per-gate overrides, e.g. {"rx": 0.02}
 ```
 
 Validates `noise_type` against `VALID_NOISE_TYPES` and all probabilities in
@@ -740,12 +741,12 @@ Raises `ValueError` if `qubo_matrix` is not square or not symmetric.
 ```python
 @dataclass(frozen=True, slots=True)
 class Settings:
-    quantum_backend: BackendName    # "simulated_annealing" | "cirq" | "cudaq"
-    output_dir: Path                # Resolved output directory
-    input_dir: Path                 # Resolved input directory
-    instance_config_path: Path      # Resolved path to config.yaml
-    enable_noise_simulation: bool   # Noise simulation kill-switch
-    random_seed: int                # Global random seed
+    quantum_backend: BackendName  # "simulated_annealing" | "cirq" | "cudaq"
+    output_dir: Path  # Resolved output directory
+    input_dir: Path  # Resolved input directory
+    instance_config_path: Path  # Resolved path to config.yaml
+    enable_noise_simulation: bool  # Noise simulation kill-switch
+    random_seed: int  # Global random seed
 ```
 
 #### load_settings

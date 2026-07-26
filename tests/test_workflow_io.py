@@ -22,9 +22,9 @@ from experiments.workflow_io import (
     solutions_raw_dir,
     solutions_solver_root,
 )
-from utils.yaml_tools import merge_solver_yaml_dicts
 from instance_gen_process.models import ProblemInstance
 from instance_gen_process.solver_config_loader import parse_solver_config_dict
+from utils.yaml_tools import merge_solver_yaml_dicts
 
 
 def test_merge_solver_yaml_dicts_restriction_and_top_level() -> None:
@@ -177,7 +177,9 @@ def test_run_check_solution_feasibility_missing_dir(tmp_path: Path) -> None:
 def test_main_requires_mode() -> None:
     from experiments import main_experiment_workflow as mew
 
-    with patch.object(sys, "argv", ["main_experiment_workflow"]):
-        with pytest.raises(SystemExit) as exc_info:
-            mew.main()
+    with (
+        patch.object(sys, "argv", ["main_experiment_workflow"]),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        mew.main()
     assert exc_info.value.code == 2

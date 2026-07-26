@@ -10,6 +10,13 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from conftest import high_penalty_restriction as _high_penalty_restriction
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+from conftest import make_problem_instance as _small_instance
+from conftest import zero_penalty_restriction as _zero_penalty_restriction
 
 from instance_gen_process.generator import (
     generate_QUBO_from_problem,
@@ -27,18 +34,6 @@ from utils.constraints import (
     validate_solution_constraints_tqudo,
 )
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-from conftest import make_problem_instance as _small_instance
-
-
-from conftest import high_penalty_restriction as _high_penalty_restriction
-from conftest import zero_penalty_restriction as _zero_penalty_restriction
-
 
 # ---------------------------------------------------------------------------
 # QUBO constraint penalty tests (regression for the lambda_0/2 bug)
@@ -384,10 +379,12 @@ class TestConfigValidation:
 
     def test_n_cities_2_rejected(self) -> None:
         """n_cities=2 should be rejected to avoid degenerate TQUDO costs."""
-        from instance_gen_process.config_loader import load_instance_config
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
         import yaml
+
+        from instance_gen_process.config_loader import load_instance_config
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -406,10 +403,12 @@ class TestConfigValidation:
 
     def test_n_cities_3_accepted(self) -> None:
         """n_cities=3 should be accepted."""
-        from instance_gen_process.config_loader import load_instance_config
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
         import yaml
+
+        from instance_gen_process.config_loader import load_instance_config
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(

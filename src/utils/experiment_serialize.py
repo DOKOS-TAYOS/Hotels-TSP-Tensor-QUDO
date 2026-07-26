@@ -6,7 +6,6 @@ from typing import Any
 
 from instance_gen_process.models import InstanceConfig, RestrictionConfig
 from solvers.base import SolverResult
-
 from utils.json_serialize import to_json_friendly
 
 

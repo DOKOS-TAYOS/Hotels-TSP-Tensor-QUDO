@@ -9,7 +9,6 @@ import yaml
 
 from instance_gen_process.models import InstanceConfig
 
-
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.yaml")
 
 

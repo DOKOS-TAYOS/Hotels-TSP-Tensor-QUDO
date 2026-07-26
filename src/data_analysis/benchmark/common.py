@@ -39,7 +39,7 @@ def _clip_values_for_log_y(
             out.append(float(floor))
             continue
         fv = float(v)
-        out.append(fv if fv > float(floor) else float(floor))
+        out.append(max(float(floor), fv))
     return out
 
 

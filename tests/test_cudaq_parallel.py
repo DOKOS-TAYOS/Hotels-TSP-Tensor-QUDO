@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from concurrent.futures import Future
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import make_problem_instance
 
 from experiments.cudaq_parallel import (
     CPU_PARALLEL_ENV,
@@ -25,7 +27,6 @@ from instance_gen_process.solver_config_loader import (
     parse_solver_config_dict,
     solver_config_to_run_config,
 )
-from conftest import make_problem_instance
 
 
 def test_compact_parallel_status_line_parses_inst_suffix() -> None:
@@ -253,7 +254,7 @@ class _InlineProcessPoolExecutor:
         fut: Future[Any] = Future()
         try:
             fut.set_result(fn(*args))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             fut.set_exception(exc)
         return fut
 
@@ -695,69 +696,19 @@ def test_run_experiment_parallel_path_not_used_when_workers_one(
 
     exp_yaml = tmp_path / "exp.yaml"
     exp_yaml.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_instances: 2",
-                "solver: cudaq",
-                "formulation: qubo",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "cudaq_max_parallel_instances: 1",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-            ]
-        ),
+        "n_cities: 5\nn_instances: 2\nsolver: cudaq\nformulation: qubo\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_shots: 4\nqaoa_sample_shots: 4\ncudaq_max_parallel_instances: 1\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0",
         encoding="utf-8",
     )
 
     base_solver = tmp_path / "base.yaml"
     base_solver.write_text(
-        "\n".join(
-            [
-                "n_instances: 2",
-                "solver: cudaq",
-                "formulation: qubo",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_delta_t: 0.55",
-                "qaoa_optimizer_tol: 1.0e-6",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "seed: 0",
-                "max_iterations: 100",
-                "timeout_seconds: null",
-                "sa_t_initial: 1000.0",
-                "sa_t_final: 1.0e-6",
-                "sa_alpha: 0.995",
-                "noise:",
-                "  enabled: false",
-            ]
-        ),
+        "n_instances: 2\nsolver: cudaq\nformulation: qubo\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_delta_t: 0.55\nqaoa_optimizer_tol: 1.0e-6\nqaoa_shots: 4\nqaoa_sample_shots: 4\nseed: 0\nmax_iterations: 100\ntimeout_seconds: null\nsa_t_initial: 1000.0\nsa_t_final: 1.0e-6\nsa_alpha: 0.995\nnoise:\n  enabled: false",
         encoding="utf-8",
     )
 
     icfg = tmp_path / "icfg.yaml"
     icfg.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_precedences_range: [0, 0]",
-                "prices_range_hotels: [1.0, 1.0]",
-                "prices_range_travels: [1.0, 1.0]",
-                "seed: 0",
-            ]
-        ),
+        "n_cities: 5\nn_precedences_range: [0, 0]\nprices_range_hotels: [1.0, 1.0]\nprices_range_travels: [1.0, 1.0]\nseed: 0",
         encoding="utf-8",
     )
 
@@ -816,69 +767,19 @@ def test_run_experiment_cirq_parallel_path_not_used_when_workers_one(
 
     exp_yaml = tmp_path / "exp.yaml"
     exp_yaml.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_instances: 2",
-                "solver: cirq",
-                "formulation: qubo",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "cpu_max_parallel_instances: 1",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-            ]
-        ),
+        "n_cities: 5\nn_instances: 2\nsolver: cirq\nformulation: qubo\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_shots: 4\nqaoa_sample_shots: 4\ncpu_max_parallel_instances: 1\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0",
         encoding="utf-8",
     )
 
     base_solver = tmp_path / "base.yaml"
     base_solver.write_text(
-        "\n".join(
-            [
-                "n_instances: 2",
-                "solver: cirq",
-                "formulation: qubo",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_delta_t: 0.55",
-                "qaoa_optimizer_tol: 1.0e-6",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "seed: 0",
-                "max_iterations: 100",
-                "timeout_seconds: null",
-                "sa_t_initial: 1000.0",
-                "sa_t_final: 1.0e-6",
-                "sa_alpha: 0.995",
-                "noise:",
-                "  enabled: false",
-            ]
-        ),
+        "n_instances: 2\nsolver: cirq\nformulation: qubo\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_delta_t: 0.55\nqaoa_optimizer_tol: 1.0e-6\nqaoa_shots: 4\nqaoa_sample_shots: 4\nseed: 0\nmax_iterations: 100\ntimeout_seconds: null\nsa_t_initial: 1000.0\nsa_t_final: 1.0e-6\nsa_alpha: 0.995\nnoise:\n  enabled: false",
         encoding="utf-8",
     )
 
     icfg = tmp_path / "icfg.yaml"
     icfg.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_precedences_range: [0, 0]",
-                "prices_range_hotels: [1.0, 1.0]",
-                "prices_range_travels: [1.0, 1.0]",
-                "seed: 0",
-            ]
-        ),
+        "n_cities: 5\nn_precedences_range: [0, 0]\nprices_range_hotels: [1.0, 1.0]\nprices_range_travels: [1.0, 1.0]\nseed: 0",
         encoding="utf-8",
     )
 
@@ -937,69 +838,19 @@ def test_run_experiment_brute_force_parallel_path_not_used_when_workers_one(
 
     exp_yaml = tmp_path / "exp.yaml"
     exp_yaml.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_instances: 2",
-                "solver: brute_force",
-                "formulation: tqudo",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "cpu_max_parallel_instances: 1",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-            ]
-        ),
+        "n_cities: 5\nn_instances: 2\nsolver: brute_force\nformulation: tqudo\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_shots: 4\nqaoa_sample_shots: 4\ncpu_max_parallel_instances: 1\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0",
         encoding="utf-8",
     )
 
     base_solver = tmp_path / "base.yaml"
     base_solver.write_text(
-        "\n".join(
-            [
-                "n_instances: 2",
-                "solver: brute_force",
-                "formulation: tqudo",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_delta_t: 0.55",
-                "qaoa_optimizer_tol: 1.0e-6",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "seed: 0",
-                "max_iterations: 100",
-                "timeout_seconds: null",
-                "sa_t_initial: 1000.0",
-                "sa_t_final: 1.0e-6",
-                "sa_alpha: 0.995",
-                "noise:",
-                "  enabled: false",
-            ]
-        ),
+        "n_instances: 2\nsolver: brute_force\nformulation: tqudo\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_delta_t: 0.55\nqaoa_optimizer_tol: 1.0e-6\nqaoa_shots: 4\nqaoa_sample_shots: 4\nseed: 0\nmax_iterations: 100\ntimeout_seconds: null\nsa_t_initial: 1000.0\nsa_t_final: 1.0e-6\nsa_alpha: 0.995\nnoise:\n  enabled: false",
         encoding="utf-8",
     )
 
     icfg = tmp_path / "icfg.yaml"
     icfg.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_precedences_range: [0, 0]",
-                "prices_range_hotels: [1.0, 1.0]",
-                "prices_range_travels: [1.0, 1.0]",
-                "seed: 0",
-            ]
-        ),
+        "n_cities: 5\nn_precedences_range: [0, 0]\nprices_range_hotels: [1.0, 1.0]\nprices_range_travels: [1.0, 1.0]\nseed: 0",
         encoding="utf-8",
     )
 
@@ -1059,69 +910,19 @@ def test_run_experiment_sa_parallel_path_not_used_when_workers_one(
 
     exp_yaml = tmp_path / "exp.yaml"
     exp_yaml.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_instances: 2",
-                "solver: simulated_annealing",
-                "formulation: qubo",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "cpu_max_parallel_instances: 1",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-            ]
-        ),
+        "n_cities: 5\nn_instances: 2\nsolver: simulated_annealing\nformulation: qubo\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_shots: 4\nqaoa_sample_shots: 4\ncpu_max_parallel_instances: 1\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0",
         encoding="utf-8",
     )
 
     base_solver = tmp_path / "base.yaml"
     base_solver.write_text(
-        "\n".join(
-            [
-                "n_instances: 2",
-                "solver: simulated_annealing",
-                "formulation: qubo",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 8",
-                "qaoa_delta_t: 0.55",
-                "qaoa_optimizer_tol: 1.0e-6",
-                "qaoa_shots: 4",
-                "qaoa_sample_shots: 4",
-                "seed: 0",
-                "max_iterations: 100",
-                "timeout_seconds: null",
-                "sa_t_initial: 1000.0",
-                "sa_t_final: 1.0e-6",
-                "sa_alpha: 0.995",
-                "noise:",
-                "  enabled: false",
-            ]
-        ),
+        "n_instances: 2\nsolver: simulated_annealing\nformulation: qubo\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0\nqaoa_depth: 1\nqaoa_max_iter: 8\nqaoa_delta_t: 0.55\nqaoa_optimizer_tol: 1.0e-6\nqaoa_shots: 4\nqaoa_sample_shots: 4\nseed: 0\nmax_iterations: 100\ntimeout_seconds: null\nsa_t_initial: 1000.0\nsa_t_final: 1.0e-6\nsa_alpha: 0.995\nnoise:\n  enabled: false",
         encoding="utf-8",
     )
 
     icfg = tmp_path / "icfg.yaml"
     icfg.write_text(
-        "\n".join(
-            [
-                "n_cities: 5",
-                "n_precedences_range: [0, 0]",
-                "prices_range_hotels: [1.0, 1.0]",
-                "prices_range_travels: [1.0, 1.0]",
-                "seed: 0",
-            ]
-        ),
+        "n_cities: 5\nn_precedences_range: [0, 0]\nprices_range_hotels: [1.0, 1.0]\nprices_range_travels: [1.0, 1.0]\nseed: 0",
         encoding="utf-8",
     )
 

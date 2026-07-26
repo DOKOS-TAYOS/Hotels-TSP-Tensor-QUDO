@@ -184,7 +184,7 @@ class TestCreateQaoaCircuit:
     @pytest.mark.parametrize("d", [2, 3, 4])
     def test_circuit_builds_without_error(self, d: int) -> None:
         Etab, Ettprimeab = _synthetic_tqudo_tensors(n_qudits=3, dimension=d)
-        circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
+        circuit, _symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
             depth=1, Etab=Etab, Ettprimeab=Ettprimeab
         )
         assert isinstance(circuit, cirq.Circuit)
@@ -210,7 +210,7 @@ class TestCreateQaoaCircuit:
     def test_circuit_simulates_without_error(self, d: int) -> None:
         """The circuit should be simulable with concrete parameters."""
         Etab, Ettprimeab = _synthetic_tqudo_tensors(n_qudits=3, dimension=d)
-        circuit, symbols, qudits, n_qudits, dimension = create_qaoa_circuit(
+        circuit, symbols, qudits, n_qudits, _dimension = create_qaoa_circuit(
             depth=1, Etab=Etab, Ettprimeab=Ettprimeab
         )
         resolver = cirq.ParamResolver(

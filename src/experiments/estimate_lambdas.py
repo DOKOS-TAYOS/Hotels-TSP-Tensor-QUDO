@@ -24,7 +24,7 @@ import multiprocessing as mp
 import os
 import statistics
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from datetime import datetime
+from datetime import UTC, datetime
 from itertools import product
 from pathlib import Path
 from typing import Any, Literal
@@ -48,7 +48,6 @@ from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
 from solvers.base import SolverProtocol, SolverRunConfig
 from solvers.brute_force import BruteForceSolver
-
 from utils.constraints import validate_solution_constraints_tqudo
 from utils.costs import calculate_real_cost
 from utils.costs_batch import unpack_tqudo_sequences
@@ -549,7 +548,7 @@ def run_lambda_sampling(
     out_root = Path(output_dir) if output_dir else Path("output/lambdasSampling")
     out_root.mkdir(parents=True, exist_ok=True)
 
-    now = datetime.now()
+    now = datetime.now(UTC)
     filename = f"lambda_grid_{now.strftime('%Y%m%d_%H%M%S')}.json"
     out_path = out_root / filename
 

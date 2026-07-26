@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import shutil
+from pathlib import Path
 from uuid import uuid4
 
 import numpy as np
 
 from instance_gen_process.models import ProblemInstance, RestrictionConfig
-
 
 # ---------------------------------------------------------------------------
 # Workspace temp directory helpers

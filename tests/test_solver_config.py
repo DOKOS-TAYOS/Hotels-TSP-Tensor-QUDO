@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
+
 from instance_gen_process import (
     load_solver_config,
     solver_config_to_run_config,
@@ -91,14 +91,7 @@ def test_load_solver_config_accepts_cudaq_tqudo_combination() -> None:
     config_path = tmp_path / "solver_config.yaml"
     try:
         config_path.write_text(
-            "\n".join(
-                [
-                    "n_instances: 1",
-                    "solver: cudaq",
-                    "formulation: tqudo",
-                    "optimizer: COBYLA",
-                ]
-            ),
+            "n_instances: 1\nsolver: cudaq\nformulation: tqudo\noptimizer: COBYLA",
             encoding="utf-8",
         )
 

@@ -213,6 +213,7 @@ All solvers implement the `SolverProtocol`:
 ```python
 class SolverProtocol(Protocol):
     solver_name: str
+
     def solve(self, instance: ProblemInstance, run_config: SolverRunConfig) -> SolverResult: ...
 ```
 

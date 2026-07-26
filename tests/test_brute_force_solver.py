@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from instance_gen_process import generate_QUBO_from_problem, generate_TQUDO_from_problem
 from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from solvers.base import SolverRunConfig
 from solvers.brute_force import BruteForceSolver
@@ -13,8 +14,6 @@ from utils.constraints import (
     validate_solution_constraints_tqudo,
 )
 from utils.costs import calculate_qubo_cost, calculate_real_cost, calculate_tqudo_cost
-
-from instance_gen_process import generate_QUBO_from_problem, generate_TQUDO_from_problem
 
 
 def _tiny_instance() -> ProblemInstance:

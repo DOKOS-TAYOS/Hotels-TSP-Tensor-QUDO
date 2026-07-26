@@ -64,16 +64,15 @@ def redirect_native_stderr_to_file(log_path: Path) -> Generator[None, None, None
     log_path.parent.mkdir(parents=True, exist_ok=True)
     stderr_fd = 2
     saved_fd = os.dup(stderr_fd)
-    log_file = open(log_path, "a", encoding="utf-8")
-    try:
-        sys.stderr.flush()
-        os.dup2(log_file.fileno(), stderr_fd)
-        sys.stderr = log_file
-        yield
-    finally:
-        sys.stderr.flush()
-        log_file.flush()
-        os.dup2(saved_fd, stderr_fd)
-        os.close(saved_fd)
-        log_file.close()
-        sys.stderr = sys.__stderr__
+    with open(log_path, "a", encoding="utf-8") as log_file:
+        try:
+            sys.stderr.flush()
+            os.dup2(log_file.fileno(), stderr_fd)
+            sys.stderr = log_file
+            yield
+        finally:
+            sys.stderr.flush()
+            log_file.flush()
+            os.dup2(saved_fd, stderr_fd)
+            os.close(saved_fd)
+            sys.stderr = sys.__stderr__

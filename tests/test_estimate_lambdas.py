@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from experiments.estimate_lambdas import (
     _build_reference_table,
     _evaluate_lambda_combo,
@@ -16,6 +15,7 @@ from experiments.estimate_lambdas import (
     _reference_min_feasible_real_cost,
     run_lambda_sampling,
 )
+from instance_gen_process.models import ProblemInstance, RestrictionConfig
 from solvers.base import SolverRunConfig
 from utils.constraints import validate_solution_constraints_tqudo
 from utils.costs import calculate_real_cost
@@ -121,34 +121,12 @@ def test_evaluate_lambda_combo_brute_force_includes_gap_fields() -> None:
 def test_run_lambda_sampling_brute_force_json_payload(tmp_path: Path) -> None:
     instance_yaml = tmp_path / "instance.yaml"
     instance_yaml.write_text(
-        "\n".join(
-            [
-                "n_cities: 3",
-                "n_precedences_range: [0, 0]",
-                "prices_range_hotels: [1.0, 10.0]",
-                "prices_range_travels: [1.0, 10.0]",
-                "seed: 0",
-            ],
-        ),
+        "n_cities: 3\nn_precedences_range: [0, 0]\nprices_range_hotels: [1.0, 10.0]\nprices_range_travels: [1.0, 10.0]\nseed: 0",
         encoding="utf-8",
     )
     solver_yaml = tmp_path / "solver.yaml"
     solver_yaml.write_text(
-        "\n".join(
-            [
-                "n_instances: 1",
-                "solver: brute_force",
-                "formulation: tqudo",
-                "optimizer: COBYLA",
-                "restriction:",
-                "  lambda_0: 100.0",
-                "  lambda_1: 100.0",
-                "  lambda_2: 100.0",
-                "qaoa_depth: 1",
-                "qaoa_max_iter: 100",
-                "seed: 0",
-            ],
-        ),
+        "n_instances: 1\nsolver: brute_force\nformulation: tqudo\noptimizer: COBYLA\nrestriction:\n  lambda_0: 100.0\n  lambda_1: 100.0\n  lambda_2: 100.0\nqaoa_depth: 1\nqaoa_max_iter: 100\nseed: 0",
         encoding="utf-8",
     )
     run_lambda_sampling(

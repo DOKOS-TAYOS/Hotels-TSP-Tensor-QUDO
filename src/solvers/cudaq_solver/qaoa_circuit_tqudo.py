@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import math
 
+import cudaq
 import numpy as np
 from scipy.optimize import minimize
 
-import cudaq
-
 from instance_gen_process.models import ProblemTQUDO
+from solvers.base import OptimizerType
 from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from solvers.cudaq_solver.noise_model import get_noise_model
 from solvers.noise import NoiseConfig
@@ -21,7 +21,6 @@ from utils.costs_batch import (
     bitstrings_to_binary_matrix,
 )
 from utils.optimizer import minimize_options
-from solvers.base import OptimizerType
 from utils.progress import reporter
 from utils.qaoa_helpers import is_power_of_two, tqa_init_params
 
@@ -105,14 +104,14 @@ def _nonzero_ett_terms(Ettprimeab: np.ndarray) -> list[tuple[int, int, int, int,
 
 
 def _apply_state_conditioned_phase(
-    kernel: "cudaq.Kernel",
-    q_full: "cudaq.QuakeValue",
+    kernel: cudaq.Kernel,
+    q_full: cudaq.QuakeValue,
     qubits_per_qudit: int,
     left_qudit: int,
     right_qudit: int,
     left_state: int,
     right_state: int,
-    angle: "float | cudaq.QuakeValue",
+    angle: float | cudaq.QuakeValue,
 ) -> None:
     """Apply a multi-controlled phase when two qudit registers match given values.
 
@@ -164,7 +163,7 @@ def create_qaoa_ansatz(
     depth: int,
     Etab: np.ndarray,
     Ettprimeab: np.ndarray,
-) -> "cudaq.Kernel":
+) -> cudaq.Kernel:
     """Build a CUDA-Q QAOA kernel for qubit-emulated Tensor QUDO.
 
     Args:
@@ -180,7 +179,7 @@ def create_qaoa_ansatz(
 
     """
     n_qudits, dimension_qudits = _validate_tqudo_shapes(Etab, Ettprimeab)
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(dimension_qudits))))
+    qubits_per_qudit = max(1, math.ceil(math.log2(dimension_qudits)))
     n_qubits_total = n_qudits * qubits_per_qudit
     etab_terms = _nonzero_etab_terms(Etab)
     ett_terms = _nonzero_ett_terms(Ettprimeab)
@@ -224,11 +223,11 @@ def create_qaoa_ansatz(
 
 def evaluate_cost(
     params: np.ndarray,
-    kernel: "cudaq.Kernel",
+    kernel: cudaq.Kernel,
     problem: ProblemTQUDO,
     depth: int,
     n_shots: int = 1000,
-    noise_model: "cudaq.NoiseModel | None" = None,
+    noise_model: cudaq.NoiseModel | None = None,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging TQUDO cost.
 
@@ -251,7 +250,7 @@ def evaluate_cost(
         sample_kwargs["noise_model"] = noise_model
     samples = cudaq.sample(kernel, gamma, beta, **sample_kwargs)
     n_qudits = problem.Etab.shape[0]
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(problem.Etab.shape[1]))))
+    qubits_per_qudit = max(1, math.ceil(math.log2(problem.Etab.shape[1])))
     pairs = list(samples.items())
     if not pairs:
         return 0.0
@@ -264,12 +263,12 @@ def evaluate_cost(
 
 
 def sample_solution(
-    kernel: "cudaq.Kernel",
+    kernel: cudaq.Kernel,
     params: np.ndarray,
     depth: int,
     n_shots: int = 1000,
-    noise_model: "cudaq.NoiseModel | None" = None,
-) -> "cudaq.SampleResult":
+    noise_model: cudaq.NoiseModel | None = None,
+) -> cudaq.SampleResult:
     """Sample bitstrings from the QAOA state at the given parameters.
 
     Args:
@@ -306,8 +305,8 @@ def optimize_qaoa(
 ) -> tuple[
     float,
     np.ndarray,
-    "cudaq.SampleResult | None",
-    "cudaq.SampleResult | None",
+    cudaq.SampleResult | None,
+    cudaq.SampleResult | None,
     float,
     list[float],
 ]:
@@ -371,7 +370,7 @@ def optimize_qaoa(
         noise_model=noise_model,
     )
 
-    initial_samples: "cudaq.SampleResult | None" = None
+    initial_samples: cudaq.SampleResult | None = None
     if sample_shots is not None:
         initial_samples = sample_solution(
             kernel,
@@ -395,7 +394,7 @@ def optimize_qaoa(
         )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    final_samples: "cudaq.SampleResult | None" = None
+    final_samples: cudaq.SampleResult | None = None
     if sample_shots is not None:
         final_samples = sample_solution(
             kernel,
@@ -446,7 +445,7 @@ def run_qaoa(
 
     """
     n_qudits = Etab.shape[0]
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
+    qubits_per_qudit = max(1, math.ceil(math.log2(Etab.shape[1])))
     n_qubits_total = n_qudits * qubits_per_qudit
 
     best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (

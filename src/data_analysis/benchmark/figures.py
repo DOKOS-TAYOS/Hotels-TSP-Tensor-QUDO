@@ -321,11 +321,11 @@ def _scatter_rho_instances_jittered(
 
 def _ylim_rho_plot(all_values: list[float], *, y_scale: str) -> tuple[float, float]:
     if not all_values:
-        return (1.0, 1.05) if y_scale == "log" else (1.0, 1.05)
+        return (1.0, 1.05)
     arr = np.asarray(all_values, dtype=np.float64)
     arr = arr[np.isfinite(arr)]
     if arr.size == 0:
-        return (1.0, 1.05) if y_scale == "log" else (1.0, 1.05)
+        return (1.0, 1.05)
     mx = float(np.max(arr))
     if y_scale == "log":
         return 1.0, max(mx * 1.12, 1.02)
@@ -590,7 +590,7 @@ def _plot_approx_ratio_boxplots_vs_p(
             continue
         if strip_jitter:
             for pos, vals in zip(positions, col_data, strict=True):
-                seed = 9001 + rank * 131 + int(round(pos * 1000)) + len(vals)
+                seed = 9001 + rank * 131 + round(pos * 1000) + len(vals)
                 _scatter_rho_instances_jittered(
                     ax,
                     pos,
@@ -605,28 +605,31 @@ def _plot_approx_ratio_boxplots_vs_p(
             widths=dodge * box_w_rel,
             patch_artist=True,
             showfliers=not strip_jitter,
-            boxprops=dict(linewidth=1.0, edgecolor=color),
-            medianprops=dict(color="black", linewidth=1.2),
-            whiskerprops=dict(color=color, linewidth=1.0),
-            capprops=dict(color=color, linewidth=1.0),
-            flierprops=dict(
-                marker="o",
-                markerfacecolor=color,
-                markersize=3,
-                alpha=0.45,
-                linestyle="none",
-            ),
+            boxprops={"linewidth": 1.0, "edgecolor": color},
+            medianprops={"color": "black", "linewidth": 1.2},
+            whiskerprops={"color": color, "linewidth": 1.0},
+            capprops={"color": color, "linewidth": 1.0},
+            flierprops={
+                "marker": "o",
+                "markerfacecolor": color,
+                "markersize": 3,
+                "alpha": 0.45,
+                "linestyle": "none",
+            },
         )
         _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
         legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label))
 
-    if ref_hline is not None and math.isfinite(float(ref_hline)):
-        if y_scale != "log" or float(ref_hline) > 0.0:
-            rlab = ref_hline_label if ref_hline_label is not None else r"$\rho = 1$"
-            ax.axhline(float(ref_hline), color="gray", linestyle="--", linewidth=1, zorder=1)
-            legend_handles.append(
-                Line2D([0], [0], color="gray", linestyle="--", linewidth=1, label=rlab)
-            )
+    if (
+        ref_hline is not None
+        and math.isfinite(float(ref_hline))
+        and (y_scale != "log" or float(ref_hline) > 0.0)
+    ):
+        rlab = ref_hline_label if ref_hline_label is not None else r"$\rho = 1$"
+        ax.axhline(float(ref_hline), color="gray", linestyle="--", linewidth=1, zorder=1)
+        legend_handles.append(
+            Line2D([0], [0], color="gray", linestyle="--", linewidth=1, label=rlab)
+        )
 
     if uniform_refs_in_ylim:
         for un in uniform_p_opt_hline_ns:
@@ -782,7 +785,7 @@ def _plot_approx_ratio_boxplots_vs_ncities(
             all_rho.extend(float(v) for v in vals if np.isfinite(v))
         if strip_jitter:
             for x_pos, vals in zip(xs, datas, strict=True):
-                seed = 4242 + i * 97 + int(round(x_pos * 1000)) + len(vals)
+                seed = 4242 + i * 97 + round(x_pos * 1000) + len(vals)
                 _scatter_rho_instances_jittered(
                     ax,
                     float(x_pos),
@@ -797,28 +800,31 @@ def _plot_approx_ratio_boxplots_vs_ncities(
             widths=box_w,
             patch_artist=True,
             showfliers=not strip_jitter,
-            boxprops=dict(linewidth=1.0, edgecolor=color),
-            medianprops=dict(color="black", linewidth=1.2),
-            whiskerprops=dict(color=color, linewidth=1.0),
-            capprops=dict(color=color, linewidth=1.0),
-            flierprops=dict(
-                marker="o",
-                markerfacecolor=color,
-                markersize=3,
-                alpha=0.45,
-                linestyle="none",
-            ),
+            boxprops={"linewidth": 1.0, "edgecolor": color},
+            medianprops={"color": "black", "linewidth": 1.2},
+            whiskerprops={"color": color, "linewidth": 1.0},
+            capprops={"color": color, "linewidth": 1.0},
+            flierprops={
+                "marker": "o",
+                "markerfacecolor": color,
+                "markersize": 3,
+                "alpha": 0.45,
+                "linestyle": "none",
+            },
         )
         _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
         legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label))
 
-    if ref_hline is not None and math.isfinite(float(ref_hline)):
-        if y_scale != "log" or float(ref_hline) > 0.0:
-            rlab = ref_hline_label if ref_hline_label is not None else r"$\rho = 1$"
-            ax.axhline(float(ref_hline), color="gray", linestyle="--", linewidth=1, zorder=1)
-            legend_handles.append(
-                Line2D([0], [0], color="gray", linestyle="--", linewidth=1, label=rlab)
-            )
+    if (
+        ref_hline is not None
+        and math.isfinite(float(ref_hline))
+        and (y_scale != "log" or float(ref_hline) > 0.0)
+    ):
+        rlab = ref_hline_label if ref_hline_label is not None else r"$\rho = 1$"
+        ax.axhline(float(ref_hline), color="gray", linestyle="--", linewidth=1, zorder=1)
+        legend_handles.append(
+            Line2D([0], [0], color="gray", linestyle="--", linewidth=1, label=rlab)
+        )
 
     ax.set_xticks([float(n) for n in n_tick_vals])
     ax.set_xticklabels([str(n) for n in n_tick_vals])
@@ -883,7 +889,7 @@ def _plot_dodged_boxplot_series_vs_ncities(
             all_y.extend(float(v) for v in vals if np.isfinite(v))
         if strip_jitter:
             for x_pos, vals in zip(xs, draw_lists, strict=True):
-                seed = 8080 + i * 97 + int(round(x_pos * 1000)) + len(vals)
+                seed = 8080 + i * 97 + round(x_pos * 1000) + len(vals)
                 _scatter_rho_instances_jittered(
                     ax,
                     float(x_pos),
@@ -898,17 +904,17 @@ def _plot_dodged_boxplot_series_vs_ncities(
             widths=box_w,
             patch_artist=True,
             showfliers=not strip_jitter,
-            boxprops=dict(linewidth=1.0, edgecolor=color),
-            medianprops=dict(color="black", linewidth=1.2),
-            whiskerprops=dict(color=color, linewidth=1.0),
-            capprops=dict(color=color, linewidth=1.0),
-            flierprops=dict(
-                marker="o",
-                markerfacecolor=color,
-                markersize=3,
-                alpha=0.45,
-                linestyle="none",
-            ),
+            boxprops={"linewidth": 1.0, "edgecolor": color},
+            medianprops={"color": "black", "linewidth": 1.2},
+            whiskerprops={"color": color, "linewidth": 1.0},
+            capprops={"color": color, "linewidth": 1.0},
+            flierprops={
+                "marker": "o",
+                "markerfacecolor": color,
+                "markersize": 3,
+                "alpha": 0.45,
+                "linestyle": "none",
+            },
         )
         _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
         legend_handles.append(Patch(facecolor=color, edgecolor=color, alpha=0.45, label=label))
@@ -1053,17 +1059,17 @@ def _plot_paired_four_series_boxplots_vs_p(
                 widths=box_w,
                 patch_artist=True,
                 showfliers=not strip_jitter,
-                boxprops=dict(linewidth=1.0, edgecolor=color),
-                medianprops=dict(color="black", linewidth=1.2),
-                whiskerprops=dict(color=color, linewidth=1.0),
-                capprops=dict(color=color, linewidth=1.0),
-                flierprops=dict(
-                    marker="o",
-                    markerfacecolor=color,
-                    markersize=3,
-                    alpha=0.45,
-                    linestyle="none",
-                ),
+                boxprops={"linewidth": 1.0, "edgecolor": color},
+                medianprops={"color": "black", "linewidth": 1.2},
+                whiskerprops={"color": color, "linewidth": 1.0},
+                capprops={"color": color, "linewidth": 1.0},
+                flierprops={
+                    "marker": "o",
+                    "markerfacecolor": color,
+                    "markersize": 3,
+                    "alpha": 0.45,
+                    "linestyle": "none",
+                },
             )
             _style_boxplot_patches_and_zorder(bp, facecolor=color, face_alpha=0.45)
 
@@ -1101,8 +1107,8 @@ def _plot_grouped_bars_mean_std(
     fig, ax = plt.subplots(figsize=(8.5, 4.8))
     x = np.arange(len(x_labels), dtype=np.float64)
     w = 0.36
-    ml = np.array([float(v) if v == v else 0.0 for v in means_left], dtype=np.float64)
-    mr = np.array([float(v) if v == v else 0.0 for v in means_right], dtype=np.float64)
+    ml = np.array([float(v) if not math.isnan(v) else 0.0 for v in means_left], dtype=np.float64)
+    mr = np.array([float(v) if not math.isnan(v) else 0.0 for v in means_right], dtype=np.float64)
     el = np.asarray(stds_left, dtype=np.float64)
     er = np.asarray(stds_right, dtype=np.float64)
     if y_scale == "log":

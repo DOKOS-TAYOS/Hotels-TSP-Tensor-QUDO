@@ -28,12 +28,10 @@ depolarizing channel is applied on the full d²-dimensional subspace:
 
 from __future__ import annotations
 
+import cirq
 import numpy as np
 
-import cirq
-
 from solvers.noise import NoiseConfig
-
 
 # ---------------------------------------------------------------------------
 # Gate class name → gate_noise key mapping.
@@ -307,7 +305,7 @@ def _make_single_qudit_channel(
 
 
 def _make_two_qudit_channel(
-    noise_type: str,  # noqa: ARG001 – kept for API symmetry
+    noise_type: str,
     dimension: int,
     probability: float,
 ) -> cirq.Gate:

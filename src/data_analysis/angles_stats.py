@@ -83,7 +83,7 @@ def cohort_angle_stats(subdf: Any) -> dict[str, Any]:
             continue
         triples.append((v, g, b))
 
-    n_runs = int(len(subdf))
+    n_runs = len(subdf)
     n_raw = len(triples)
     out: dict[str, Any] = {
         "n_runs": n_runs,

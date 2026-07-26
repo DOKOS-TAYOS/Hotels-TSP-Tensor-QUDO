@@ -34,26 +34,26 @@ inherent to the native-qudit formulation and should be evaluated experimentally.
 
 from __future__ import annotations
 
+import cirq
 import numpy as np
 import sympy
-from scipy.optimize import minimize
 from scipy.linalg import expm
-
-import cirq
+from scipy.optimize import minimize
 
 from instance_gen_process.models import ProblemTQUDO
+from solvers.base import OptimizerType
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
 from utils.costs_batch import (
     batch_tqudo_costs,
+)
+from utils.costs_batch import (
     bitstring_to_qudit_sequence as _binary_bitstring_to_qudit_sequence,
 )
 from utils.optimizer import minimize_options
-from solvers.base import OptimizerType
 from utils.progress import reporter
 from utils.qaoa_helpers import most_probable_key, tqa_init_params
-
 
 # ---------------------------------------------------------------------------
 # Custom qudit gates

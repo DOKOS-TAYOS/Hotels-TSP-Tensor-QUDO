@@ -76,7 +76,7 @@ def _stats_dashboard_left_only_from_runs(runs: Any) -> dict[str, float | int]:
     row is safe for the stacked-feasibility panel when the opposing solver has no data at
     that depth (e.g. CUDA-Q ``tqudo_virtual`` alone at :math:`p=3`, :math:`n=9`).
     """
-    n = int(len(runs))
+    n = len(runs)
     out: dict[str, float | int] = {
         "n_paired": n,
         "left_optimal": 0,
@@ -117,7 +117,7 @@ def _stats_dashboard_left_only_from_runs(runs: Any) -> dict[str, float | int]:
 
 def _stats_from_rows(merged: Any) -> dict[str, float | int]:
     """Compute dashboard metrics on inner-joined paired rows (suffixes _left / _right)."""
-    n = int(len(merged))
+    n = len(merged)
     out: dict[str, float | int] = {
         "n_paired": n,
         "left_optimal": 0,

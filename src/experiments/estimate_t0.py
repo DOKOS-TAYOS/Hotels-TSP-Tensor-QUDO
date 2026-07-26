@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +26,6 @@ from instance_gen_process import (
 )
 from instance_gen_process.models import RestrictionConfig
 from solvers.simulated_annealing import T0EstimationResult, estimate_initial_temperature
-
 from utils.experiment_serialize import serialize_instance_config, serialize_restriction_config
 
 
@@ -127,7 +126,7 @@ def run_estimation(
     out_root = Path(output_dir) if output_dir else Path("output/T0sampling")
     out_root.mkdir(parents=True, exist_ok=True)
 
-    now = datetime.now()
+    now = datetime.now(UTC)
     filename = f"t0_estimate_{now.strftime('%Y%m%d_%H%M%S')}.json"
     out_path = out_root / filename
 

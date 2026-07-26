@@ -10,47 +10,12 @@ import logging
 import signal
 import sys
 import traceback
+from collections.abc import Callable
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from instance_gen_process import (
-    generate_random_set_instances,
-    load_instance_config,
-    solver_config_to_run_config,
-    validate_solver_instance_compatibility,
-)
-from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
-from instance_gen_process.models import ProblemInstance
-from instance_gen_process.solver_config_loader import (
-    DEFAULT_SOLVER_CONFIG_PATH,
-    parse_solver_config_dict,
-)
-from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
-from solvers.brute_force import BruteForceSolver
-from solvers.base import SolverProtocol
 from config.settings import Settings, load_settings
-from utils.constraints import validate_instance_constraints
-from utils.experiment_serialize import (
-    build_solution_record,
-    serialize_instance_config,
-    serialize_solver_result,
-    solver_config_payload_dict,
-)
-from utils.yaml_tools import load_yaml_mapping, merge_solver_yaml_dicts
-from utils.cooperative_stop import (
-    SolverStopRequested,
-    clear_solver_stop_request,
-    request_solver_stop,
-)
-from utils.native_stderr import (
-    redirect_native_stderr_to_file,
-    resolve_native_stderr_log_path,
-    silence_native_stderr_requested,
-)
-from utils.output_paths import build_output_layout
-from utils.progress import reporter
-
 from experiments.parallel_solve_batch import (
     ParallelSolveJob,
     resolve_cpu_max_parallel_instances,
@@ -70,6 +35,41 @@ from experiments.workflow_io import (
     solutions_raw_dir,
     solutions_solver_root,
 )
+from instance_gen_process import (
+    generate_random_set_instances,
+    load_instance_config,
+    solver_config_to_run_config,
+    validate_solver_instance_compatibility,
+)
+from instance_gen_process.config_loader import DEFAULT_CONFIG_PATH
+from instance_gen_process.models import ProblemInstance
+from instance_gen_process.solver_config_loader import (
+    DEFAULT_SOLVER_CONFIG_PATH,
+    parse_solver_config_dict,
+)
+from solvers import CirqSolver, CudaqSolver, SimulatedAnnealingSolver
+from solvers.base import SolverProtocol
+from solvers.brute_force import BruteForceSolver
+from utils.constraints import validate_instance_constraints
+from utils.cooperative_stop import (
+    SolverStopRequested,
+    clear_solver_stop_request,
+    request_solver_stop,
+)
+from utils.experiment_serialize import (
+    build_solution_record,
+    serialize_instance_config,
+    serialize_solver_result,
+    solver_config_payload_dict,
+)
+from utils.native_stderr import (
+    redirect_native_stderr_to_file,
+    resolve_native_stderr_log_path,
+    silence_native_stderr_requested,
+)
+from utils.output_paths import build_output_layout
+from utils.progress import reporter
+from utils.yaml_tools import load_yaml_mapping, merge_solver_yaml_dicts
 
 logger = logging.getLogger(__name__)
 
@@ -119,10 +119,13 @@ def _apply_noise_kill_switch(
     settings: Settings | None,
 ) -> Any:
     """Disable noise in *run_config* when settings disable noise simulation."""
-    if settings is not None and not settings.enable_noise_simulation:
-        if run_config.noise_config.enabled:
-            silenced = dataclasses.replace(run_config.noise_config, enabled=False)
-            return dataclasses.replace(run_config, noise_config=silenced)
+    if (
+        settings is not None
+        and not settings.enable_noise_simulation
+        and run_config.noise_config.enabled
+    ):
+        silenced = dataclasses.replace(run_config.noise_config, enabled=False)
+        return dataclasses.replace(run_config, noise_config=silenced)
     return run_config
 
 

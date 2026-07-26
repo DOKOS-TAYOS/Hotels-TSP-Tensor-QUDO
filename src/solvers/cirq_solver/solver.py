@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from instance_gen_process import ProblemInstance
 from solvers._qaoa_base import BaseQAOASolver

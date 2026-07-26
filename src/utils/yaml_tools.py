@@ -17,7 +17,7 @@ def load_yaml_mapping(path: Path | str) -> dict[str, Any]:
     if data is None:
         return {}
     if not isinstance(data, dict):
-        raise ValueError(f"Expected YAML mapping at {p}, got {type(data).__name__}")
+        raise TypeError(f"Expected YAML mapping at {p}, got {type(data).__name__}")
     return data
 
 

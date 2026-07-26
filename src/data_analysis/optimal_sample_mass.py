@@ -97,7 +97,7 @@ def native_histogram_key(sequence: list[int]) -> str:
 def virtual_histogram_key(sequence: list[int], n_cities: int) -> str:
     """V-QAOA / ``tqudo_virtual`` sample histogram key: contiguous 0/1 string."""
     d = n_cities - 1
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(float(d)))))
+    qubits_per_qudit = max(1, math.ceil(math.log2(float(d))))
     return qudit_sequence_to_bitstring(sequence, qubits_per_qudit)
 
 

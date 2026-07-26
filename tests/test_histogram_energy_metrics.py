@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 
 from data_analysis.metrics import (
+    _histogram_sample_mass_split,
     first_step_within_epsilon_of_ref,
     normalized_energy_auc,
-    _histogram_sample_mass_split,
 )
 from data_analysis.optimal_sample_mass import (
     histogram_key_hamming_distance,

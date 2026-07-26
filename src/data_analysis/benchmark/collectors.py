@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from data_analysis._deps import coerce_bool_scalar
+from data_analysis.benchmark.common import _mask_qaoa_depth_eq
+from data_analysis.benchmark.pairing import _dedupe_solution_rows, is_optimal_vs_ref
 from data_analysis.metrics import (
     first_optimizer_step_reaching_min_energy,
     read_energy_history_from_solution_json,
@@ -18,8 +21,6 @@ from data_analysis.optimal_sample_mass import (
     load_bruteforce_optimal_sequence,
     read_sample_histograms_from_solution_json,
 )
-from data_analysis.benchmark.common import _mask_qaoa_depth_eq
-from data_analysis.benchmark.pairing import _dedupe_solution_rows, is_optimal_vs_ref
 
 
 def float_metric_from_paired_column(col: str) -> Any:
@@ -473,8 +474,14 @@ def _collect_numeric_by_ncities_depth(
             collected: list[float] = []
             for _, row in sel.iterrows():
                 v = value_fn(row, output_root, formulation, bf_cache)
-                if v is not None and v == v:
-                    collected.append(float(v))
+                if v is None:
+                    continue
+                try:
+                    vf = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isnan(vf):
+                    collected.append(vf)
             if not collected:
                 continue
             a = np.asarray(collected, dtype=np.float64)
@@ -538,9 +545,14 @@ def _collect_numeric_box_series_vs_ncities(
             collected: list[float] = []
             for _, row in sel.iterrows():
                 v = value_fn(row, output_root, formulation, bf_cache)
-                if v is None or v != v:
+                if v is None:
                     continue
-                vf = float(v)
+                try:
+                    vf = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if math.isnan(vf):
+                    continue
                 if np.isfinite(vf):
                     collected.append(vf)
             if not collected:
@@ -558,7 +570,7 @@ def pd_notna_n(x: Any) -> bool:
         xf = float(x)
     except (TypeError, ValueError):
         return False
-    return xf == xf and abs(xf) < 1e100
+    return not math.isnan(xf) and abs(xf) < 1e100
 
 
 def _collect_energy_improvement_box_series_vs_ncities(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from typing import Any
 
 
@@ -11,9 +12,8 @@ def to_json_friendly(obj: Any) -> Any:
 
     Non-finite floats become ``None`` (JSON has no NaN/inf).
     """
-    if isinstance(obj, float):
-        if obj != obj or obj == float("inf") or obj == float("-inf"):
-            return None
+    if isinstance(obj, float) and (math.isnan(obj) or obj == float("inf") or obj == float("-inf")):
+        return None
     if isinstance(obj, (int, float, str, bool, type(None))):
         return obj
     if isinstance(obj, list):

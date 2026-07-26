@@ -19,18 +19,12 @@ from data_analysis.benchmark.collectors import (
     _delta_p_opt_from_row,
     _metric_lists_by_depth_unpaired,
     _opt_steps_values_cell,
-    _paired_delta_p_opt_lists_by_depth,
     _p_opt_final_from_row,
     _p_opt_lists_by_depth_unpaired,
+    _paired_delta_p_opt_lists_by_depth,
     _step_lists_to_depth_dict,
     float_metric_from_paired_column,
     pd_notna_n,
-)
-from data_analysis.benchmark.plot_serde import (
-    write_box_vs_p_long,
-    write_dashboard_stats,
-    write_paired_four_vs_p,
-    write_triplet_series_long,
 )
 from data_analysis.benchmark.common import _mask_qaoa_depth_eq
 from data_analysis.benchmark.pairing import (
@@ -39,9 +33,14 @@ from data_analysis.benchmark.pairing import (
     _stats_dashboard_left_only_from_runs,
     _stats_from_rows,
 )
+from data_analysis.benchmark.plot_serde import (
+    write_box_vs_p_long,
+    write_dashboard_stats,
+    write_paired_four_vs_p,
+    write_triplet_series_long,
+)
 from data_analysis.energy_plots import write_energy_history_plot_tables
 from utils.output_paths import build_output_layout
-
 
 _PAIRED_DEDUPE_KEYS: list[str] = [
     "n_cities",

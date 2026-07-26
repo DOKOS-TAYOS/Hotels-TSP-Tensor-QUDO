@@ -124,17 +124,13 @@ class BruteForceSolver:
                     best_cost = cost
                     best_seq = seq_list
 
-                if validate_solution_constraints_tqudo(instance, seq_list):
-                    if (
-                        best_feasible_seq is None
-                        or cost < best_feasible_cost
-                        or (
-                            cost == best_feasible_cost
-                            and _lex_less_seq(seq_list, best_feasible_seq)
-                        )
-                    ):
-                        best_feasible_cost = cost
-                        best_feasible_seq = seq_list
+                if validate_solution_constraints_tqudo(instance, seq_list) and (
+                    best_feasible_seq is None
+                    or cost < best_feasible_cost
+                    or (cost == best_feasible_cost and _lex_less_seq(seq_list, best_feasible_seq))
+                ):
+                    best_feasible_cost = cost
+                    best_feasible_seq = seq_list
 
         assert best_seq is not None
         feasible = validate_solution_constraints_tqudo(instance, best_seq)
@@ -191,14 +187,13 @@ class BruteForceSolver:
                     best_i = i
 
                 row = x_batch[j]
-                if validate_solution_constraints_qubo(instance, row):
-                    if (
-                        best_feasible_i is None
-                        or cost < best_feasible_cost
-                        or (cost == best_feasible_cost and i < best_feasible_i)
-                    ):
-                        best_feasible_cost = cost
-                        best_feasible_i = i
+                if validate_solution_constraints_qubo(instance, row) and (
+                    best_feasible_i is None
+                    or cost < best_feasible_cost
+                    or (cost == best_feasible_cost and i < best_feasible_i)
+                ):
+                    best_feasible_cost = cost
+                    best_feasible_i = i
 
         assert best_i is not None
         v = best_i

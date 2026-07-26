@@ -49,10 +49,7 @@ def validate_instance_constraints(instance: ProblemInstance) -> bool:
         if a == b:
             return False
 
-    if _has_cycle(instance.precedences, n_available):
-        return False
-
-    return True
+    return not _has_cycle(instance.precedences, n_available)
 
 
 def _has_cycle(

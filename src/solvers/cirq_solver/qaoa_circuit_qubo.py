@@ -6,21 +6,20 @@ and samples solutions. Mirrors the CUDA-Q implementation.
 
 from __future__ import annotations
 
+import cirq
 import numpy as np
 import sympy
 from scipy.optimize import minimize
 
-import cirq
-
 from math_utils.qubo_ising import qubo_to_ising
+from solvers.base import OptimizerType
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
+from utils.costs_batch import batch_qubo_costs
 from utils.optimizer import minimize_options
-from solvers.base import OptimizerType
 from utils.progress import reporter
 from utils.qaoa_helpers import bitstring_to_binary, most_probable_key, tqa_init_params
-from utils.costs_batch import batch_qubo_costs
 
 
 def _coerce_real_expectation(values: list[complex] | np.ndarray, imag_tol: float = 1e-9) -> float:
@@ -266,7 +265,7 @@ def optimize_qaoa(
         ``sample_shots`` is None.
 
     """
-    h, j_matrix, offset = qubo_to_ising(qubo_matrix)
+    h, j_matrix, _offset = qubo_to_ising(qubo_matrix)
     n = len(h)
     qubits = list(cirq.LineQubit.range(n))
     circuit, symbols = create_qaoa_circuit(depth, h, j_matrix, qubits)

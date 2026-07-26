@@ -112,13 +112,13 @@ def run_benchmark_plots_from_disk(plots_data: Path, images_dir: Path) -> None:
         if tplot == "approx_ratio_ncities":
             fig = _plot_approx_ratio_boxplots_vs_ncities(
                 triple,
-                n_tick_vals=list(int(x) for x in n_tick),
+                n_tick_vals=[int(x) for x in n_tick],
                 **kw,
             )
         else:
             fig = _plot_dodged_boxplot_series_vs_ncities(
                 triple,
-                n_tick_vals=list(int(x) for x in n_tick),
+                n_tick_vals=[int(x) for x in n_tick],
                 **kw,
             )
         fig.savefig(dest / f"{stem}.png", dpi=150)

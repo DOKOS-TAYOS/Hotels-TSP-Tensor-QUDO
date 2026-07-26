@@ -28,7 +28,6 @@ import cirq
 
 from solvers.noise import NoiseConfig
 
-
 _CHANNEL_FACTORIES: dict[str, Callable[[float], cirq.Gate]] = {
     "depolarizing": lambda p: cirq.depolarize(p=p),
     "amplitude_damping": lambda p: cirq.amplitude_damp(gamma=p),

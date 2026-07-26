@@ -1,7 +1,8 @@
 """Tests for runtime settings loading."""
 
-from config import load_settings
 from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
+
+from config import load_settings
 
 
 def test_load_settings_from_env_file() -> None:
@@ -9,16 +10,7 @@ def test_load_settings_from_env_file() -> None:
     env_path = tmp_path / ".env"
     try:
         env_path.write_text(
-            "\n".join(
-                [
-                    "HTSP_QUANTUM_BACKEND=cirq",
-                    "HTSP_OUTPUT_DIR=output",
-                    "HTSP_INPUT_DIR=input_data",
-                    "HTSP_INSTANCE_CONFIG=configs/instance.yaml",
-                    "HTSP_ENABLE_NOISE_SIMULATION=true",
-                    "HTSP_RANDOM_SEED=7",
-                ]
-            ),
+            "HTSP_QUANTUM_BACKEND=cirq\nHTSP_OUTPUT_DIR=output\nHTSP_INPUT_DIR=input_data\nHTSP_INSTANCE_CONFIG=configs/instance.yaml\nHTSP_ENABLE_NOISE_SIMULATION=true\nHTSP_RANDOM_SEED=7",
             encoding="utf-8",
         )
 

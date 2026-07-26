@@ -21,22 +21,22 @@ import re
 import shutil
 import threading
 import traceback
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, CancelledError, Future, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
 from queue import Empty
-from typing import Any, Callable
+from typing import Any
 
+from experiments.workflow_io import load_problem_instance_json, serialize_problem_instance
 from solvers.base import SolverRunConfig
-
 from utils.experiment_serialize import build_solution_record, serialize_solver_result
 from utils.native_stderr import (
     redirect_native_stderr_to_file,
     resolve_native_stderr_log_path,
     silence_native_stderr_requested,
 )
-from experiments.workflow_io import load_problem_instance_json, serialize_problem_instance
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def _compact_parallel_status_line(
     else:
         active = "[]"
     line = f"{status_prefix} active_inst={active} writes={n_finished}/{total}"
-    if len(line) > max_columns and max_columns >= 16:
+    if len(line) > max_columns >= 16:
         return line[: max_columns - 3] + "..."
     return line
 
@@ -181,7 +181,7 @@ def _parallel_solve_one_worker(job: ParallelSolveJob) -> tuple[int, dict[str, An
             try:
                 instance = load_problem_instance_json(src)
                 inst_dict = serialize_problem_instance(instance)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 inst_dict = {}
             payload = build_solution_record(
                 instance=inst_dict,
@@ -205,7 +205,7 @@ def _payload_from_future_failure(job: ParallelSolveJob, exc_tb: str) -> dict[str
     try:
         instance = load_problem_instance_json(Path(job.instance_json_path))
         inst_dict = serialize_problem_instance(instance)
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return build_solution_record(
         instance=inst_dict,
@@ -364,7 +364,7 @@ def run_parallel_solve_batch(
             stop_event.set()
             pump_queue()
             display_thread.join(timeout=2.0)
-            print("", flush=True)
+            print(flush=True)
             if executor is not None and not interrupted:
                 executor.shutdown(wait=True)
 

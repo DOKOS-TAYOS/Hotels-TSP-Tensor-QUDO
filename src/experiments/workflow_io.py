@@ -9,7 +9,6 @@ from typing import Any
 import numpy as np
 
 from instance_gen_process.models import InstanceConfig, ProblemInstance
-
 from utils.experiment_paths import (
     instance_json_path,
     instances_raw_dir,
@@ -109,14 +108,14 @@ def load_problem_instance_json(path: Path | str) -> ProblemInstance:
         Reconstructed instance.
 
     Raises:
-        ValueError: If the file does not contain a JSON object.
+        TypeError: If the file does not contain a JSON object.
 
     """
     p = Path(path)
     with open(p, encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
-        raise ValueError(f"Expected JSON object in {p}")
+        raise TypeError(f"Expected JSON object in {p}")
     return deserialize_problem_instance(data)
 
 

@@ -9,26 +9,25 @@ from __future__ import annotations
 
 import logging
 
+import cudaq
 import numpy as np
+from cudaq import spin
 from scipy.optimize import minimize
 
-import cudaq
-from cudaq import spin
-
 from math_utils.qubo_ising import qubo_to_ising
-from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from solvers.base import OptimizerType
+from solvers.cudaq_solver.cudaq_target import ensure_cudaq_target
 from solvers.cudaq_solver.noise_model import get_noise_model
-from utils.qaoa_helpers import bitstring_to_binary, tqa_init_params
 from solvers.noise import NoiseConfig
 from utils.costs_batch import batch_qubo_costs, bitstrings_to_binary_matrix
 from utils.optimizer import minimize_options
 from utils.progress import reporter
+from utils.qaoa_helpers import bitstring_to_binary, tqa_init_params
 
 logger = logging.getLogger(__name__)
 
 
-def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> "cudaq.SpinOperator":
+def ising_to_spin_op(h: np.ndarray, j_matrix: np.ndarray) -> cudaq.SpinOperator:
     """Build a CUDA-Q spin_op from Ising coefficients (h, J).
 
     Maps s_i to Pauli Z_i (eigenvalue +1 for |0>, -1 for |1>).
@@ -63,7 +62,7 @@ def create_qaoa_ansatz(
     depth: int,
     h_arr: np.ndarray,
     j_matrix: np.ndarray,
-) -> "cudaq.Kernel":
+) -> cudaq.Kernel:
     """Create the QAOA ansatz kernel for given (h, J).
 
     The kernel prepares
@@ -137,11 +136,11 @@ def create_qaoa_ansatz(
 
 def evaluate_cost(
     params: np.ndarray,
-    kernel: "cudaq.Kernel",
+    kernel: cudaq.Kernel,
     qubo_matrix: np.ndarray,
     depth: int,
     n_shots: int = 500,
-    noise_model: "cudaq.NoiseModel | None" = None,
+    noise_model: cudaq.NoiseModel | None = None,
 ) -> float:
     """Evaluate the QAOA cost by sampling and averaging QUBO cost.
 
@@ -177,12 +176,12 @@ def evaluate_cost(
 
 
 def sample_solution(
-    kernel: "cudaq.Kernel",
+    kernel: cudaq.Kernel,
     params: np.ndarray,
     depth: int,
     n_shots: int = 1000,
-    noise_model: "cudaq.NoiseModel | None" = None,
-) -> "cudaq.SampleResult":
+    noise_model: cudaq.NoiseModel | None = None,
+) -> cudaq.SampleResult:
     """Sample bitstrings from the QAOA state at the given parameters.
 
     Args:
@@ -219,8 +218,8 @@ def optimize_qaoa(
 ) -> tuple[
     float,
     np.ndarray,
-    "cudaq.SampleResult | None",
-    "cudaq.SampleResult | None",
+    cudaq.SampleResult | None,
+    cudaq.SampleResult | None,
     float,
     list[float],
 ]:
@@ -257,7 +256,7 @@ def optimize_qaoa(
     if seed is not None:
         cudaq.set_random_seed(seed)
 
-    h, j_matrix, offset = qubo_to_ising(qubo_matrix)
+    h, j_matrix, _offset = qubo_to_ising(qubo_matrix)
     kernel = create_qaoa_ansatz(depth, h, j_matrix)
     noise_model = get_noise_model(noise_config)
 
@@ -287,7 +286,7 @@ def optimize_qaoa(
         noise_model=noise_model,
     )
 
-    initial_samples: "cudaq.SampleResult | None" = None
+    initial_samples: cudaq.SampleResult | None = None
     if sample_shots is not None:
         initial_samples = sample_solution(
             kernel,
@@ -311,7 +310,7 @@ def optimize_qaoa(
         )
     best_params = opt_result.x
     best_energy = float(opt_result.fun)
-    final_samples: "cudaq.SampleResult | None" = None
+    final_samples: cudaq.SampleResult | None = None
     if sample_shots is not None:
         final_samples = sample_solution(
             kernel,

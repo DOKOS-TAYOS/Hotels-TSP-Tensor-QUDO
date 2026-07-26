@@ -9,13 +9,13 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+import cirq
 import numpy as np
 import sympy
 from scipy.optimize import minimize
 
-import cirq
-
 from instance_gen_process.models import ProblemTQUDO
+from solvers.base import OptimizerType
 from solvers.cirq_solver.noise_model import get_simulator
 from solvers.noise import NoiseConfig
 from utils.cooperative_stop import raise_if_solver_stop_requested
@@ -25,7 +25,6 @@ from utils.costs_batch import (
     bitstring_to_qudit_sequence,
 )
 from utils.optimizer import minimize_options
-from solvers.base import OptimizerType
 from utils.progress import reporter
 from utils.qaoa_helpers import is_power_of_two, most_probable_key, tqa_init_params
 
@@ -90,7 +89,7 @@ def create_qaoa_circuit(
             f"{dimension_qudits}) to be a power of two. Use the native-qudit "
             f"backend (qaoa_circuit_tqudo) for arbitrary dimensions."
         )
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(dimension_qudits))))
+    qubits_per_qudit = max(1, math.ceil(math.log2(dimension_qudits)))
     n_qubits_total = n_qudits * qubits_per_qudit
 
     qubits = list(cirq.LineQubit.range(n_qubits_total))
@@ -423,7 +422,7 @@ def run_qaoa(
 
     """
     n_qudits = Etab.shape[0]
-    qubits_per_qudit = max(1, int(math.ceil(math.log2(Etab.shape[1]))))
+    qubits_per_qudit = max(1, math.ceil(math.log2(Etab.shape[1])))
     n_qubits_total = n_qudits * qubits_per_qudit
 
     best_energy, best_params, initial_samples, final_samples, initial_energy, energy_history = (

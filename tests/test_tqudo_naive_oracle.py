@@ -6,9 +6,9 @@ import itertools
 
 import numpy as np
 import pytest
+from oracles import tqudo_cost_naive_loops
 
 from instance_gen_process.models import ProblemTQUDO
-from oracles import tqudo_cost_naive_loops
 from utils.costs import calculate_tqudo_cost
 
 

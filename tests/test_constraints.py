@@ -1,8 +1,8 @@
 """Tests for solution constraint validators (T-QUDO and QUBO)."""
 
 import numpy as np
-
 from conftest import make_problem_instance
+
 from instance_gen_process.models import ProblemInstance
 from utils.constraints import (
     idx,

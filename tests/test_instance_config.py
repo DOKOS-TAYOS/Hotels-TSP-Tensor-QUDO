@@ -1,8 +1,8 @@
 """Tests for instance config loading and generation."""
 
 import pytest
-
 from conftest import cleanup_workspace_tmp_dir, workspace_tmp_dir
+
 from instance_gen_process import generate_random_instance, load_instance_config
 
 
@@ -11,15 +11,7 @@ def test_load_instance_config_and_generate() -> None:
     config_path = tmp_path / "config.yaml"
     try:
         config_path.write_text(
-            "\n".join(
-                [
-                    "n_cities: 5",
-                    "n_precedences_range: [2, 5]",
-                    "prices_range_hotels: [30., 150.]",
-                    "prices_range_travels: [30., 150.]",
-                    "seed: 123",
-                ]
-            ),
+            "n_cities: 5\nn_precedences_range: [2, 5]\nprices_range_hotels: [30., 150.]\nprices_range_travels: [30., 150.]\nseed: 123",
             encoding="utf-8",
         )
 
@@ -47,15 +39,7 @@ def test_load_instance_config_rejects_n_cities_below_two() -> None:
     config_path = tmp_path / "config.yaml"
     try:
         config_path.write_text(
-            "\n".join(
-                [
-                    "n_cities: 1",
-                    "n_precedences_range: [0, 1]",
-                    "prices_range_hotels: [30., 150.]",
-                    "prices_range_travels: [30., 150.]",
-                    "seed: 123",
-                ]
-            ),
+            "n_cities: 1\nn_precedences_range: [0, 1]\nprices_range_hotels: [30., 150.]\nprices_range_travels: [30., 150.]\nseed: 123",
             encoding="utf-8",
         )
 
@@ -70,15 +54,7 @@ def test_load_instance_config_rejects_precedence_upper_bound_above_maximum() -> 
     config_path = tmp_path / "config.yaml"
     try:
         config_path.write_text(
-            "\n".join(
-                [
-                    "n_cities: 5",
-                    "n_precedences_range: [2, 7]",
-                    "prices_range_hotels: [30., 150.]",
-                    "prices_range_travels: [30., 150.]",
-                    "seed: 123",
-                ]
-            ),
+            "n_cities: 5\nn_precedences_range: [2, 7]\nprices_range_hotels: [30., 150.]\nprices_range_travels: [30., 150.]\nseed: 123",
             encoding="utf-8",
         )
 
@@ -93,15 +69,7 @@ def test_load_instance_config_accepts_valid_precedence_upper_bound_edge_case() -
     config_path = tmp_path / "config.yaml"
     try:
         config_path.write_text(
-            "\n".join(
-                [
-                    "n_cities: 5",
-                    "n_precedences_range: [0, 6]",
-                    "prices_range_hotels: [30., 150.]",
-                    "prices_range_travels: [30., 150.]",
-                    "seed: 123",
-                ]
-            ),
+            "n_cities: 5\nn_precedences_range: [0, 6]\nprices_range_hotels: [30., 150.]\nprices_range_travels: [30., 150.]\nseed: 123",
             encoding="utf-8",
         )
 
@@ -119,15 +87,7 @@ def test_load_instance_config_accepts_fixed_ranges_for_deterministic_experiments
     config_path = tmp_path / "config.yaml"
     try:
         config_path.write_text(
-            "\n".join(
-                [
-                    "n_cities: 5",
-                    "n_precedences_range: [2, 2]",
-                    "prices_range_hotels: [30., 30.]",
-                    "prices_range_travels: [40., 40.]",
-                    "seed: 123",
-                ]
-            ),
+            "n_cities: 5\nn_precedences_range: [2, 2]\nprices_range_hotels: [30., 30.]\nprices_range_travels: [40., 40.]\nseed: 123",
             encoding="utf-8",
         )
 

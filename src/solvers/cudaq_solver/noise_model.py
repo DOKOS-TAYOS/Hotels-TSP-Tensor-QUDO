@@ -23,7 +23,6 @@ import cudaq
 
 from solvers.noise import NoiseConfig
 
-
 # Gate names that typically receive single-qubit noise.
 # You can extend this list to cover more gates as needed.
 _DEFAULT_SINGLE_QUBIT_GATES: tuple[str, ...] = (

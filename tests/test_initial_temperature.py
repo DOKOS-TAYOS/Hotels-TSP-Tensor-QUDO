@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from conftest import make_problem_instance
+
 from instance_gen_process.generator import generate_random_instance
 from instance_gen_process.models import InstanceConfig
 from solvers.simulated_annealing import T0EstimationResult, estimate_initial_temperature
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
