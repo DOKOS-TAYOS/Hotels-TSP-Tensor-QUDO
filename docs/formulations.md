@@ -2,7 +2,7 @@
 
 Mathematical formulations for the Hotel TSP problem in Tensor-QUDO and QUBO form.
 
-Reference: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958).
+Reference: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958). See also [`CITATION.cff`](../CITATION.cff).
 
 ## Conventions
 

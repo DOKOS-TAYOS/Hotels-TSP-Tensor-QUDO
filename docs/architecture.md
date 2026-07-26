@@ -260,7 +260,9 @@ All QAOA implementations follow the same high-level structure:
 6. **Optimise** gamma/beta parameters via `scipy.optimize.minimize`.
 
 Initial parameters use TQA (Trotterized Quantum Annealing) scheduling:
-`gamma_i = (i/p) * delta_t`, `beta_i = (1 - i/p) * delta_t`.
+`gamma_i = (i/p) * delta_t`, `beta_i = (1 - i/p) * delta_t`
+(Sack & Serbyn, *Quantum* **5**, 491, 2021; [doi:10.22331/q-2021-07-01-491](https://doi.org/10.22331/q-2021-07-01-491);
+default `delta_t = 0.55` as in their random-graph heuristic).
 
 ### Cirq QUBO
 

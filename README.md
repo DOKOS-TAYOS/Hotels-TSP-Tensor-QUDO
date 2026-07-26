@@ -13,6 +13,7 @@ to be in city B, you must first have been in city A.
 
 Formulation reference: [Introduction to QUDO, Tensor QUDO and HOBO formulations](https://arxiv.org/abs/2508.01958) (arXiv:2508.01958).
 Cost equations: see [docs/formulations.md](docs/formulations.md).
+Cite this repository and paper via [`CITATION.cff`](CITATION.cff).
 
 **Platform:** Linux only. CUDA-Q and the project tooling are not supported on Windows or macOS. WSL2 works for development.
 
@@ -130,3 +131,15 @@ See [docs/configuration.md](docs/configuration.md) for full reference.
 - `output/images/`: PNG figures from `data_analysis.plot`, which renders from `processed/plots_data/` (subfolders: `energy_history/`, `dashboards/`, `approx_ratio/`, `steps/`, `improvement/`, `p_opt/`) and writes `extended/` from `processed/*.parquet` (see `docs/data_analysis.md`).
 
 Placeholders may be committed; bulk generated files are typically gitignored.
+
+## References
+
+Methods used by the solvers (not third-party code copies):
+
+- **TQA QAOA init** (`qaoa_delta_t`, default `0.55`): Sack, S. H. & Serbyn, M. (2021). *Quantum annealing initialization of the quantum approximate optimization algorithm*. Quantum 5, 491. [doi:10.22331/q-2021-07-01-491](https://doi.org/10.22331/q-2021-07-01-491) ([arXiv:2101.05742](https://arxiv.org/abs/2101.05742)).
+- **SA initial temperature** (`estimate_t0` / Ben-Ameur): Ben-Ameur, W. (2004). *Computing the Initial Temperature of Simulated Annealing*. Computational Optimization and Applications 29(3), 369–385. [doi:10.1023/B:COAP.0000044187.23143.bd](https://doi.org/10.1023/B:COAP.0000044187.23143.bd).
+- **Formulation paper**: Mata Ali, A. (2025). arXiv:2508.01958 — see [`CITATION.cff`](CITATION.cff).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Third-party dependency notices: [`THIRD_PARTY_LICENSES`](THIRD_PARTY_LICENSES).

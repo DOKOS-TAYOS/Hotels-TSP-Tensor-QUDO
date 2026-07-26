@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: If you use this software or the associated paper, please cite it using these metadata.
+title: "Hotels-TSP-Tensor-QUDO"
+type: software
+authors:
+  - family-names: Lusso
+    given-names: Adriano
+  - family-names: Mata Ali
+    given-names: Alejandro
+    email: alejandro.mata.ali@gmail.com
+    affiliation: "Instituto Tecnológico de Castilla y León, Burgos, Spain"
+license: MIT
+version: 0.3.0
+repository-code: "https://github.com/DOKOS-TAYOS/Hotels-TSP-Tensor-QUDO"
+url: "https://arxiv.org/abs/2508.01958"
+abstract: >-
+  Research scaffold for Hotel Traveling Salesman Problem optimization with
+  Tensor-QUDO and QUBO formulations, solved with QAOA (Cirq, CUDA-Q) and
+  simulated annealing. Accompanied by the formulation paper arXiv:2508.01958.
+keywords:
+  - quantum optimization
+  - QAOA
+  - QUDO
+  - Tensor-QUDO
+  - QUBO
+  - traveling salesman problem
+  - simulated annealing
+identifiers:
+  - type: other
+    value: "arXiv:2508.01958"
+    description: arXiv preprint identifier
+  - type: doi
+    value: 10.48550/arXiv.2508.01958
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Mata Ali
+      given-names: Alejandro
+  title: "Introduction to QUDO, Tensor QUDO and HOBO formulations: Qudits, Equivalences, Knapsack Problem, Traveling Salesman Problem and Combinatorial Games"
+  year: 2025
+  doi: 10.48550/arXiv.2508.01958
+  url: "https://arxiv.org/abs/2508.01958"
+  identifiers:
+    - type: other
+      value: "arXiv:2508.01958"
+      description: arXiv preprint identifier

@@ -151,7 +151,7 @@ Non-empty env vars `HTSP_CUDAQ_MAX_PARALLEL_INSTANCES` and `HTSP_CPU_MAX_PARALLE
 |--------------------|-------|---------|----------------------------------------------------------------|
 | `qaoa_depth`       | int   | `1`     | >= 1 (circuit depth `p`)                                       |
 | `qaoa_max_iter`    | int   | `100`   | >= 1; for COBYLA must be >= `2 * qaoa_depth + 2`               |
-| `qaoa_delta_t`     | float | `0.55`  | > 0 — TQA initial γ/β scale (`SolverRunConfig.delta_t`)          |
+| `qaoa_delta_t`     | float | `0.55`  | > 0 — TQA initial γ/β scale (`SolverRunConfig.delta_t`; Sack & Serbyn 2021) |
 | `qaoa_optimizer_tol` | float | `1e-6` | > 0 — SciPy `minimize` tolerance for QAOA angles               |
 | `qaoa_shots`       | int   | `500`   | >= 1 (shots per objective evaluation)                          |
 | `qaoa_sample_shots`| int   | `1000`  | >= 1 (shots for final solution sampling)                       |
@@ -279,6 +279,8 @@ object and automatically applied when computing costs.
 - `sa_alpha` close to 1 (e.g. 0.999) gives slower cooling and better
   exploration but longer runtime.
 - `sa_t_initial` should be high enough that most uphill moves are accepted
-  initially.
+  initially. Estimate it with `python -m experiments.estimate_t0` (Ben-Ameur
+  2004 iterative procedure for a target acceptance ratio χ₀;
+  [doi:10.1023/B:COAP.0000044187.23143.bd](https://doi.org/10.1023/B:COAP.0000044187.23143.bd)).
 - `sa_t_final` should be low enough that only downhill moves are accepted
   at convergence.
