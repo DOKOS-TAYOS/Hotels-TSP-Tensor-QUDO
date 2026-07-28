@@ -3,13 +3,7 @@ name: CI
 on:
   push:
     branches: ["main"]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,3 +36,27 @@ jobs:
 
       - name: Pytest
         run: pytest
+
+  required-pr-ci:
+    name: ${{ github.event_name == 'pull_request' && 'required-pr-ci' || 'push-ci-summary' }}
+    if: ${{ always() }}
+    needs:
+      - lint-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Validate required jobs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          LINT_AND_TEST_RESULT: ${{ needs['lint-and-test'].result }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${LINT_AND_TEST_RESULT}" != "success" ]]; then
+            echo "Required job lint-and-test finished with '${LINT_AND_TEST_RESULT}', expected success."
+            exit 1
+          fi
+
+          echo "All required jobs passed."
